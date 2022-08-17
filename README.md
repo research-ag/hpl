@@ -48,7 +48,7 @@ TBD
 ## Architecture
 
 <p align="center">
-    <img src=".github/assets/context.drawio.png" alt="Context diagram" style="width: 100%"/>
+    <img src=".github/assets/context.drawio.png" alt="Context diagram"/>
     <br/><span style="font-style: italic">context diagram</span>
 </p>
 
@@ -67,7 +67,7 @@ With **HPL**, registered principals can initiate, process and confirm multi-toke
 
 ---
 <p align="center">
-    <img src=".github/assets/container.drawio.png" alt="Container diagram" style="width: 100%"/>
+    <img src=".github/assets/container.drawio.png" alt="Container diagram"/>
     <br/><span style="font-style: italic">container diagram</span>
 </p>
 
@@ -103,7 +103,7 @@ TODO add links to API when documented
 13. **A** and **B** can query **G** about the status of transfer (processing, success, failed)
 
 <p align="center">
-    <img src=".github/assets/flow.drawio.png" alt="Container diagram" style="width: 100%"/>
+    <img src=".github/assets/flow.drawio.png" alt="Container diagram"/>
 </p>
 
 ## Deployment

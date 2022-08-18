@@ -25,7 +25,7 @@
 
 ## About
 
-The goal is to design and demonstrate a ledger on the IC that can handle 10,000 transactions per second which are submitted individually by different end users via ingress messages. The number of ingress messages that the consensus mechanism of a single subnet can process is only in the order of 1,000 per second and is in fact rate limited by boundary nodes to 400 per second. Therefore, to get to the desired throughput we need to utilize 25 subnets.
+The goal is to design and demonstrate a ledger on the IC(https://internetcomputer.org/) that can handle 10,000 transactions per second which are submitted individually by different end users via ingress messages. The number of ingress messages that the consensus mechanism of a single subnet can process is only in the order of 1,000 per second and is in fact rate limited by boundary nodes to a lower number (maybe around 400 per second). Therefore, to get to the desired throughput we plan to utilize 25 subnets.
 
 The approach we take is based on the assumption that consensus is indeed the bottleneck and that computation and memory are not bottlenecks. Our approach has a single ledger canister which stores all account balances and settles all transactions. Transactions are not submitted to the ledger directly, though. Instead, end users submit their transactions to aggregators of which there are 25, all on different subnets. Aggregators batch up the transactions and forward them in batches to the ledger. The bottleneck is now the block space available for incoming cross-subnet messages on the subnet that hosts the ledger. If the size of a simple transfer is 100 bytes then each aggregator submits 40kB of data per second to the ledger. For all aggregators combined this occupies 1 MB of block space per second.
 
@@ -39,7 +39,15 @@ We do not expect the ledger to be able to store the history of transactions, but
 
 ## Features
 
-TBD
+The ledger is a multi-token ledger. This means that multiple tokens, differentiated from each other by a token id, can be hosted on the same ledger canister.
+
+All transfers need to be explicitly accepted by all parties involved, even the receiver. There are no deposits into arbitrary accounts without approval of the receiver.
+
+Multiple token flows can happen atomically in a single transfer.
+
+More than two parties can be part of a single transfer and all have to approve.
+
+Any party can initiate the transfer: the sender, the receiver or even a third-party. The initiator is paying the fee.
 
 ## API
 
@@ -79,9 +87,9 @@ With **HPL**, registered principals can initiate, process and confirm multi-toke
     - sending batched prepared transfers to the **Ledger**
     - receiving confirmation from the **ledger** for each transfer
     - serving transfer status to principals
-- **Ledger** canister has the complete token ledger. It is the single source of truth on account balances. It settles all transfers. It cannot be called directly by principals. The ledger is responsible for:
+- **Ledger** canister has the complete token ledger. It is the single source of truth on account balances. It settles all transfers. It cannot be called directly by principals in relation to individual transfers, only in relation to accounts. The ledger is responsible for:
   - receiving batched transfers from aggregators
-  - validation of each transfer
+  - validation and execution of each transfer
   - save all account balances
   - save latest transfers
 
@@ -100,7 +108,8 @@ TODO add links to API when documented
 10. At the next heartbeat, **G** sends a batch of transfers in a single cross-canister call to the ledger **L**
 11. **L** processes the transfers in the batch in order, i.e. executes the transfer if valid and discards it if invalid
 12. **L** returns the list of successfully executed transfer ids to **G**
-13. **A** and **B** can query **G** about the status of transfer (processing, success, failed)
+13. **L** returns error codes for failed transfer ids to **G**
+14. **A** and **B** can query **G** about the status of a transfer id (processing, success, failed)
 
 <p align="center">
     <img src=".github/assets/flow.drawio.png" alt="Container diagram"/>

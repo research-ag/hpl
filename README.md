@@ -76,39 +76,74 @@ Any party can initiate the transfer: the sender, the receiver or even a third-pa
 
 ### Data Types
 
-```
-type TokenId = nat;
-```
+#### Exposed data types
 
+Id of token, e.g. currency
+```motoko
+type TokenId = Nat;
 ```
-type TransferId = record { nat; nat };
+---
+Balances are Nats in the smallest unit of the token.
+```motoko
+type Balance = Nat;
 ```
-
+---
+Subaccount ids are issued in consecutive order, without gaps, starting with 0. Extending the range of subaccount ids is an infrequent administrative action on the ledger carried out by the owner principal of the subaccounts.
+```motoko
+type SubaccountId = Nat;
 ```
+---
+Id of transfer, issued by aggregator
+```motoko
+type TransferId = record { Nat; Nat };
+```
+---
+```motoko
 type Transfer = vec [Part];
 ```
-
-```
+---
+```motoko
 type Part = record {
   owner : principal;
   flows : vec Flow;
   memo : opt blob
 };
 ```
-
-```
+---
+```motoko
 type Flow = record {
   token : TokenId;
-  subaccount : nat;
-  amount : int;
+  subaccount : Nat;
+  amount : Int;
 };
+```
+
+#### Internal Data types
+A pack of pending transfers
+```motoko
+type Batch = vec Transfer;
+```
+---
+The account balances of one owner and one token are stored in an array of Nats. The array index is the subaccount id. This makes it easy to directly address each balance. When new subaccounts are opened then the array will be copied into a new, larger one. This is ok as it is an infrequent action and should be possible even if a principal has a million subaccounts. Owners are tracked via a “short id” which is a Nat.
+```motoko
+type OwnerBalances = [Balance];
+```
+---
+The map from principal to short id is stored in a single RBTree:
+```motoko
+let owners = RBTree<Principal, OwnerId>(Principal.compare);
+```
+---
+The account balances of all owners of one token are stored in a TrieMap.
+```motoko
+type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 ```
 
 ### Ledger API
 
 - #### Get number of aggregators
 
-  **Endpoint**: `nAggregators: () -> (nat) query;`
+  **Endpoint**: `nAggregators: () -> (Nat) query;`
 
   **Authorization**: `public`
 
@@ -116,15 +151,15 @@ type Flow = record {
 
 - #### Get aggregator principal
 
-  **Endpoint**: `aggregatorPrincipal: (nat) -> (principal) query;`
+  **Endpoint**: `aggregatorPrincipal: (Nat) -> (principal) query;`
 
   **Authorization**: `public`
 
-  **Description**: returns principal of selected aggregator. Provided `nat` is an index and has to be in range `0..{nAggregators-1}`
+  **Description**: returns principal of selected aggregator. Provided `Nat` is an index and has to be in range `0..{nAggregators-1}`
 
 - #### Get number of open subaccounts
 
-  **Endpoint**: `nAccounts: (TokenId) -> (nat) query;`
+  **Endpoint**: `nAccounts: (TokenId) -> (Nat) query;`
 
   **Authorization**: `account owner`
 
@@ -132,7 +167,7 @@ type Flow = record {
 
 - #### Open new subaccount
 
-  **Endpoint**: `openNewAccounts: (TokenId, nat) -> (nat);`
+  **Endpoint**: `openNewAccounts: (TokenId, Nat) -> (SubaccountId);`
 
   **Authorization**: `account owner`
 
@@ -140,7 +175,7 @@ type Flow = record {
 
 - #### Check balance
 
-  **Endpoint**: `balance: (TokenId, nat) -> (nat) query;`
+  **Endpoint**: `balance: (TokenId, SubaccountId) -> (Balance) query;`
 
   **Authorization**: `account owner`
 
@@ -148,7 +183,7 @@ type Flow = record {
 
 - #### Process Batch
 
-  **Endpoint**: `processBatch: (Batch) -> (vec TransferId, nat);`
+  **Endpoint**: `processBatch: (Batch) -> (vec TransferId, Nat);`
 
   **Authorization**: `cross-canister call from aggregator`
 

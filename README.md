@@ -51,10 +51,151 @@ Any party can initiate the transfer: the sender, the receiver or even a third-pa
 
 ## API
 
-TBD
+- [Terminology](#terminology)
+- [Data Types](#data-types)
+- [Ledger API](#ledger-api)
+  - [Get number of aggregators](#get-number-of-aggregators)
+  - [Get aggregator principal](#get-aggregator-principal)
+  - [Get number of open subaccounts](#get-number-of-open-subaccounts)
+  - [Open new subaccount](#open-new-subaccount)
+  - [Check balance](#check-balance)
+  - [Process Batch](#process-batch)
+- [Aggregator API](#aggregator-api)
+  - [Initialize transfer](#initialize-transfer)
+  - [Accept transfer](#accept-transfer)
+  - [Reject transfer](#reject-transfer)
+  - [Get transfer status](#get-transfer-status)
+
+### Terminology
+
+**Canister** - conceptual computational unit, executes program in the Internet Computer blockchain [Read More](https://wiki.internetcomputer.org/wiki/Canisters_(dapps/smart_contracts))
+
+**Principal** - an identifier for an entity on the IC such as a user, a canister (dapps/smart contracts), or a subnet. [Read More](https://wiki.internetcomputer.org/wiki/Principal)
+
+**Subaccount** - essentially a wallet, owned by one principal and containing one type of tokens. Client principal can have many subaccounts with different and/or the same tokens 
+
+### Data Types
+
+```
+type TokenId = nat;
+```
+
+```
+type TransferId = record { nat; nat };
+```
+
+```
+type Transfer = vec [Part];
+```
+
+```
+type Part = record {
+  owner : principal;
+  flows : vec Flow;
+  memo : opt blob
+};
+```
+
+```
+type Flow = record {
+  token : TokenId;
+  subaccount : nat;
+  amount : int;
+};
+```
+
+### Ledger API
+
+- #### Get number of aggregators
+
+  **Endpoint**: `nAggregators: () -> (nat) query;`
+
+  **Authorization**: `public`
+
+  **Description**: returns amount of running aggregator canisters
+
+- #### Get aggregator principal
+
+  **Endpoint**: `aggregatorPrincipal: (nat) -> (principal) query;`
+
+  **Authorization**: `public`
+
+  **Description**: returns principal of selected aggregator. Provided `nat` is an index and has to be in range `0..{nAggregators-1}`
+
+- #### Get number of open subaccounts
+
+  **Endpoint**: `nAccounts: (TokenId) -> (nat) query;`
+
+  **Authorization**: `account owner`
+
+  **Description**: returns the number of open subaccounts for the caller and provided token
+
+- #### Open new subaccount
+
+  **Endpoint**: `openNewAccounts: (TokenId, nat) -> (nat);`
+
+  **Authorization**: `account owner`
+
+  **Description**: opens n new subaccounts for the caller and token t. It returns the index of the first new subaccount in the newly created range
+
+- #### Check balance
+
+  **Endpoint**: `balance: (TokenId, nat) -> (nat) query;`
+
+  **Authorization**: `account owner`
+
+  **Description**: returns wallet balance for provided token and subaccount number
+
+- #### Process Batch
+
+  **Endpoint**: `processBatch: (Batch) -> (vec TransferId, nat);`
+
+  **Authorization**: `cross-canister call from aggregator`
+
+  **Description**: processes a batch of newly created transfers. Returns statuses and/or error codes
+
+### Aggregator API
+
+- #### Initialize transfer
+
+  **Endpoint**: `request: (Transfer) -> (variant { Ok: TransferId ; Err });`
+
+  **Authorization**: `account owner`
+
+  **Description**: initializes transfer: saves it to memory and waits when some principal call `accept` or `reject` on it. *TODO probably should be automatically rejected with some timeout if no one accepted*
+
+- #### Accept transfer
+
+  **Endpoint**: `accept: (TransferId) -> (variant { Ok; Err });`
+
+  **Authorization**: `account owner`
+
+  **Description**: accepts transfer by its id
+
+- #### Reject transfer
+
+  **Endpoint**: `reject: (TransferId) -> (variant { Ok; Err });`
+
+  **Authorization**: `account owner`
+
+  **Description**: rejects transfer by its id
+
+- #### Get transfer status
+
+  **Endpoint**: `transfer_details: (TransferId) -> (variant { Ok: Transfer; Err }) query;`
+
+  **Authorization**: `account owner`
+
+  **Description**: get status of transfer or error code
 
 ## Architecture
 
+- [Context](#context-diagram)
+  - [High-level user story](#high-level-user-story)
+- [Containers](#containers-diagram)
+  - [Low-level user story](#low-level-user-story)
+    
+### Context Diagram
 <p align="center">
     <img src=".github/assets/context.drawio.png" alt="Context diagram"/>
     <br/><span style="font-style: italic">context diagram</span>
@@ -62,18 +203,18 @@ TBD
 
 With **HPL**, registered principals can initiate, process and confirm multi-token transfers. **HPL** charges fee for transfer
 
-**Note**: Accounts for principals need to be explicitly opened by the owner.
-
 ### High-level user story:
 
-1. Registered **HPL** principals **A** and **B** communicate directly to agree on the transfer details and on who initiates the transfer  (say **A**). 
-2. **A** creates transfer on **HPL** and receives generated **transferId** as response
-3. **A** sends **transferId** to **B** directly
-4. **B** calls **HPL** with **tranferId** to accept the transfer
-5. **HPL** asynchronously processes the transfer
-6. **A** and **B** can query HPL about the status of transfer (processing, success, failed)
+1. Principals **A** and **B** are registering themselves in **HLS**
+2. Principals communicate directly to agree on the transfer details and on who initiates the transfer  (say **A**). 
+3. **A** creates transfer on **HPL** and receives generated **transferId** as response
+4. **A** sends **transferId** to **B** directly
+5. *B** calls **HPL** with **transferId** to accept the transfer
+6. **HPL** asynchronously processes the transfer
+7. **A** and **B** can query HPL about the status of transfer (processing, success, failed)
 
 ---
+### Containers diagram
 <p align="center">
     <img src=".github/assets/container.drawio.png" alt="Container diagram"/>
     <br/><span style="font-style: italic">container diagram</span>
@@ -90,26 +231,27 @@ With **HPL**, registered principals can initiate, process and confirm multi-toke
 - **Ledger** canister has the complete token ledger. It is the single source of truth on account balances. It settles all transfers. It cannot be called directly by principals in relation to individual transfers, only in relation to accounts. The ledger is responsible for:
   - receiving batched transfers from aggregators
   - validation and execution of each transfer
-  - save all account balances
-  - save latest transfers
+  - saving all account balances
+  - saving latest transfers
+  - providing list of available aggregators
 
 ### Low-level user story:
-TODO add links to API when documented
 
-1. Registered **HPL** principals **A** and **B** communicate directly to agree on the transfer details and on who initiates the transfer  (say **A**).
-2. **A** chooses aggregator **G**
-3. **A** calls a function on **G** with the transfer details
-4. **G** charges **A** a fee for storing a pending transfer, aborts if charging the fee fails
-5. **G** generates a **transferId** and stores the pending transfer under this id
-6. **G** returns **transferId** to **A** as response
-7. **A** sends **transferId** to **B** directly
-8. **B** calls **G** with **tranferId** to accept the transfer
-9. **G** puts the transfer in the next batch
-10. At the next heartbeat, **G** sends a batch of transfers in a single cross-canister call to the ledger **L**
-11. **L** processes the transfers in the batch in order, i.e. executes the transfer if valid and discards it if invalid
-12. **L** returns the list of successfully executed transfer ids to **G**
-13. **L** returns error codes for failed transfer ids to **G**
-14. **A** and **B** can query **G** about the status of a transfer id (processing, success, failed)
+1. Principals **A** and **B** register themselves by [calling](#open-new-subaccount) ledger **L** API
+2. **L** creates accounts for newly registered principals
+3. **A** and **B** communicate directly to agree on the transfer details and on who initiates the transfer  (say **A**).
+4. **A** [queries](#get-number-of-aggregators) available aggregators from **L** and chooses aggregator **G**
+5. **A** calls a [function](#initialize-transfer) on **G** with the transfer details
+6. **G** generates a **transferId** and stores the pending transfer under this id
+7. **G** returns **transferId** to **A** as response
+8. **A** sends **transferId** and **G** principal to **B** directly
+9. **B** [calls](#accept-transfer) **G** with **transferId** to accept the transfer
+10. **G** puts the transfer in the next batch
+11. At the next heartbeat, **G** sends a batch of transfers in a single cross-canister [call](#process-batch) to the ledger **L**
+12. **L** processes the transfers in the batch in order, i.e. executes the transfer if valid and discards it if invalid
+13. **L** returns the list of successfully executed transfer ids to **G**
+14. **L** returns error codes for failed transfer ids to **G**
+15. **A** and **B** can [query](#get-transfer-status) **G** about the status of a transfer id (processing, success, failed)
 
 <p align="center">
     <img src=".github/assets/flow.drawio.png" alt="Container diagram"/>

@@ -82,26 +82,26 @@ Id of token, e.g. currency
 ```motoko
 type TokenId = Nat;
 ```
----
+
 Balances are Nats in the smallest unit of the token.
 ```motoko
 type Balance = Nat;
 ```
----
+
 Subaccount ids are issued in consecutive order, without gaps, starting with 0. Extending the range of subaccount ids is an infrequent administrative action on the ledger carried out by the owner principal of the subaccounts.
 ```motoko
 type SubaccountId = Nat;
 ```
----
+
 Id of transfer, issued by aggregator
 ```motoko
 type TransferId = record { Nat; Nat };
 ```
----
+
 ```motoko
 type Transfer = vec [Part];
 ```
----
+
 ```motoko
 type Part = record {
   owner : principal;
@@ -109,7 +109,7 @@ type Part = record {
   memo : opt blob
 };
 ```
----
+
 ```motoko
 type Flow = record {
   token : TokenId;
@@ -123,17 +123,17 @@ A pack of pending transfers
 ```motoko
 type Batch = vec Transfer;
 ```
----
+
 The account balances of one owner and one token are stored in an array of Nats. The array index is the subaccount id. This makes it easy to directly address each balance. When new subaccounts are opened then the array will be copied into a new, larger one. This is ok as it is an infrequent action and should be possible even if a principal has a million subaccounts. Owners are tracked via a “short id” which is a Nat.
 ```motoko
 type OwnerBalances = [Balance];
 ```
----
+
 The map from principal to short id is stored in a single RBTree:
 ```motoko
 let owners = RBTree<Principal, OwnerId>(Principal.compare);
 ```
----
+
 The account balances of all owners of one token are stored in a TrieMap.
 ```motoko
 type TokenBalances = TrieMap<OwnerId, OwnerBalances>;

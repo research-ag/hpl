@@ -129,11 +129,6 @@ The account balances of one owner and one token are stored in an array of Nats. 
 type OwnerBalances = [Balance];
 ```
 
-The map from principal to short id is stored in a single RBTree:
-```motoko
-let owners = RBTree<Principal, OwnerId>(Principal.compare);
-```
-
 The account balances of all owners of one token are stored in a TrieMap.
 ```motoko
 type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
@@ -229,6 +224,9 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
   - [High-level user story](#high-level-user-story)
 - [Containers](#containers-diagram)
   - [Low-level user story](#low-level-user-story)
+- [Data structures](#data-structures)
+  - [Ledger](#ledger)
+  - [Aggregator](#aggregator)
     
 ### Context Diagram
 <p align="center">
@@ -291,6 +289,51 @@ With **HPL**, registered principals can initiate, process and confirm multi-toke
 <p align="center">
     <img src=".github/assets/flow.drawio.png" alt="Container diagram"/>
 </p>
+
+### Data Structures
+
+#### Ledger
+The account balances of one owner and one token are stored in an array of Nats. The array index is the subaccount id. This makes it easy to directly address each balance. When new subaccounts are opened then the array will be copied into a new, larger one. This is ok as it is an infrequent action and should be possible even if a principal has a million subaccounts.
+
+```motoko
+type OwnerBalances = [Balance];
+```
+
+Owners are tracked via a “short id” which is a Nat.
+
+```motoko
+type OwnerId = Nat;
+```
+
+The map from principal to short id is stored in a single `RBTree`:
+
+```motoko
+let owners = RBTree<Principal, OwnerId>(Principal.compare);
+```
+
+The account balances of all owners of one token are stored in a `TrieMap`.
+
+```motoko
+type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
+```
+
+The reason is that for a given token not all owner ids have a balance. If all owners had balances in a given token then we could use an `Array` or `Buffer` here.
+
+The balances for all owners and all tokens are stored in a single array:
+```motoko
+var balances : [TokenBalances] = …;
+```
+The index is the token id. When a new token id is created that array is copied into a new larger array. That is ok because it happens infrequently and the length of the array (number of tokens) is relatively small. The array contains pointers to TrieMaps, so just the pointers will get copied to a new, larger array.
+
+A particular balance is accessed as
+
+```motoko
+balances[token_id].get(owner_id)[subaccount_id]
+```
+
+#### Aggregator
+
+*TODO*
 
 ## Deployment
 

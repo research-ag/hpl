@@ -93,7 +93,7 @@ Subaccount ids are issued in consecutive order, without gaps, starting with 0. E
 type SubaccountId = Nat;
 ```
 
-Id of transfer, issued by aggregator
+Id of transfer, issued by aggregator. The first nat specifies the aggregator who issued the transfer id. The second nat is a locally unique value chosen by the aggregator.
 ```motoko
 type TransferId = record { Nat; Nat };
 ```
@@ -333,7 +333,27 @@ balances[token_id].get(owner_id)[subaccount_id]
 
 #### Aggregator
 
-*TODO*
+The main concern of aggregator is potential situation that it has too many approved transfers: we limit `Batch` size so aggregator should be able to handle case when it has more newly approved transfers than batch limit between ticks.
+To avoid this, we could use [FIFO queue](https://github.com/o0x/motoko-queue) data structure for saving approved transfers. In this case we will transmit to ledger older transfers and keep newer in the queue, waiting for next tick:
+```motoko
+import Queue "Queue";
+
+var approvedTransfers: Queue.Queue<Transfer> = Queue.nil();
+```
+
+Pending transfers are being saved to `TrieMap` structure. As a key we use second `Nat` from `TransferId`, since we do not care about aggregator identifier at this step. When rejecting/accepting transfer, we remove transfer from this map and add it to `approvedTransfers` queue
+```motoko
+var pendingTrasfers: TrieMap<Nat, Transfer> = ...;
+```
+
+But with this structure the logic to automatically reject old non-approved transfer could be tricky. So additionally we add TrieMap of pending transfer id-s, where key is principal id, value is a linked list of id-s of pending transfer, initiated by this principal. This will allow us to limit pending transfers per user: if he already has, let's say, 100 pending transfers and tries to create a new one, we automatically reject the oldest one (first in linked list). When rejecting/accepting transfer, we will acquire principal id from `Transfer` (field `owner`) object and remove appropriate transfer id from it
+
+
+```motoko
+var pendingPrincipalTransfers: TrieMap<PrincipalId, LinkedList<Nat>>
+```
+
+
 
 ## Deployment
 

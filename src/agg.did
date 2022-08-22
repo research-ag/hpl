@@ -1,0 +1,23 @@
+// Aggregator
+type TokenId = nat;
+type Transfer = vec Part;
+type Part = record { 
+	owner : principal; 
+	flows : vec Flow;
+	memo : opt blob
+};
+type Flow = record {
+	token : TokenId;
+	account : nat;
+	amount : int;
+};
+type TransferId = record { nat; nat };
+
+service : {
+	request: (Transfer) -> (variant { Ok: TransferId ; Err });
+	accept: (TransferId) -> (variant { Ok; Err });
+	reject: (TransferId) -> (variant { Ok; Err });
+
+	// queries
+	transfer_details: (TransferId) -> (variant { Ok: Transfer; Err }) query;
+}

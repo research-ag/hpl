@@ -1,0 +1,31 @@
+// Ledger
+type TokenId = nat;
+type AggregatorId = nat;
+type Batch = vec Transfer; 
+type Transfer = vec Part;
+type Part = record { 
+	owner : principal; 
+	flows : vec Flow;
+	memo : opt blob
+};
+type Flow = record {
+	token : TokenId;
+	account : nat;
+	amount : int;
+};
+type TransferId = nat;
+
+service : {
+	// public
+	nAggregators: () -> (nat) query;
+	aggregatorPrincipal: (AggregatorId) -> (principal) query;
+
+	// caller is account owner	
+    nAccounts: (TokenId) -> (nat) query;
+	openNewAccounts: (TokenId, nat) -> (nat);
+	balance: (TokenId, nat) -> (nat) query;
+
+	// caller is aggregator
+	processBatch: (Batch) -> (vec TransferId, nat);
+}
+

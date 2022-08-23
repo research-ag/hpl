@@ -80,26 +80,31 @@ Any party can initiate the transfer: the sender, the receiver or even a third-pa
 
 Id of token, e.g. currency
 ```motoko
-type TokenId = Nat;
+type TokenId = nat;
+```
+
+Id of aggregator
+```motoko
+type AggregatorId = nat;
 ```
 
 Balances are Nats in the smallest unit of the token.
 ```motoko
-type Balance = Nat;
+type Balance = nat;
 ```
 
 Subaccount ids are issued in consecutive order, without gaps, starting with 0. Extending the range of subaccount ids is an infrequent administrative action on the ledger carried out by the owner principal of the subaccounts.
 ```motoko
-type SubaccountId = Nat;
+type SubaccountId = nat;
 ```
 
 Id of transfer, issued by aggregator. The first nat specifies the aggregator who issued the transfer id. The second nat is a locally unique value chosen by the aggregator.
 ```motoko
-type TransferId = record { Nat; Nat };
+type TransferId = record { nat; nat };
 ```
 
 ```motoko
-type Transfer = vec [Part];
+type Transfer = vec Part;
 ```
 
 ```motoko
@@ -113,8 +118,8 @@ type Part = record {
 ```motoko
 type Flow = record {
   token : TokenId;
-  subaccount : Nat;
-  amount : Int;
+  subaccount : nat;
+  amount : int;
 };
 ```
 
@@ -138,7 +143,7 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 
 - #### Get number of aggregators
 
-  **Endpoint**: `nAggregators: () -> (Nat) query;`
+  **Endpoint**: `nAggregators: () -> (nat) query;`
 
   **Authorization**: `public`
 
@@ -146,27 +151,27 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 
 - #### Get aggregator principal
 
-  **Endpoint**: `aggregatorPrincipal: (Nat) -> (principal) query;`
+  **Endpoint**: `aggregatorPrincipal: (AggregatorId) -> (principal) query;`
 
   **Authorization**: `public`
 
-  **Description**: returns principal of selected aggregator. Provided `Nat` is an index and has to be in range `0..{nAggregators-1}`
+  **Description**: returns principal of selected aggregator. Provided `nat` is an index and has to be in range `0..{nAggregators()-1}`
 
 - #### Get number of open subaccounts
 
-  **Endpoint**: `nAccounts: (TokenId) -> (Nat) query;`
+  **Endpoint**: `nAccounts: (TokenId) -> (nat) query;`
 
   **Authorization**: `account owner`
 
-  **Description**: returns the number of open subaccounts for the caller and provided token
+  **Description**: returns the number of open sub-accounts for the caller and provided token
 
 - #### Open new subaccount
 
-  **Endpoint**: `openNewAccounts: (TokenId, Nat) -> (SubaccountId);`
+  **Endpoint**: `openNewAccounts: (TokenId, nat) -> (SubaccountId);`
 
   **Authorization**: `account owner`
 
-  **Description**: opens n new subaccounts for the caller and token t. It returns the index of the first new subaccount in the newly created range
+  **Description**: opens N new subaccounts for the caller and token t. It returns the index of the first new subaccount in the newly created range
 
 - #### Check balance
 
@@ -178,7 +183,7 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 
 - #### Process Batch
 
-  **Endpoint**: `processBatch: (Batch) -> (vec TransferId, Nat);`
+  **Endpoint**: `processBatch: (Batch) -> (vec TransferId, nat);`
 
   **Authorization**: `cross-canister call from aggregator`
 

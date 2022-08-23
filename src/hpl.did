@@ -1,6 +1,7 @@
 // Ledger
 type TokenId = nat;
 type AggregatorId = nat;
+type SubaccountId = nat;
 type Batch = vec Transfer; 
 type Transfer = vec Part;
 type Part = record { 
@@ -22,8 +23,8 @@ service : {
 
 	// caller is account owner	
     nAccounts: (TokenId) -> (nat) query;
-	openNewAccounts: (TokenId, nat) -> (nat);
-	balance: (TokenId, nat) -> (nat) query;
+	openNewAccounts: (TokenId, nat) -> (SubaccountId);
+	balance: (TokenId, SubaccountId) -> (nat) query;
 
 	// caller is aggregator
 	processBatch: (Batch) -> (vec TransferId, nat);

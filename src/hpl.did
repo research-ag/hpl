@@ -15,6 +15,11 @@ type Flow = record {
 	amount : int;
 };
 type TransferId = nat;
+type Balance = nat;
+type TokenBalance = record {
+  unit : TokenId;
+  balance : Balance;
+};
 
 service : {
 	// public
@@ -22,9 +27,9 @@ service : {
 	aggregatorPrincipal: (AggregatorId) -> (principal) query;
 
 	// caller is account owner	
-    nAccounts: (TokenId) -> (nat) query;
+    nAccounts: () -> (nat) query;
 	openNewAccounts: (TokenId, nat) -> (SubaccountId);
-	balance: (TokenId, SubaccountId) -> (nat) query;
+	balance: (SubaccountId) -> (TokenBalance) query;
 
 	// caller is aggregator
 	processBatch: (Batch) -> (vec TransferId, nat);

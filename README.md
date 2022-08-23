@@ -76,8 +76,6 @@ Any party can initiate the transfer: the sender, the receiver or even a third-pa
 
 ### Data Types
 
-#### Exposed data types
-
 Id of token, e.g. currency
 ```motoko
 type TokenId = nat;
@@ -108,6 +106,10 @@ type Transfer = vec Part;
 ```
 
 ```motoko
+type Batch = vec Transfer;
+```
+
+```motoko
 type Part = record {
   owner : principal;
   flows : vec Flow;
@@ -123,22 +125,6 @@ type Flow = record {
 };
 ```
 
-#### Internal Data types
-A pack of pending transfers
-```motoko
-type Batch = vec Transfer;
-```
-
-The account balances of one owner and one token are stored in an array of Nats. The array index is the subaccount id. This makes it easy to directly address each balance. When new subaccounts are opened then the array will be copied into a new, larger one. This is ok as it is an infrequent action and should be possible even if a principal has a million subaccounts. Owners are tracked via a “short id” which is a Nat.
-```motoko
-type OwnerBalances = [Balance];
-```
-
-The account balances of all owners of one token are stored in a TrieMap.
-```motoko
-type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
-```
-
 ### Ledger API
 
 - #### Get number of aggregators
@@ -149,6 +135,9 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 
   **Description**: returns amount of running aggregator canisters
 
+  **Flow**:
+  - return `aggregators.size()`
+
 - #### Get aggregator principal
 
   **Endpoint**: `aggregatorPrincipal: (AggregatorId) -> (principal) query;`
@@ -157,13 +146,20 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 
   **Description**: returns principal of selected aggregator. Provided `nat` is an index and has to be in range `0..{nAggregators()-1}`
 
+  **Flow**:
+  - return `aggregators[aggregatorId]`
+  
 - #### Get number of open subaccounts
 
-  **Endpoint**: `nAccounts: (TokenId) -> (nat) query;`
+  **Endpoint**: `nAccounts: () -> (nat) query;`
 
   **Authorization**: `account owner`
 
-  **Description**: returns the number of open sub-accounts for the caller and provided token
+  **Description**: returns the number of open subaccounts for the caller
+  
+  **Flow**:
+  - obtain `ownerId`: `owners.get(msg.caller)`. If it's not defined, return error
+  - return `balances[ownerId].size()`
 
 - #### Open new subaccount
 
@@ -173,13 +169,27 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 
   **Description**: opens N new subaccounts for the caller and token t. It returns the index of the first new subaccount in the newly created range
 
-- #### Check balance
+  **Flow**:
+  - obtain `ownerId`: `owners.get(msg.caller)`. If it's not defined:
+    - create it: `ownerId = owners.size()`
+    - put to the map: `owners.put(msg.caller, ownerId)`
+    - init balances: `balances[ownerId] = []`
+  - extract subaccount array `var tokenBalances = balances[ownerId]`
+  - remember `tokenBalances.size()`
+  - append N new `TokenBalance` entries `{ unit: tokenId, balance: 0}` to `tokenBalances`
+  - return original array size
 
-  **Endpoint**: `balance: (TokenId, SubaccountId) -> (Balance) query;`
+- #### Check balance
+  
+  **Endpoint**: `balance: (SubaccountId) -> (TokenBalance) query;`
 
   **Authorization**: `account owner`
 
-  **Description**: returns wallet balance for provided token and subaccount number
+  **Description**: returns wallet balance for provided subaccount number
+
+  **Flow**:
+  - obtain `ownerId`: `owners.get(msg.caller)`. If it's not defined, return error
+  - return `balances[ownerId][subaccountId]`
 
 - #### Process Batch
 
@@ -189,6 +199,17 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 
   **Description**: processes a batch of newly created transfers. Returns statuses and/or error codes
 
+  **Flow**:
+  - check `msg.caller` - should be one of registered aggregators
+  - loop over each `transfer` in `batch`
+  - loop over each `part` in `transfer`
+  - obtain `ownerId`: `owners.get(part.owner)`. If it's not defined, return error
+  - loop over each `flow` in `part`
+  - get appropriate balance: `var tokenBalance = balances[ownerId][flow.subaccount]`
+  - assert `tokenBalance.unit == flow.token` else throw error
+  - modify balance: `tokenBalance.balance += flow.amount`
+  - return array of results for each `transfer` in `batch`
+
 ### Aggregator API
 
 - #### Initialize transfer
@@ -197,7 +218,13 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 
   **Authorization**: `account owner`
 
-  **Description**: initializes transfer: saves it to memory and waits when some principal call `accept` or `reject` on it. *TODO probably should be automatically rejected with some timeout if no one accepted*
+  **Description**: initializes transfer: saves it to memory and waits when some principal call `accept` or `reject` on it
+
+  **Flow**:
+  - construct `TransferId`: `{ selfAggregatorIndex, transfersCounter++ }`
+  - construct `TransferInfo` record: `{ transfer, requester: msg.caller, status : {} }`
+  - put transfer info to pending `pendingTransfers.put(transferId[1], transferInfo)`
+  - return `transferId`
 
 - #### Accept transfer
 
@@ -207,6 +234,14 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 
   **Description**: accepts transfer by its id
 
+  **Flow**:
+  - extract transfer info `var transferInfo = pendingTransfers.get(transferId[1])`
+  - if transfer not found or already queued `transferInfo.status.accepted != null`, return error
+  - put `true` to `transferInfo.status.pending`
+  - if acceptance is enough to proceed:
+    - put to batch queue `approvedTransfer.enqueue(approvedTransfers)`
+    - set `approvedTransfers.head_number()` to `transferInfo.status.accepted`
+
 - #### Reject transfer
 
   **Endpoint**: `reject: (TransferId) -> (variant { Ok; Err });`
@@ -215,13 +250,23 @@ type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
 
   **Description**: rejects transfer by its id
 
+  **Flow**:
+  - extract transfer info `var transferInfo = pendingTransfers.get(transferId[1])`
+  - if transfer not found or already queued `transferInfo.status.accepted != null`, return error
+  - put `false` to `transferInfo.status.pending`
+
 - #### Get transfer status
 
-  **Endpoint**: `transfer_details: (TransferId) -> (variant { Ok: Transfer; Err }) query;`
+  **Endpoint**: `transfer_details: (TransferId) -> (variant { Ok: TransferInfo; Err }) query;`
 
   **Authorization**: `account owner`
 
   **Description**: get status of transfer or error code
+
+  **Flow**:
+  - extract transfer info `var transferInfo = pendingTransfers.get(transferId[1])`
+  - check user permissions for this transfer *TODO: describe*, throw error
+  - return `transferInfo`
 
 ## Architecture
 
@@ -298,6 +343,16 @@ With **HPL**, registered principals can initiate, process and confirm multi-toke
 ### Data Structures
 
 #### Ledger
+We save aggregator principals in array:
+```motoko
+type Aggregators = [Principal]
+```
+
+*TODO: describe when and how initialize it:*
+```motoko
+let aggregators = [aggregator0, aggregator1, ....]
+```
+
 For the balance we use a simple record
 
 ```motoko
@@ -305,6 +360,18 @@ type TokenBalance = {
   unit : TokenId;
   balance : Balance;
 };
+```
+
+Owners are tracked via a "short id" which is a Nat.
+
+```motoko
+type OwnerId = Nat;
+```
+
+The map from principal to short id is stored in a single `RBTree`:
+
+```motoko
+let owners = RBTree<Principal, OwnerId>(Principal.compare);
 ```
 
 For each principal we have a simple array of balances, indexed by `SubaccoutId`, which is being issued sequentally:
@@ -326,6 +393,18 @@ balances[owner_id][subaccount_id].balance
 ```
 
 #### Aggregator
+
+We save own unique identifier on each aggregator:
+
+*TODO: describe when and how initialize it:*
+```motoko
+var selfAggregatorIndex: Nat = ...
+```
+
+We track transfers counter:
+```motoko
+var transfersCounter: Nat = 0;
+```
 
 The main concern of the aggregator is the potential situation that it has too many approved transfers: we limit Batch 
 size so the aggregator should be able to handle case when it has more newly approved transfers than batch limit between 

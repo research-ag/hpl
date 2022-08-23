@@ -293,67 +293,77 @@ With **HPL**, registered principals can initiate, process and confirm multi-toke
 ### Data Structures
 
 #### Ledger
-The account balances of one owner and one token are stored in an array of Nats. The array index is the subaccount id. This makes it easy to directly address each balance. When new subaccounts are opened then the array will be copied into a new, larger one. This is ok as it is an infrequent action and should be possible even if a principal has a million subaccounts.
+For the balance we use a simple record
 
 ```motoko
-type OwnerBalances = [Balance];
+type TokenBalance = {
+  unit : TokenId;
+  balance : Balance;
+};
 ```
 
-Owners are tracked via a “short id” which is a Nat.
+For each principal we have a simple array of balances, indexed by `SubaccoutId`, which is being issued sequentally:
 
 ```motoko
-type OwnerId = Nat;
+type OwnerBalances = [TokenBalance]; // indexed by SubaccountId
 ```
 
-The map from principal to short id is stored in a single `RBTree`:
+`OwnerId` is also auto-increment value, so all the balances again can be saved in simple array:
 
 ```motoko
-let owners = RBTree<Principal, OwnerId>(Principal.compare);
+let balances : [OwnerBalances] = []; // indexed by OwnerId
 ```
 
-The account balances of all owners of one token are stored in a `TrieMap`.
+This structure allows us to effectively access any subaccount balance. Particular balance is accessed as
 
 ```motoko
-type TokenBalances = TrieMap<OwnerId, OwnerBalances>;
-```
-
-The reason is that for a given token not all owner ids have a balance. If all owners had balances in a given token then we could use an `Array` or `Buffer` here.
-
-The balances for all owners and all tokens are stored in a single array:
-```motoko
-var balances : [TokenBalances] = …;
-```
-The index is the token id. When a new token id is created that array is copied into a new larger array. That is ok because it happens infrequently and the length of the array (number of tokens) is relatively small. The array contains pointers to TrieMaps, so just the pointers will get copied to a new, larger array.
-
-A particular balance is accessed as
-
-```motoko
-balances[token_id].get(owner_id)[subaccount_id]
+balances[owner_id][subaccount_id].balance
 ```
 
 #### Aggregator
 
-The main concern of aggregator is potential situation that it has too many approved transfers: we limit `Batch` size so aggregator should be able to handle case when it has more newly approved transfers than batch limit between ticks.
-To avoid this, we could use [FIFO queue](https://github.com/o0x/motoko-queue) data structure for saving approved transfers. In this case we will transmit to ledger older transfers and keep newer in the queue, waiting for next tick:
+The main concern of the aggregator is the potential situation that it has too many approved transfers: we limit Batch 
+size so the aggregator should be able to handle case when it has more newly approved transfers than batch limit between 
+ticks. To avoid this, we could use [FIFO queue](https://github.com/o0x/motoko-queue) data structure for saving approved transfers. 
+In this case we will transmit to ledger older transfers and keep newer in the queue, waiting for next tick. As a value 
+in the queue, we use second `Nat` from `TransferId`
 ```motoko
 import Queue "Queue";
 
-var approvedTransfers: Queue.Queue<Transfer> = Queue.nil();
+var approvedTransfers: Queue.Queue<Nat> = Queue.nil();
 ```
 
-Pending transfers are being saved to `TrieMap` structure. As a key we use second `Nat` from `TransferId`, since we do not care about aggregator identifier at this step. When rejecting/accepting transfer, we remove transfer from this map and add it to `approvedTransfers` queue
+We need more information for each transfer, so we use this type:
+
 ```motoko
-var pendingTrasfers: TrieMap<Nat, Transfer> = ...;
+type QueueNumber = Nat;
+type Acceptance = [Bool];
+type TransferInfo = {
+	transfer : Transfer;
+	requester : Principal;
+	status : { #pending : Acceptance; #accepted : QueueNumber };
+};
+```
+`QueueNumber` is a tail counter of the queue `approvedTransfers` at the moment, when we enqueued this transfer to it.
+It will allow us to easily calculate transfer position in the queue be subtracting `approvedTransfers.head_number()` from `transferInfo.status.accepted`
+
+`Acceptance` is a vector who already accepted transfer, allows for arbitrarily many parties to a Transfer
+
+Pending transfers are being saved to `TrieMap` structure. As a key we use second `Nat` from `TransferId`, since we do 
+not care about aggregator identifier at this step. When accepting transfer, we enqueue the key `Nat` to `approvedTransfers` queue
+```motoko
+var pendingTrasfers: TrieMap<Nat, TransferInfo> = ...;
 ```
 
-But with this structure the logic to automatically reject old non-approved transfer could be tricky. So additionally we add TrieMap of pending transfer id-s, where key is principal id, value is a linked list of id-s of pending transfer, initiated by this principal. This will allow us to limit pending transfers per user: if he already has, let's say, 100 pending transfers and tries to create a new one, we automatically reject the oldest one (first in linked list). When rejecting/accepting transfer, we will acquire principal id from `Transfer` (field `owner`) object and remove appropriate transfer id from it
-
-
+But with this structure the logic to automatically reject old non-approved transfer could be tricky. 
+So additionally we add TrieMap of pending transfer id-s, where key is principal id, value is a linked list 
+of id-s of pending transfer, initiated by this principal. This will allow us to limit pending transfers per
+user: if he already has, let's say, 100 pending transfers and tries to create a new one, we automatically reject
+the oldest one (first in linked list). When rejecting/accepting transfer, we will acquire principal id from
+Transfer (field `requester`) object and remove appropriate transfer id from it
 ```motoko
 var pendingPrincipalTransfers: TrieMap<PrincipalId, LinkedList<Nat>>
 ```
-
-
 
 ## Deployment
 

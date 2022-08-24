@@ -1,0 +1,26 @@
+{
+  "canisters": {
+    "aggregator": {
+      "main": "src/aggregator/main.mo",
+      "type": "motoko"
+    },
+    "ledger": {
+      "main": "src/ledger/main.mo",
+      "type": "motoko"
+    }
+  },
+  "defaults": {
+    "build": {
+      "args": "",
+      "packtool": ""
+    }
+  },
+  "dfx": "0.11.1",
+  "networks": {
+    "local": {
+      "bind": "127.0.0.1:8000",
+      "type": "ephemeral"
+    }
+  },
+  "version": 1
+}

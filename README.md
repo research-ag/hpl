@@ -125,6 +125,8 @@ type Flow = record {
 };
 ```
 
+A record of type `Part` is only valid if in the sequence of flows the `subaccount` field is strictly increasing. In particular, there can be at most one flow per subaccount. 
+
 ### Ledger API
 
 - #### Get number of aggregators
@@ -216,7 +218,10 @@ type Flow = record {
     - loop over each `part` in `transfer` (pass #1: validation):
       - obtain `ownerId`: `owners.get(part.owner)`. If it's not defined, put error code `1` to `result` and continue 
       outer loop. Else push `ownerId` to `transferOwners` cache array
+      - set `last_subaccount` to -1
       - loop over each `flow` in `part`
+        - assert that the `flow.subaccount > last_subaccount`. If not set an error code and continue outer loop.
+	- set `last_subaccount` to `flow.subaccount`
         - get appropriate balance: `var tokenBalance = balances[ownerId][flow.subaccount]`. If not found, put error 
         code `2` to `result` and continue outer loop
         - assert `tokenBalance.unit == flow.token` else put error code `3` to `result` and continue outer loop

@@ -213,7 +213,7 @@ type Flow = record {
     - init cache array of owners `transferOwners = []` for faster access later
     - init token amount balance map `tokenBalanceMap: Map<TokenId, Int> = ...` for checking that the flows for each 
     token add up to zero
-    - loop over each `part` in `transfer`:
+    - loop over each `part` in `transfer` (pass #1: validation):
       - obtain `ownerId`: `owners.get(part.owner)`. If it's not defined, put error code `1` to `result` and continue 
       outer loop. Else push `ownerId` to `transferOwners` cache array
       - loop over each `flow` in `part`
@@ -223,10 +223,10 @@ type Flow = record {
         - if `tokenBalance.balance + flow.amount < 0`, put error code `4` to `result` and continue outer loop
         - add `flow.amount` to `tokenBalanceMap.get(flow.token)`, if map does not have this token, add it: `tokenBalanceMap.put(flow.token, flow.amount)`
     - loop over `tokenBalanceMap` - if any element != 0, put error code `5` to `result` and continue outer loop
-    - loop over each `part` in `transfer` (`i` as index):
+    - loop over each `part` in `transfer`, use `i` as index (pass #2: applying):
       - loop over each `flow` in `part`
         - modify balance: `balances[transferOwners[i]][flow.subaccount].balance += flow.amount`
-  - return array of results for each `transfer` in `batch`
+  - return `result`
 
 ### Aggregator API
 

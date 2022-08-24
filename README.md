@@ -476,6 +476,29 @@ Transfer (field `requester`) object and remove appropriate transfer id from it
 var pendingPrincipalTransfers: TrieMap<PrincipalId, LinkedList<Nat>>
 ```
 
+
+Summary lifecycle of the `Transfer` entity:
+```mermaid
+sequenceDiagram
+    Note left of API: request (Transfer) 
+    API->>TrieMap pendingTransfers: Putting TransferInfo 
+    TrieMap pendingTransfers->>TrieMap pendingTransfers: Setting pending status
+    Note left of API: accept (Transfer) 
+    API->>TrieMap pendingTransfers: put "true" to status.pending
+    TrieMap pendingTransfers->>TrieMap pendingTransfers: Check if everyone set true to status.pending
+    TrieMap pendingTransfers->>Queue approvedTransfer: put transfer ID to queue
+    TrieMap pendingTransfers->>TrieMap pendingTransfers: Set status.accepted
+    Note left of API: batch tick
+    API->>Queue approvedTransfer: dequeue N transfers
+    Queue approvedTransfer->>TrieMap pendingTransfers: fetch transfers
+    TrieMap pendingTransfers->>Ledger canister: submit Batch
+    Ledger canister-->>TrieMap pendingTransfers: return results
+    TrieMap pendingTransfers->>TrieMap pendingTransfers: Set DONE status or error code
+    Note left of API: transferDetails (TransferId)
+    API->>TrieMap pendingTransfers: get data
+    TrieMap pendingTransfers-->>API: return
+```
+
 ## Deployment
 
 TBD

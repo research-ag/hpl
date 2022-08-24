@@ -198,16 +198,34 @@ type Flow = record {
   **Authorization**: `cross-canister call from aggregator`
 
   **Description**: processes a batch of newly created transfers. Returns statuses and/or error codes
+  
+  **Error codes**:
+  - (1): account not found
+  - (2): subaccount not found
+  - (3): token unit mismatch
+  - (4): non-sufficient funds
+  - (5): token flows do not add up to zero
 
   **Flow**:
   - check `msg.caller` - should be one of registered aggregators
-  - loop over each `transfer` in `batch`
-  - loop over each `part` in `transfer`
-  - obtain `ownerId`: `owners.get(part.owner)`. If it's not defined, return error
-  - loop over each `flow` in `part`
-  - get appropriate balance: `var tokenBalance = balances[ownerId][flow.subaccount]`
-  - assert `tokenBalance.unit == flow.token` else throw error
-  - modify balance: `tokenBalance.balance += flow.amount`
+  - initialize array `result`: can contain either transferId or error code
+  - loop over each `transfer` in `batch`:
+    - init cache array of owners `transferOwners = []` for faster access later
+    - init token amount balance map `tokenBalanceMap: Map<TokenId, Int> = ...` for checking that the flows for each 
+    token add up to zero
+    - loop over each `part` in `transfer`:
+      - obtain `ownerId`: `owners.get(part.owner)`. If it's not defined, put error code `1` to `result` and continue 
+      outer loop. Else push `ownerId` to `transferOwners` cache array
+      - loop over each `flow` in `part`
+        - get appropriate balance: `var tokenBalance = balances[ownerId][flow.subaccount]`. If not found, put error 
+        code `2` to `result` and continue outer loop
+        - assert `tokenBalance.unit == flow.token` else put error code `3` to `result` and continue outer loop
+        - if `tokenBalance.balance + flow.amount < 0`, put error code `4` to `result` and continue outer loop
+        - add `flow.amount` to `tokenBalanceMap.get(flow.token)`, if map does not have this token, add it: `tokenBalanceMap.put(flow.token, flow.amount)`
+    - loop over `tokenBalanceMap` - if any element != 0, put error code `5` to `result` and continue outer loop
+    - loop over each `part` in `transfer` (`i` as index):
+      - loop over each `flow` in `part`
+        - modify balance: `balances[transferOwners[i]][flow.subaccount].balance += flow.amount`
   - return array of results for each `transfer` in `batch`
 
 ### Aggregator API
@@ -222,7 +240,7 @@ type Flow = record {
 
   **Flow**:
   - construct `TransferId`: `{ selfAggregatorIndex, transfersCounter++ }`
-  - construct `TransferInfo` record: `{ transfer, requester: msg.caller, status : {} }`
+  - construct `TransferInfo` record: `{ transfer, requester: msg.caller, status : { #pending [] } }`
   - put transfer info to pending `pendingTransfers.put(transferId[1], transferInfo)`
   - return `transferId`
 
@@ -235,11 +253,15 @@ type Flow = record {
   **Description**: accepts transfer by its id
 
   **Flow**:
+  - assert `transferId[0] == selfAggregatorIndex`, else throw error
   - extract transfer info `var transferInfo = pendingTransfers.get(transferId[1])`
-  - if transfer not found or already queued `transferInfo.status.accepted != null`, return error
+  - return error if either:
+    - transfer not found 
+    - already queued `transferInfo.status.accepted != null`
+    - rejected `transferInfo.status.rejected == true`
   - put `true` to `transferInfo.status.pending`
   - if acceptance is enough to proceed:
-    - put to batch queue `approvedTransfer.enqueue(approvedTransfers)`
+    - put to batch queue `approvedTransfer.enqueue(transferId[1])`
     - set `approvedTransfers.head_number()` to `transferInfo.status.accepted`
 
 - #### Reject transfer
@@ -251,22 +273,21 @@ type Flow = record {
   **Description**: rejects transfer by its id
 
   **Flow**:
+  - assert `transferId[0] == selfAggregatorIndex`, else throw error
   - extract transfer info `var transferInfo = pendingTransfers.get(transferId[1])`
   - if transfer not found or already queued `transferInfo.status.accepted != null`, return error
-  - put `false` to `transferInfo.status.pending`
+  - put `true` to `transferInfo.status.rejected`
 
 - #### Get transfer status
 
-  **Endpoint**: `transfer_details: (TransferId) -> (variant { Ok: TransferInfo; Err }) query;`
+  **Endpoint**: `transferDetails: (TransferId) -> (variant { Ok: TransferInfo; Err }) query;`
 
-  **Authorization**: `account owner`
+  **Authorization**: `public`
 
   **Description**: get status of transfer or error code
 
   **Flow**:
-  - extract transfer info `var transferInfo = pendingTransfers.get(transferId[1])`
-  - check user permissions for this transfer *TODO: describe*, throw error
-  - return `transferInfo`
+  - return `pendingTransfers.get(transferId[1])`
 
 ## Architecture
 
@@ -425,7 +446,7 @@ type Acceptance = [Bool];
 type TransferInfo = {
 	transfer : Transfer;
 	requester : Principal;
-	status : { #pending : Acceptance; #accepted : QueueNumber };
+	status : { #pending : Acceptance; #accepted : QueueNumber; #rejected : Bool  };
 };
 ```
 `QueueNumber` is a tail counter of the queue `approvedTransfers` at the moment, when we enqueued this transfer to it.

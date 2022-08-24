@@ -52,7 +52,7 @@ Any party can initiate the transfer: the sender, the receiver or even a third-pa
 ## API
 
 - [Terminology](#terminology)
-- [Data Types](#data-types)
+- [Candid types of the API](#data-types)
 - [Ledger API](#ledger-api)
   - [Get number of aggregators](#get-number-of-aggregators)
   - [Get aggregator principal](#get-aggregator-principal)
@@ -74,7 +74,7 @@ Any party can initiate the transfer: the sender, the receiver or even a third-pa
 
 **Subaccount** - essentially a wallet, owned by one principal and containing one type of tokens. Client principal can have many subaccounts with different and/or the same tokens 
 
-### Data Types
+### Candid types of the API
 
 Id of token, e.g. currency
 ```motoko
@@ -96,9 +96,9 @@ Subaccount ids are issued in consecutive order, without gaps, starting with 0. E
 type SubaccountId = nat;
 ```
 
-Id of transfer, issued by aggregator. The first nat specifies the aggregator who issued the transfer id. The second nat is a locally unique value chosen by the aggregator.
+Id of transfer, issued by aggregator. The first value specifies the aggregator who issued the transfer id. The second value (nat) is a locally unique value chosen by the aggregator.
 ```motoko
-type TransferId = record { nat; nat };
+type TransferId = record { AggregatorId; nat };
 ```
 
 ```motoko

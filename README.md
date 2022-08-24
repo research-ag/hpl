@@ -207,6 +207,7 @@ A record of type `Part` is only valid if in the sequence of flows the `subaccoun
   - (3): token unit mismatch
   - (4): non-sufficient funds
   - (5): token flows do not add up to zero
+  - (6): flows are not properly sorted
 
   **Flow**:
   - check `msg.caller` - should be one of registered aggregators
@@ -220,8 +221,8 @@ A record of type `Part` is only valid if in the sequence of flows the `subaccoun
       outer loop. Else push `ownerId` to `transferOwners` cache array
       - set `last_subaccount` to -1
       - loop over each `flow` in `part`
-        - assert that the `flow.subaccount > last_subaccount`. If not set an error code and continue outer loop.
-	- set `last_subaccount` to `flow.subaccount`
+        - assert that the `flow.subaccount > last_subaccount`. If not set an error code `6` and continue outer loop.
+	    - set `last_subaccount` to `flow.subaccount`
         - get appropriate balance: `var tokenBalance = balances[ownerId][flow.subaccount]`. If not found, put error 
         code `2` to `result` and continue outer loop
         - assert `tokenBalance.unit == flow.token` else put error code `3` to `result` and continue outer loop

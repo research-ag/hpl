@@ -11,7 +11,7 @@ actor {
   type AggregatorId = T.AggregatorId;
   type SubaccountId = T.SubaccountId;
   type TransferId = T.TransferId;
-  type Asset = T.Asset;
+  type AssetList = T.AssetList;
   type Batch = T.Batch;
 
   public query func nAggregators(): async Nat {
@@ -30,7 +30,7 @@ actor {
     nyi();
   };
 
-  public query func assets(sid: SubaccountId): async Result<Asset, Nat> {
+  public query func assets(sid: SubaccountId): async Result<AssetList, Nat> {
     nyi();
   };
 

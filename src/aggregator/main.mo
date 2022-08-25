@@ -16,6 +16,7 @@ actor {
   type TransferInfo = {
     transfer : TransferId;
     requester : Principal;
+    committer : ?Principal; // should be part of Transfer?
     status : { #pending : Acceptance; #accepted : QueueNumber; #rejected };
   };
 

@@ -1,31 +1,42 @@
-import HPLTypes "../shared/types";
-import Prelude "mo:base/Prelude";
+import { nyi } "mo:base/Prelude";
 
+// import types (pattern matching not available)
+import T "../shared/types";
+import R "mo:base/Result";
+
+// aggregator
 actor {
+  // imported types (pattern matching not available)
+  type Result<X,Y> = R.Result<X,Y>;
+  type Transfer = T.Transfer;
+  type TransferId = T.TransferId;
 
   type QueueNumber = Nat;
   type Acceptance = [Bool];
-
   type TransferInfo = {
-    transfer : HPLTypes.TransferId;
+    transfer : TransferId;
     requester : Principal;
-    status : { #pending : Acceptance; #accepted : QueueNumber; #rejected : Bool  };
+    status : { #pending : Acceptance; #accepted : QueueNumber; #rejected };
   };
 
-  public func request(transfer: HPLTypes.Transfer): async { #ok: HPLTypes.TransferId ; #err: Nat } {
-    Prelude.nyi();
+  type RequestError = { #NoSpace; #Invalid; };
+  public func request(transfer: Transfer): async Result<TransferId, RequestError> {
+    nyi();
   };
 
-  public func accept(transferId: HPLTypes.TransferId): async { #ok: HPLTypes.TransferId ; #err: Nat } {
-    Prelude.nyi();
+  type AcceptError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadySent };
+  public func accept(transferId: TransferId): async Result<TransferId, AcceptError> {
+    nyi();
   };
 
-  public func reject(transferId: HPLTypes.TransferId): async { #ok: HPLTypes.TransferId ; #err: Nat } {
-    Prelude.nyi();
+  type RejectError = { #NotFound; #NoPart; #AlreadySent };
+  public func reject(transferId: TransferId): async Result<TransferId, RequestError> {
+    nyi();
   };
 
-  public query func transferDetails(transferId: HPLTypes.TransferId): async { #ok: TransferInfo ; #err: Nat } {
-    Prelude.nyi();
+  type TransferError = { #NotFound; };
+  public query func transferDetails(transferId: TransferId): async Result<TransferInfo, TransferError> {
+    nyi();
   };
 
 };

@@ -1,14 +1,15 @@
+import Prelude "mo:base/Prelude";
+
 module {
   public type AggregatorId = Nat;
   public type SubaccountId = Nat;
-  public type TokenId = Nat;
+  public type AssetId = Nat;
 
   public type TransferId = { aid: AggregatorId; tid: Nat };
-  public type Flow = {
-    token : TokenId;
-    subaccount : Nat;
-    amount : Int;
+  public type Asset = { 
+    #ft : { id : AssetId; quantity : Nat; }; 
   };
+  public type Flow = { #inc: Asset; #dec : Asset };
   public type Part = {
     owner : Principal;
     flows : [Flow];
@@ -16,4 +17,7 @@ module {
   };
   public type Transfer = [Part];
   public type Batch = [Transfer];
+
+  public func a(): () {}; 
+  public func b(): () {}; 
 }

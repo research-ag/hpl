@@ -1,36 +1,41 @@
-import HPLTypes "../shared/types";
-import Prelude "mo:base/Prelude";
+import { nyi } "mo:base/Prelude";
 
+// import types (pattern matching not available)
+import T "../shared/types";
+import R "mo:base/Result";
+
+// ledger
 actor {
-
-  type Balance = Nat;
-  type TokenBalance = {
-    unit : HPLTypes.TokenId;
-    balance : Balance;
-  };
+  // imported types (pattern matching not available)
+  type Result<X,Y> = R.Result<X,Y>;
+  type AggregatorId = T.AggregatorId;
+  type SubaccountId = T.SubaccountId;
+  type TransferId = T.TransferId;
+  type Asset = T.Asset;
+  type Batch = T.Batch;
 
   public query func nAggregators(): async Nat {
-    Prelude.nyi();
+    nyi();
   };
 
-  public query func aggregatorPrincipal(aid: HPLTypes.AggregatorId): async { #principal: Principal; #err: Nat } {
-    Prelude.nyi();
+  public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> {
+    nyi();
   };
 
   public query func nAccounts(): async Nat {
-    Prelude.nyi();
+    nyi();
   };
 
-  public func openNewAccounts(tid: HPLTypes.TokenId, amount: Nat): async { #subaccountId: HPLTypes.SubaccountId; #err: Nat } {
-    Prelude.nyi();
+  public func openNewAccounts(amount: Nat): async Result<SubaccountId, { #NoSpace; }> {
+    nyi();
   };
 
-  public query func balance(sid: HPLTypes.SubaccountId): async { #tokenBalance: TokenBalance; #err: Nat } {
-    Prelude.nyi();
+  public query func assets(sid: SubaccountId): async Result<Asset, Nat> {
+    nyi();
   };
 
-  public func processBatch(batch: HPLTypes.Batch): async [{ #transferId: HPLTypes.TransferId; #err: Nat }] {
-    Prelude.nyi();
+  public func processBatch(batch: Batch): async [{ #transferId: TransferId; #err: Nat }] {
+    nyi();
   }
 
 };

@@ -9,13 +9,9 @@ module {
     #ft : { id : AssetId; quantity : Nat; }; 
   };
 
-  public type AssetList = [Asset]; 
-  // for fungible tokens the above is a map asset id -> quantity
-  // asset id must be stricly increasing throughout the list to rule out duplicate keys
-
   public type Contribution = {
-    inflow : [(SubaccountId, AssetList)];
-    outflow : [(SubaccountId, AssetList)];
+    inflow : [(SubaccountId, Asset)];
+    outflow : [(SubaccountId, Asset)];
     memo : ?Blob;
     auto_accept : Bool
   };

@@ -12,10 +12,6 @@ type Asset = variant {ft: record {
                             quantity: nat;
                           };};
 
-// A subaccount can contain multiple assets.
-// The following type is used for the content of a subaccount
-type AssetList = vec Asset;
-
 // A transfer has contributions from multiple parties, each of which is of the following type.
 // A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.
 // The memo is limited to 256 bytes.
@@ -25,11 +21,11 @@ type Contribution =
  record {
    inflow: vec record {
                  SubaccountId;
-                 AssetList;
+                 Asset;
                };
    outflow: vec record {
                   SubaccountId;
-                  AssetList;
+                  Asset;
                 };
    memo: opt blob;
    auto_accept: bool;
@@ -75,17 +71,17 @@ type Nat_Result =
    ok: nat;
    err: variant {NotFound;};
  };
-type AssetList_Result = 
+type Asset_Result = 
  variant {
-   ok: AssetList;
+   ok: Asset;
    err: variant {
           NotFound;
           SubaccountNotFound;
         };
  };
-type AssetLists_Result = 
+type Assets_Result = 
  variant {
-   ok: vec AssetList;
+   ok: vec Asset;
    err: variant {NotFound;};
  };
 
@@ -121,12 +117,12 @@ service : {
   // return the list of assets in the n-th subaccount of the caller
   // NotFound if the caller isn't registered
   // SubaccountNotFound if the caller is registered but does not have n accounts
-  assets: (SubaccountId) -> (AssetList_Result) query;
+  asset: (SubaccountId) -> (Asset_Result) query;
 
   // debug interface
 
   // return all assets from all subaccounts of the given owner
   // returns a list of lists of assets
   // NotFound if the given owner is not registered
-  all_assets: (principal) -> (AssetLists_Result) query;
+  all_assets: (principal) -> (Assets_Result) query;
 }

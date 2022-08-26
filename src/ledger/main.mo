@@ -11,7 +11,7 @@ actor {
   type AggregatorId = T.AggregatorId;
   type SubaccountId = T.SubaccountId;
   type TransferId = T.TransferId;
-  type AssetList = T.AssetList;
+  type Asset = T.Asset;
   type Batch = T.Batch;
 
   // updates
@@ -38,13 +38,13 @@ actor {
     nyi();
   };
 
-  public query func assets(sid: SubaccountId): async Result<AssetList, { #NotFound; #SubaccountNotFound; }> {
+  public query func asset(sid: SubaccountId): async Result<Asset, { #NotFound; #SubaccountNotFound; }> {
     nyi();
   };
 
   // debug interface
 
-  public query func all_assets(owner : Principal) : async Result<[AssetList], { #NotFound; }> {
+  public query func all_assets(owner : Principal) : async Result<[Asset], { #NotFound; }> {
     nyi();
   };
 };

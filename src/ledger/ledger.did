@@ -62,31 +62,31 @@ type Batch = vec Transfer;
 
 type SubaccountId_Result = 
  variant {
-   err: variant {NoSpace;};
    ok: SubaccountId;
+   err: variant {NoSpace;};
  };
 type Principal_Result = 
  variant {
-   err: variant {NotFound;};
    ok: principal;
+   err: variant {NotFound;};
  };
 type Nat_Result = 
  variant {
-   err: variant {NotFound;};
    ok: nat;
+   err: variant {NotFound;};
  };
 type AssetList_Result = 
  variant {
+   ok: AssetList;
    err: variant {
           NotFound;
           SubaccountNotFound;
         };
-   ok: AssetList;
  };
 type AssetLists_Result = 
  variant {
-   err: variant {NotFound;};
    ok: vec AssetList;
+   err: variant {NotFound;};
  };
 
 service : {

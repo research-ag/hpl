@@ -87,8 +87,8 @@ type RequestError =
 
 type Request_Result = 
  variant {
-   err: RequestError;
    ok: TransferId;
+   err: RequestError;
  };
 
 type NotPendingError = 
@@ -99,10 +99,10 @@ type NotPendingError =
    AlreadyRejected;
  };
 
-type Accept_Result = 
+type AcceptReject_Result = 
  variant {
+   ok;
    err: NotPendingError;
-   ok: TransferId;
  };
 
 type TransferError = variant {NotFound;};
@@ -132,8 +132,8 @@ service : {
   // returns NoPart if the caller is not part of the transfer 
   // return AlreadyAccepted if the status is #accepted
   // returns AlreadyRejected if the status is #rejected
-  accept: (TransferId) -> (Accept_Result);
-  reject: (TransferId) -> (Accept_Result);
+  accept: (TransferId) -> (AcceptReject_Result);
+  reject: (TransferId) -> (AcceptReject_Result);
 
   // queries
 

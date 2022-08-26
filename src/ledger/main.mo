@@ -14,6 +14,18 @@ actor {
   type AssetList = T.AssetList;
   type Batch = T.Batch;
 
+  // updates
+
+  public func openNewAccounts(amount: Nat): async Result<SubaccountId, { #NoSpace; }> {
+    nyi();
+  };
+
+  public func processBatch(batch: Batch): async [{ #transferId: TransferId; #err: Nat }] {
+    nyi();
+  };
+
+  // queries
+
   public query func nAggregators(): async Nat {
     nyi();
   };
@@ -22,20 +34,17 @@ actor {
     nyi();
   };
 
-  public query func nAccounts(): async Nat {
+  public query func nAccounts(): async Result(Nat, { #NotFound; } {
     nyi();
   };
 
-  public func openNewAccounts(amount: Nat): async Result<SubaccountId, { #NoSpace; }> {
+  public query func assets(sid: SubaccountId): async Result<AssetList, { #NotFound; #SubaccountNotFound; }> {
     nyi();
   };
 
-  public query func assets(sid: SubaccountId): async Result<AssetList, Nat> {
+  // debug interface
+
+  public query all_assets(owner : Principal) : async Result<[AssetList], { #NotFound; }> {
     nyi();
   };
-
-  public func processBatch(batch: Batch): async [{ #transferId: TransferId; #err: Nat }] {
-    nyi();
-  }
-
 };

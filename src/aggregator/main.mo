@@ -25,11 +25,11 @@ actor {
   };
 
   type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyAccepted };
-  public func accept(transferId: TransferId): async { #ok; #err : NotPendingError } {
+  public func accept(transferId: TransferId): async Result<(),NotPendingError> {
     nyi();
   };
 
-  public func reject(transferId: TransferId): async { #ok; #err : NotPendingError } {
+  public func reject(transferId: TransferId): async Result<(),NotPendingError> {
     nyi();
   };
 

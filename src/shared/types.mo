@@ -6,7 +6,7 @@ module {
   public type TransferId = { aid: AggregatorId; tid: Nat };
 
   public type Asset = { 
-    #ft : { id : AssetId; quantity : Nat; }; 
+    #ft : (id : AssetId, quantity : Nat); 
   };
 
   public type Contribution = {

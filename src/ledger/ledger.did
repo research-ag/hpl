@@ -8,8 +8,8 @@ type AssetId = nat;
 // A fungible token asset is a pair consisting of the token id (AssetId)
 // and the quantity (nat).
 type Asset = variant {ft: record {
-                            id: AssetId;
-                            quantity: nat;
+                            AssetId;
+                            nat;
                           };};
 
 // A transfer has contributions from multiple parties, each of which is of the following type.

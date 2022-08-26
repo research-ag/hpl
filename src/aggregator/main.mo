@@ -24,13 +24,12 @@ actor {
     nyi();
   };
 
-  type AcceptError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadySent };
-  public func accept(transferId: TransferId): async Result<TransferId, AcceptError> {
+  type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyAccepted };
+  public func accept(transferId: TransferId): async Result<TransferId, NotPendingError> {
     nyi();
   };
 
-  type RejectError = { #NotFound; #NoPart; #AlreadySent };
-  public func reject(transferId: TransferId): async Result<TransferId, RequestError> {
+  public func reject(transferId: TransferId): async Result<TransferId, NotPendingError> {
     nyi();
   };
 

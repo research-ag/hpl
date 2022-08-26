@@ -1,0 +1,144 @@
+type AggregatorId = nat;
+type SubaccountId = nat;
+type AssetId = nat;
+type QueueNumber = nat;
+type Acceptance = vec bool;
+
+// An asset can be a fungible or non-fungible token.
+// Currently only fungible tokens are defined.
+// Non-fungible tokens can be introduced later as a variant.
+// A fungible token asset is a pair consisting of the token id (AssetId)
+// and the quantity (nat).
+type Asset = variant {ft: record {
+                            id: AssetId;
+                            quantity: nat;
+                          };};
+
+// A subaccount can contain multiple assets.
+// The following type is used for the content of a subaccount
+type AssetList = vec Asset;
+
+// A transfer has contributions from multiple parties, each of which is of the following type.
+// A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.
+// The memo is limited to 256 bytes.
+// auto_accept = false indicates that the aggregator waits for acceptance of the owner.
+// auto_accept = true indicates that the owner is expected to have auto-accept configured in the ledger (if not the transfer will fail).
+type Contribution = 
+ record {
+   inflow: vec record {
+                 SubaccountId;
+                 AssetList;
+               };
+   outflow: vec record {
+                  SubaccountId;
+                  AssetList;
+                };
+   memo: opt blob;
+   auto_accept: bool;
+ };
+
+// A transfer is a map from owner to the owner's contribution.
+// A transfer can specify an optional committer. 
+// The committer is the only one who can make an update call and receive the success in the response.
+// In that way the committer can process the transfer in a continuation and does not need to rely on polling. 
+type Transfer = 
+ record {
+   map: vec record {
+              principal;
+              Contribution;
+            };
+   committer: opt principal;
+ };
+
+// The globally unique transfer id
+type TransferId = 
+ record {
+   aid: AggregatorId;
+   tid: nat;
+ };
+
+// The batches send from aggregator to ledger
+type Batch = vec Transfer;
+
+// The information about a Transfer that is supplied by the user
+// We store the principal who first requested the Transfer.
+// The requester and only the requester is responsible for the fee at the aggregator level.
+// The status goes from pending to accepted or from pending to rejected. 
+// While a transfer is pending we store a vector of who has accepted it.
+// When a transfer is accepted then we store its position number in the queue. 
+type TransferInfo = 
+ record {
+   requester: principal;
+   status: variant {
+             pending: Acceptance;
+             accepted: QueueNumber;
+             rejected;
+           };
+   transfer: TransferId;
+ };
+
+// Result types
+
+type RequestError = 
+ variant {
+   Invalid;
+   NoSpace;
+ };
+
+type Request_Result = 
+ variant {
+   err: RequestError;
+   ok: TransferId;
+ };
+
+type NotPendingError = 
+ variant {
+   NotFound;
+   NoPart;
+   AlreadyAccepted;
+   AlreadyRejected;
+ };
+
+type Accept_Result = 
+ variant {
+   err: NotPendingError;
+   ok: TransferId;
+ };
+
+type TransferError = variant {NotFound;};
+
+type Details_Result = 
+ variant {
+   ok: TransferInfo;
+   err: TransferError;
+ };
+
+
+// API
+
+service : {
+  // updates
+
+  // request a new transfer
+  // the caller (= the requester) needs to have capacity or pay the fee
+  // returns the transfer id or an error
+  // Invalid if the Transfer is structurally invalid
+  // NoSpace if the requester has no capacity
+  request: (Transfer) -> (Request_Result);
+ 
+  // accept/reject a transfer by its transfer id
+  // accepting twice while still pending is ok
+  // returns NotFound if the transfer id isn't found
+  // returns NoPart if the caller is not part of the transfer 
+  // return AlreadyAccepted if the status is #accepted
+  // returns AlreadyRejected if the status is #rejected
+  accept: (TransferId) -> (Accept_Result);
+  reject: (TransferId) -> (Accept_Result);
+
+  // queries
+
+  // get transfer details
+  // NotFound means the transfer id is unknown
+  // (was never known or has already been deleted) 
+  transferDetails: (TransferId) -> (Details_Result) query;
+}

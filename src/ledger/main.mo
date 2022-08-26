@@ -34,7 +34,7 @@ actor {
     nyi();
   };
 
-  public query func nAccounts(): async Result(Nat, { #NotFound; } {
+  public query func nAccounts(): async Result<Nat, { #NotFound; }> {
     nyi();
   };
 
@@ -44,7 +44,7 @@ actor {
 
   // debug interface
 
-  public query all_assets(owner : Principal) : async Result<[AssetList], { #NotFound; }> {
+  public query func all_assets(owner : Principal) : async Result<[AssetList], { #NotFound; }> {
     nyi();
   };
 };

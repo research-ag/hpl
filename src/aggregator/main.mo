@@ -9,33 +9,33 @@ import R "mo:base/Result";
 actor {
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
-  type Transfer = T.Transfer;
-  type TransferId = T.TransferId;
+  type Transaction = T.Transaction;
+  type TransactionId = T.TransactionId;
 
   type QueueNumber = Nat;
-  type Acceptance = [Bool];
-  type TransferInfo = {
-    transfer : TransferId;
-    requester : Principal;
-    status : { #pending : Acceptance; #accepted : QueueNumber; #rejected };
+  type Approvals = [Bool];
+  type TransactionInfo = {
+    id : TransactionId;
+    submitter : Principal;
+    status : { #pending : Approvals; #approved : QueueNumber; #rejected };
   };
 
-  type RequestError = { #NoSpace; #Invalid; };
-  public func request(transfer: Transfer): async Result<TransferId, RequestError> {
+  type SubmitError = { #NoSpace; #Invalid; };
+  public func submit(transfer: Transaction): async Result<TransactionId, SubmitError> {
     nyi();
   };
 
-  type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyAccepted };
-  public func accept(transferId: TransferId): async Result<(),NotPendingError> {
+  type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
+  public func approve(transferId: TransactionId): async Result<(),NotPendingError> {
     nyi();
   };
 
-  public func reject(transferId: TransferId): async Result<(),NotPendingError> {
+  public func reject(transferId: TransactionId): async Result<(),NotPendingError> {
     nyi();
   };
 
-  type TransferError = { #NotFound; };
-  public query func transferDetails(transferId: TransferId): async Result<TransferInfo, TransferError> {
+  type TransactionError = { #NotFound; };
+  public query func txDetails(transferId: TransactionId): async Result<TransactionInfo, TransactionError> {
     nyi();
   };
 

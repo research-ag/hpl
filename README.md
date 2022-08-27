@@ -27,9 +27,9 @@
 
 The goal is to design and demonstrate a ledger on the IC(https://internetcomputer.org/) that can handle 10,000 transactions per second which are submitted individually by different end users via ingress messages. The number of ingress messages that the consensus mechanism of a single subnet can process is only in the order of 1,000 per second and is in fact rate limited by boundary nodes to a lower number (maybe around 400 per second). Therefore, to get to the desired throughput we plan to utilize 25 subnets.
 
-The approach we take is based on the assumption that consensus is indeed the bottleneck and that computation and memory are not bottlenecks. Our approach has a single ledger canister which stores all account balances and settles all transactions. Transactions are not submitted to the ledger directly, though. Instead, end users submit their transactions to aggregators of which there are 25, all on different subnets. Aggregators batch up the transactions and forward them in batches to the ledger. The bottleneck is now the block space available for incoming cross-subnet messages on the subnet that hosts the ledger. If the size of a simple transfer is 100 bytes then each aggregator submits 40kB of data per second to the ledger. For all aggregators combined this occupies 1 MB of block space per second.
+The approach we take is based on the assumption that consensus is indeed the bottleneck and that computation and memory are not bottlenecks. Our approach has a single ledger canister which stores all account balances and settles all transactions. Transactions are not submitted to the ledger directly, though. Instead, end users submit their transactions to aggregators of which there are 25, all on different subnets. Aggregators batch up the transactions and forward them in batches to the ledger. The bottleneck is now the block space available for incoming cross-subnet messages on the subnet that hosts the ledger. If the size of a simple transaction is 100 bytes then each aggregator submits 40kB of data per second to the ledger. For all aggregators combined this occupies 1 MB of block space per second.
 
-With some compression techniques we expect that the size of a simple transfer can be reduced to be around 20 bytes, which means a block space requirement of only 200 kB per second.
+With some compression techniques we expect that the size of a simple transaction can be reduced to be around 20 bytes, which means a block space requirement of only 200 kB per second.
 
 We expect the computational resources required to check 10,000 account balances and update 20,000 account balances per second to be within what a single canister can do.
 
@@ -41,13 +41,13 @@ We do not expect the ledger to be able to store the history of transactions, but
 
 The ledger is a multi-token ledger. This means that multiple tokens, differentiated from each other by a token id, can be hosted on the same ledger canister.
 
-All transfers need to be explicitly accepted by all parties involved, even the receiver. There are no deposits into arbitrary accounts without approval of the receiver.
+All transactions need to be explicitly approved by all parties involved, even the receiver. There are no deposits into arbitrary accounts without approval of the receiver.
 
-Multiple token flows can happen atomically in a single transfer.
+Multiple token flows can happen atomically in a single transaction.
 
-More than two parties can be part of a single transfer and all have to approve.
+More than two parties can be part of a single transaction and all have to approve.
 
-Any party can initiate the transfer: the sender, the receiver or even a third-party. The initiator is paying the fee.
+Any party can initiate the transaction: the sender, the receiver or even a third-party. The initiator is paying the fee.
 
 ## API
 
@@ -61,10 +61,10 @@ Any party can initiate the transfer: the sender, the receiver or even a third-pa
   - [Check balance](#check-balance)
   - [Process Batch](#process-batch)
 - [Aggregator API](#aggregator-api)
-  - [Initialize transfer](#initialize-transfer)
-  - [Accept transfer](#accept-transfer)
-  - [Reject transfer](#reject-transfer)
-  - [Get transfer status](#get-transfer-status)
+  - [Initialize transaction](#initialize-transaction)
+  - [Approve transaction](#approve-transaction)
+  - [Reject transaction](#reject-transaction)
+  - [Get transaction status](#get-transaction-status)
 
 ### Terminology
 
@@ -96,17 +96,17 @@ Subaccount ids are issued in consecutive order, without gaps, starting with 0. E
 type SubaccountId = nat;
 ```
 
-Id of transfer, issued by aggregator. The first value specifies the aggregator who issued the transfer id. The second value (nat) is a locally unique value chosen by the aggregator.
+Id of transaction, issued by aggregator. The first value specifies the aggregator who issued the transaction id. The second value (nat) is a locally unique value chosen by the aggregator.
 ```motoko
-type TransferId = record { AggregatorId; nat };
+type TransactionId = record { AggregatorId; nat };
 ```
 
 ```motoko
-type Transfer = vec Part;
+type Transaction = vec Part;
 ```
 
 ```motoko
-type Batch = vec Transfer;
+type Batch = vec Transaction;
 ```
 
 ```motoko
@@ -195,11 +195,11 @@ A record of type `Part` is only valid if in the sequence of flows the `subaccoun
 
 - #### Process Batch
 
-  **Endpoint**: `processBatch: (Batch) -> (vec TransferId, nat);`
+  **Endpoint**: `processBatch: (Batch) -> (vec TransactionId, nat);`
 
   **Authorization**: `cross-canister call from aggregator`
 
-  **Description**: processes a batch of newly created transfers. Returns statuses and/or error codes
+  **Description**: processes a batch of newly created transactions. Returns statuses and/or error codes
   
   **Error codes**:
   - (1): account not found
@@ -211,14 +211,14 @@ A record of type `Part` is only valid if in the sequence of flows the `subaccoun
 
   **Flow**:
   - check `msg.caller` - should be one of registered aggregators
-  - initialize array `result`: can contain either transferId or error code
-  - loop over each `transfer` in `batch`:
-    - init cache array of owners `transferOwners = []` for faster access later
+  - initialize array `result`: can contain either transactionId or error code
+  - loop over each `transaction` in `batch`:
+    - init cache array of owners `transactionOwners = []` for faster access later
     - init token amount balance map `tokenBalanceMap: Map<TokenId, Int> = ...` for checking that the flows for each 
     token add up to zero
-    - loop over each `part` in `transfer` (pass #1: validation):
+    - loop over each `part` in `transaction` (pass #1: validation):
       - obtain `ownerId`: `owners.get(part.owner)`. If it's not defined, put error code `1` to `result` and continue 
-      outer loop. Else push `ownerId` to `transferOwners` cache array
+      outer loop. Else push `ownerId` to `transactionOwners` cache array
       - set `last_subaccount` to -1
       - loop over each `flow` in `part`
         - assert that the `flow.subaccount > last_subaccount`. If not set an error code `6` and continue outer loop.
@@ -229,71 +229,71 @@ A record of type `Part` is only valid if in the sequence of flows the `subaccoun
         - if `tokenBalance.balance + flow.amount < 0`, put error code `4` to `result` and continue outer loop
         - add `flow.amount` to `tokenBalanceMap.get(flow.token)`, if map does not have this token, add it: `tokenBalanceMap.put(flow.token, flow.amount)`
     - loop over `tokenBalanceMap` - if any element != 0, put error code `5` to `result` and continue outer loop
-    - loop over each `part` in `transfer`, use `i` as index (pass #2: applying):
+    - loop over each `part` in `transaction`, use `i` as index (pass #2: applying):
       - loop over each `flow` in `part`
-        - modify balance: `balances[transferOwners[i]][flow.subaccount].balance += flow.amount`
+        - modify balance: `balances[transactionOwners[i]][flow.subaccount].balance += flow.amount`
   - return `result`
 
 ### Aggregator API
 
-- #### Initialize transfer
+- #### Initialize transaction
 
-  **Endpoint**: `request: (Transfer) -> (variant { Ok: TransferId ; Err });`
-
-  **Authorization**: `account owner`
-
-  **Description**: initializes transfer: saves it to memory and waits when some principal call `accept` or `reject` on it
-
-  **Flow**:
-  - construct `TransferId`: `{ selfAggregatorIndex, transfersCounter++ }`
-  - construct `TransferInfo` record: `{ transfer, requester: msg.caller, status : { #pending [] } }`
-  - put transfer info to pending `pendingTransfers.put(transferId[1], transferInfo)`
-  - return `transferId`
-
-- #### Accept transfer
-
-  **Endpoint**: `accept: (TransferId) -> (variant { Ok; Err });`
+  **Endpoint**: `submit: (Transaction) -> (variant { Ok: TransactionId ; Err });`
 
   **Authorization**: `account owner`
 
-  **Description**: accepts transfer by its id
+  **Description**: initializes transaction: saves it to memory and waits when some principal call `approve` or `reject` on it
 
   **Flow**:
-  - assert `transferId[0] == selfAggregatorIndex`, else throw error
-  - extract transfer info `var transferInfo = pendingTransfers.get(transferId[1])`
+  - construct `TransactionId`: `{ selfAggregatorIndex, transactionsCounter++ }`
+  - construct `TransactionInfo` record: `{ transaction, submiter: msg.caller, status : { #pending [] } }`
+  - put transaction info to pending `pendingTransactions.put(transactionId[1], transactionInfo)`
+  - return `transactionId`
+
+- #### Approve transaction
+
+  **Endpoint**: `approve: (TransactionId) -> (variant { Ok; Err });`
+
+  **Authorization**: `account owner`
+
+  **Description**: approves transaction by its id
+
+  **Flow**:
+  - assert `transactionId[0] == selfAggregatorIndex`, else throw error
+  - extract transaction info `var transactionInfo = pendingTransactions.get(transactionId[1])`
   - return error if either:
-    - transfer not found 
-    - already queued `transferInfo.status.accepted != null`
-    - rejected `transferInfo.status.rejected == true`
-  - put `true` to `transferInfo.status.pending`
-  - if acceptance is enough to proceed:
-    - put to batch queue `approvedTransfer.enqueue(transferId[1])`
-    - set `approvedTransfers.head_number()` to `transferInfo.status.accepted`
+    - transaction not found 
+    - already queued `transactionInfo.status.approved != null`
+    - rejected `transactionInfo.status.rejected == true`
+  - put `true` to `transactionInfo.status.pending`
+  - if approveance is enough to proceed:
+    - put to batch queue `approvedTransaction.enqueue(transactionId[1])`
+    - set `approvedTransactions.head_number()` to `transactionInfo.status.approved`
 
-- #### Reject transfer
+- #### Reject transaction
 
-  **Endpoint**: `reject: (TransferId) -> (variant { Ok; Err });`
+  **Endpoint**: `reject: (TransactionId) -> (variant { Ok; Err });`
 
   **Authorization**: `account owner`
 
-  **Description**: rejects transfer by its id
+  **Description**: rejects transaction by its id
 
   **Flow**:
-  - assert `transferId[0] == selfAggregatorIndex`, else throw error
-  - extract transfer info `var transferInfo = pendingTransfers.get(transferId[1])`
-  - if transfer not found or already queued `transferInfo.status.accepted != null`, return error
-  - put `true` to `transferInfo.status.rejected`
+  - assert `transactionId[0] == selfAggregatorIndex`, else throw error
+  - extract transaction info `var transactionInfo = pendingTransactions.get(transactionId[1])`
+  - if transaction not found or already queued `transactionInfo.status.approved != null`, return error
+  - put `true` to `transactionInfo.status.rejected`
 
-- #### Get transfer status
+- #### Get transaction status
 
-  **Endpoint**: `transferDetails: (TransferId) -> (variant { Ok: TransferInfo; Err }) query;`
+  **Endpoint**: `transactionDetails: (TransactionId) -> (variant { Ok: TransactionInfo; Err }) query;`
 
   **Authorization**: `public`
 
-  **Description**: get status of transfer or error code
+  **Description**: get status of transaction or error code
 
   **Flow**:
-  - return `pendingTransfers.get(transferId[1])`
+  - return `pendingTransactions.get(transactionId[1])`
 
 ## Architecture
 
@@ -311,17 +311,17 @@ A record of type `Part` is only valid if in the sequence of flows the `subaccoun
     <br/><span style="font-style: italic">context diagram</span>
 </p>
 
-With **HPL**, registered principals can initiate, process and confirm multi-token transfers. **HPL** charges fee for transfer
+With **HPL**, registered principals can initiate, process and confirm multi-token transactions. **HPL** charges fee for transaction
 
 ### High-level user story:
 
 1. Principals **A** and **B** are registering themselves in **HLS**
-2. Principals communicate directly to agree on the transfer details and on who initiates the transfer  (say **A**). 
-3. **A** creates transfer on **HPL** and receives generated **transferId** as response
-4. **A** sends **transferId** to **B** directly
-5. *B** calls **HPL** with **transferId** to accept the transfer
-6. **HPL** asynchronously processes the transfer
-7. **A** and **B** can query HPL about the status of transfer (processing, success, failed)
+2. Principals communicate directly to agree on the transaction details and on who initiates the transaction  (say **A**). 
+3. **A** creates transaction on **HPL** and receives generated **transactionId** as response
+4. **A** sends **transactionId** to **B** directly
+5. *B** calls **HPL** with **transactionId** to approve the transaction
+6. **HPL** asynchronously processes the transaction
+7. **A** and **B** can query HPL about the status of transaction (processing, success, failed)
 
 ---
 ### Containers diagram
@@ -331,37 +331,37 @@ With **HPL**, registered principals can initiate, process and confirm multi-toke
 </p>
 
 **HPL** infrastructure consists of 1 **Ledger** and N **Aggregators**. N == 25 by default
-- **Aggregator** canister is an entrypoint for principals. During the transfer process, both sender and receiver principal have to use one single aggregator. The aggregator is responsible for:
+- **Aggregator** canister is an entrypoint for principals. During the transaction process, both sender and receiver principal have to use one single aggregator. The aggregator is responsible for:
     - principals authentication
-    - initial transfer validation
+    - initial transaction validation
     - charging fee
-    - sending batched prepared transfers to the **Ledger**
-    - receiving confirmation from the **ledger** for each transfer
-    - serving transfer status to principals
-- **Ledger** canister has the complete token ledger. It is the single source of truth on account balances. It settles all transfers. It cannot be called directly by principals in relation to individual transfers, only in relation to accounts. The ledger is responsible for:
-  - receiving batched transfers from aggregators
-  - validation and execution of each transfer
+    - sending batched prepared transactions to the **Ledger**
+    - receiving confirmation from the **ledger** for each transaction
+    - serving transaction status to principals
+- **Ledger** canister has the complete token ledger. It is the single source of truth on account balances. It settles all transactions. It cannot be called directly by principals in relation to individual transactions, only in relation to accounts. The ledger is responsible for:
+  - receiving batched transactions from aggregators
+  - validation and execution of each transaction
   - saving all account balances
-  - saving latest transfers
+  - saving latest transactions
   - providing list of available aggregators
 
 ### Low-level user story:
 
 1. Principals **A** and **B** register themselves by [calling](#open-new-subaccount) ledger **L** API
 2. **L** creates accounts for newly registered principals
-3. **A** and **B** communicate directly to agree on the transfer details and on who initiates the transfer  (say **A**).
+3. **A** and **B** communicate directly to agree on the transaction details and on who initiates the transaction  (say **A**).
 4. **A** [queries](#get-number-of-aggregators) available aggregators from **L** and chooses aggregator **G**
-5. **A** calls a [function](#initialize-transfer) on **G** with the transfer details
-6. **G** generates a **transferId** and stores the pending transfer under this id
-7. **G** returns **transferId** to **A** as response
-8. **A** sends **transferId** and **G** principal to **B** directly
-9. **B** [calls](#accept-transfer) **G** with **transferId** to accept the transfer
-10. **G** puts the transfer in the next batch
-11. At the next heartbeat, **G** sends a batch of transfers in a single cross-canister [call](#process-batch) to the ledger **L**
-12. **L** processes the transfers in the batch in order, i.e. executes the transfer if valid and discards it if invalid
-13. **L** returns the list of successfully executed transfer ids to **G**
-14. **L** returns error codes for failed transfer ids to **G**
-15. **A** and **B** can [query](#get-transfer-status) **G** about the status of a transfer id (processing, success, failed)
+5. **A** calls a [function](#initialize-transaction) on **G** with the transaction details
+6. **G** generates a **transactionId** and stores the pending transaction under this id
+7. **G** returns **transactionId** to **A** as response
+8. **A** sends **transactionId** and **G** principal to **B** directly
+9. **B** [calls](#approve-transaction) **G** with **transactionId** to approve the transaction
+10. **G** puts the transaction in the next batch
+11. At the next heartbeat, **G** sends a batch of transactions in a single cross-canister [call](#process-batch) to the ledger **L**
+12. **L** processes the transactions in the batch in order, i.e. executes the transaction if valid and discards it if invalid
+13. **L** returns the list of successfully executed transaction ids to **G**
+14. **L** returns error codes for failed transaction ids to **G**
+15. **A** and **B** can [query](#get-transaction-status) **G** about the status of a transaction id (processing, success, failed)
 
 <p align="center">
     <img src=".github/assets/flow.drawio.png" alt="Container diagram"/>
@@ -428,75 +428,75 @@ We save own unique identifier on each aggregator:
 var selfAggregatorIndex: Nat = ...
 ```
 
-We track transfers counter:
+We track transactions counter:
 ```motoko
-var transfersCounter: Nat = 0;
+var transactionsCounter: Nat = 0;
 ```
 
-The main concern of the aggregator is the potential situation that it has too many approved transfers: we limit Batch 
-size so the aggregator should be able to handle case when it has more newly approved transfers than batch limit between 
-ticks. To avoid this, we could use [FIFO queue](https://github.com/o0x/motoko-queue) data structure for saving approved transfers. 
-In this case we will transmit to ledger older transfers and keep newer in the queue, waiting for next tick. As a value 
-in the queue, we use second `Nat` from `TransferId`
+The main concern of the aggregator is the potential situation that it has too many approved transactions: we limit Batch 
+size so the aggregator should be able to handle case when it has more newly approved transactions than batch limit between 
+ticks. To avoid this, we could use [FIFO queue](https://github.com/o0x/motoko-queue) data structure for saving approved transactions. 
+In this case we will transmit to ledger older transactions and keep newer in the queue, waiting for next tick. As a value 
+in the queue, we use second `Nat` from `TransactionId`
 ```motoko
 import Queue "Queue";
 
-var approvedTransfers: Queue.Queue<Nat> = Queue.nil();
+var approvedTransactions: Queue.Queue<Nat> = Queue.nil();
 ```
 
-We need more information for each transfer, so we use this type:
+We need more information for each transaction, so we use this type:
 
 ```motoko
 type QueueNumber = Nat;
-type Acceptance = [Bool];
-type TransferInfo = {
-	transfer : Transfer;
-	requester : Principal;
-	status : { #pending : Acceptance; #accepted : QueueNumber; #rejected : Bool  };
+type Approvals = [Bool];
+type TransactionInfo = {
+	transaction : Transaction;
+	submiter : Principal;
+	status : { #pending : Approvals; #approved : QueueNumber; #rejected : Bool  };
 };
 ```
-`QueueNumber` is a tail counter of the queue `approvedTransfers` at the moment, when we enqueued this transfer to it.
-It will allow us to easily calculate transfer position in the queue be subtracting `approvedTransfers.head_number()` from `transferInfo.status.accepted`
+`QueueNumber` is a tail counter of the queue `approvedTransactions` at the moment, when we enqueued this transaction to it.
+It will allow us to easily calculate transaction position in the queue be subtracting `approvedTransactions.head_number()` from `transactionInfo.status.approved`
 
-`Acceptance` is a vector who already accepted transfer, allows for arbitrarily many parties to a Transfer
+`Approvals` is a vector who already approved transaction, allows for arbitrarily many parties to a Transaction
 
-Pending transfers are being saved to `TrieMap` structure. As a key we use second `Nat` from `TransferId`, since we do 
-not care about aggregator identifier at this step. When accepting transfer, we enqueue the key `Nat` to `approvedTransfers` queue
+Pending transactions are being saved to `TrieMap` structure. As a key we use second `Nat` from `TransactionId`, since we do 
+not care about aggregator identifier at this step. When approveing transaction, we enqueue the key `Nat` to `approvedTransactions` queue
 ```motoko
-var pendingTrasfers: TrieMap<Nat, TransferInfo> = ...;
+var pendingTrasfers: TrieMap<Nat, TransactionInfo> = ...;
 ```
 
-But with this structure the logic to automatically reject old non-approved transfer could be tricky. 
-So additionally we add TrieMap of pending transfer id-s, where key is principal id, value is a linked list 
-of id-s of pending transfer, initiated by this principal. This will allow us to limit pending transfers per
-user: if he already has, let's say, 100 pending transfers and tries to create a new one, we automatically reject
-the oldest one (first in linked list). When rejecting/accepting transfer, we will acquire principal id from
-Transfer (field `requester`) object and remove appropriate transfer id from it
+But with this structure the logic to automatically reject old non-approved transaction could be tricky. 
+So additionally we add TrieMap of pending transaction id-s, where key is principal id, value is a linked list 
+of id-s of pending transaction, initiated by this principal. This will allow us to limit pending transactions per
+user: if he already has, let's say, 100 pending transactions and tries to create a new one, we automatically reject
+the oldest one (first in linked list). When rejecting/approveing transaction, we will acquire principal id from
+Transaction (field `submiter`) object and remove appropriate transaction id from it
 ```motoko
-var pendingPrincipalTransfers: TrieMap<PrincipalId, LinkedList<Nat>>
+var pendingPrincipalTransactions: TrieMap<PrincipalId, LinkedList<Nat>>
 ```
 
 
-Summary lifecycle of the `Transfer` entity:
+Summary lifecycle of the `Transaction` entity:
 ```mermaid
 sequenceDiagram
-    Note left of API: request (Transfer) 
-    API->>TrieMap pendingTransfers: Putting TransferInfo 
-    TrieMap pendingTransfers->>TrieMap pendingTransfers: Setting pending status
-    Note left of API: accept (Transfer) 
-    API->>TrieMap pendingTransfers: put "true" to status.pending
-    TrieMap pendingTransfers->>TrieMap pendingTransfers: Check if everyone set true to status.pending
-    TrieMap pendingTransfers->>Queue approvedTransfer: put transfer ID to queue
-    TrieMap pendingTransfers->>TrieMap pendingTransfers: Set status.accepted
+    Note left of API: submit (Transaction) 
+    API->>TrieMap pendingTransactions: Putting TransactionInfo 
+    TrieMap pendingTransactions->>TrieMap pendingTransactions: Setting pending status
+    Note left of API: approve (Transaction) 
+    API->>TrieMap pendingTransactions: put "true" to status.pending
+    TrieMap pendingTransactions->>TrieMap pendingTransactions: Check if everyone set true to status.pending
+    TrieMap pendingTransactions->>Queue approvedTransaction: put transaction ID to queue
+    TrieMap pendingTransactions->>TrieMap pendingTransactions: Set status.approved
     Note left of API: batch tick
-    API->>Queue approvedTransfer: dequeue N transfers
-    Queue approvedTransfer->>TrieMap pendingTransfers: fetch transfers
-    TrieMap pendingTransfers->>Ledger canister: submit Batch
-    Ledger canister-->>TrieMap pendingTransfers: return results
-    TrieMap pendingTransfers->>TrieMap pendingTransfers: Set DONE status or error code
-    Note left of API: transferDetails (TransferId)
-    API->>TrieMap pendingTransfers: get data
-    TrieMap pendingTransfers-->>API: return
+    API->>Queue approvedTransaction: dequeue N transactions
+    Queue approvedTransaction->>TrieMap pendingTransactions: fetch transactions
+    TrieMap pendingTransactions->>Ledger canister: submit Batch
+    Ledger canister-->>TrieMap pendingTransactions: return results
+    TrieMap pendingTransactions->>TrieMap pendingTransactions: Set DONE status or error code
+    Note left of API: transactionDetails (TransactionId)
+    API->>TrieMap pendingTransactions: get data
+    TrieMap pendingTransactions-->>API: return
 ```
 
 ## Deployment

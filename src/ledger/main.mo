@@ -11,7 +11,7 @@ actor {
   type Result<X,Y> = R.Result<X,Y>;
   type AggregatorId = T.AggregatorId;
   type SubaccountId = T.SubaccountId;
-  type TransferId = T.TransferId;
+  type TransactionId = T.TransactionId;
   type Asset = T.Asset;
   type Batch = T.Batch;
 
@@ -21,7 +21,7 @@ actor {
     nyi();
   };
 
-  public func processBatch(batch: Batch): async [{ #transferId: TransferId; #err: Nat }] {
+  public func processBatch(batch: Batch): async [{ #transactionId: TransactionId; #err: Nat }] {
     nyi();
   };
 

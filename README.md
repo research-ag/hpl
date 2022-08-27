@@ -321,15 +321,6 @@ With **HPL**, registered principals can submit and approve multi-token transacti
 ### Data Structures
 
 #### Ledger
-We save aggregator principals in array:
-```motoko
-type Aggregators = [Principal]
-```
-
-*TODO: describe when and how initialize it:*
-```motoko
-let aggregators = [aggregator0, aggregator1, ....]
-```
 
 For the balance we use a simple record
 

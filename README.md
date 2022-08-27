@@ -76,56 +76,7 @@ Any party can initiate the transaction: the sender, the receiver or even a third
 
 ### Candid types of the API
 
-Id of token, e.g. currency
-```motoko
-type TokenId = nat;
-```
-
-Id of aggregator
-```motoko
-type AggregatorId = nat;
-```
-
-Balances are Nats in the smallest unit of the token.
-```motoko
-type Balance = nat;
-```
-
-Subaccount ids are issued in consecutive order, without gaps, starting with 0. Extending the range of subaccount ids is an infrequent administrative action on the ledger carried out by the owner principal of the subaccounts.
-```motoko
-type SubaccountId = nat;
-```
-
-Id of transaction, issued by aggregator. The first value specifies the aggregator who issued the transaction id. The second value (nat) is a locally unique value chosen by the aggregator.
-```motoko
-type TransactionId = record { AggregatorId; nat };
-```
-
-```motoko
-type Transaction = vec Part;
-```
-
-```motoko
-type Batch = vec Transaction;
-```
-
-```motoko
-type Part = record {
-  owner : principal;
-  flows : vec Flow;
-  memo : opt blob
-};
-```
-
-```motoko
-type Flow = record {
-  token : TokenId;
-  subaccount : nat;
-  amount : int;
-};
-```
-
-A record of type `Part` is only valid if in the sequence of flows the `subaccount` field is strictly increasing. In particular, there can be at most one flow per subaccount. 
+See [ledger.did](src/ledger/ledger.did) and [aggregator.did](src/aggregator/aggregator.did).
 
 ### Ledger API
 
@@ -311,13 +262,13 @@ A record of type `Part` is only valid if in the sequence of flows the `subaccoun
     <br/><span style="font-style: italic">context diagram</span>
 </p>
 
-With **HPL**, registered principals can initiate, process and confirm multi-token transactions. **HPL** charges fee for transaction
+With **HPL**, registered principals can submit and approve multi-token transactions. **HPL** charges fee for transaction
 
 ### High-level user story:
 
 1. Principals **A** and **B** are registering themselves in **HLS**
 2. Principals communicate directly to agree on the transaction details and on who initiates the transaction  (say **A**). 
-3. **A** creates transaction on **HPL** and receives generated **transactionId** as response
+3. **A** submits transaction on **HPL** and receives generated **transactionId** as response
 4. **A** sends **transactionId** to **B** directly
 5. *B** calls **HPL** with **transactionId** to approve the transaction
 6. **HPL** asynchronously processes the transaction

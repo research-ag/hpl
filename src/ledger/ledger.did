@@ -6,7 +6,7 @@ type AssetId = nat;
 // Currently only fungible tokens are defined.
 // Non-fungible tokens can be introduced later as a variant.
 // A fungible token asset is a pair consisting of the token id (AssetId)
-// and the quantity (nat).
+// and a quantity (nat).
 type Asset = variant {ft: record {
                             AssetId;
                             nat;
@@ -51,7 +51,7 @@ type TransferId =
    tid: nat;
  };
 
-// The batches send from aggregator to ledger
+// The batches sent from aggregator to ledger
 type Batch = vec Transfer;
 
 // Result types
@@ -88,7 +88,7 @@ type Assets_Result =
 service : {
   // updates
 
-  // open n new subaccounts, caller is considered the owner
+  // open n new subaccounts for owner = caller
   // if the owner isn't known then the owner is newly registered
   // result is the id of the first newly created subaccount
   // the remaining ones are consecutively numbered
@@ -114,15 +114,14 @@ service : {
   // NotFound if caller is not registered 
   nAccounts: () -> (Nat_Result) query;
 
-  // return the list of assets in the n-th subaccount of the caller
+  // return the asset in the n-th subaccount of the caller
   // NotFound if the caller isn't registered
   // SubaccountNotFound if the caller is registered but does not have n accounts
   asset: (SubaccountId) -> (Asset_Result) query;
 
   // debug interface
 
-  // return all assets from all subaccounts of the given owner
-  // returns a list of lists of assets
+  // return all assets (i.e. all subaccounts) of the given owner
   // NotFound if the given owner is not registered
   all_assets: (principal) -> (Assets_Result) query;
 }

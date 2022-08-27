@@ -1,12 +1,13 @@
 import { nyi } "mo:base/Prelude";
 
-// import types (pattern matching not available)
+// type imports
+// pattern matching is not available for types (work-around required)
 import T "../shared/types";
 import R "mo:base/Result";
 
 // aggregator
 actor {
-  // imported types (pattern matching not available)
+  // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
   type Transfer = T.Transfer;
   type TransferId = T.TransferId;

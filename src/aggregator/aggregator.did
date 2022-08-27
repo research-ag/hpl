@@ -53,7 +53,7 @@ type TransferId =
    tid: nat;
  };
 
-// The batches send from aggregator to ledger
+// The batches sent from aggregator to ledger
 type Batch = vec Transfer;
 
 // The information about a Transfer that is supplied by the user

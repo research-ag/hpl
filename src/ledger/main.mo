@@ -1,7 +1,7 @@
 import { nyi } "mo:base/Prelude";
 import Prelude "mo:base/Prelude";
 import List "mo:base/List";
-import { RBTree } "mo:base/RBTree";
+import RBTree "mo:base/RBTree";
 import { compare } "mo:base/Principal";
 
 // type imports
@@ -13,7 +13,13 @@ import R "mo:base/Result";
 
 
 // ledger
-actor {
+// the constructor arguments are:
+//   initial list of the canister ids of the aggregators
+// more can be added later with add_aggregator()
+// the constructor arguments are passed like this:
+//   dfx deploy --argument='(vec { principal "aaaaa-aa"; ... })' ledger 
+actor class Ledger(initial_aggregators : [Principal]) {
+
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
   type AggregatorId = T.AggregatorId;
@@ -34,10 +40,10 @@ actor {
   let aggregators = List.fromArray<Principal>([]);
 
   // The map from principal to short id is stored in a single `RBTree`:
-  let owners = RBTree<Principal, OwnerId>(compare);
+  let owners : RBTree.RBTree<Principal, OwnerId> = RBTree.RBTree<Principal, OwnerId>(compare);
 
-  // The content of all accounts is stored in an array of array
-  let accounts : [[Asset]] = [[]];
+  // The content of all accounts is stored in an array of arrays
+  var accounts : [var [var Asset]] = [var [var]];
 
   // The first index is the owner id and the second index is the subaccount id 
   // For example, a particular balance in a fungible token is accessed like this:

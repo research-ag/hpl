@@ -76,7 +76,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   type SubmitNumber = Nat;
   type QueueNumber = Nat;
   type Approvals = [Bool];
-  type TransactionInfo = {
+  type TransactionRequest = {
     transaction : Transaction;
     submitter : Principal;
     submit_number : SubmitNumber;
@@ -87,7 +87,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   Pending transactions are being saved to a TrieMap structure keyed by the submit number. 
   */
 
-  let pendingTransfers = TrieMap.TrieMap<SubmitNumber, TransactionInfo>(Nat.equal, Nat32.fromNat);
+  let pendingTransfers = TrieMap.TrieMap<SubmitNumber, TransactionRequest>(Nat.equal, Nat32.fromNat);
 
   /*
   We also track the pending transactions per submitter principal. 
@@ -96,7 +96,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   For example, this allows to delete (long-pending) transactions on a per-submitter basis without having to search through all pending transactions.
   */
 
-  let submitterTransactions = TrieMap.TrieMap<Principal, List.List<TransactionInfo>>(Principal.equal, Principal.hash);
+  let submitterTransactions = TrieMap.TrieMap<Principal, List.List<TransactionRequest>>(Principal.equal, Principal.hash);
 
   // update functions
 
@@ -117,7 +117,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   // query functions
 
   type TransactionError = { #NotFound; };
-  public query func txDetails(transferId: TransactionId): async Result<TransactionInfo, TransactionError> {
+  public query func txDetails(transferId: TransactionId): async Result<TransactionRequest, TransactionError> {
     nyi();
   };
 

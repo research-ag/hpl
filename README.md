@@ -328,39 +328,6 @@ See [code](src/ledger/main.mo).
 
 See [code](src/aggregator/main.mo).
 
-We need more information for each transaction, so we use this type:
-
-```motoko
-type QueueNumber = Nat;
-type Approvals = [Bool];
-type TransactionInfo = {
-	transaction : Transaction;
-	submiter : Principal;
-	status : { #pending : Approvals; #approved : QueueNumber; #rejected : Bool  };
-};
-```
-`QueueNumber` is a tail counter of the queue `approvedTransactions` at the moment, when we enqueued this transaction to it.
-It will allow us to easily calculate transaction position in the queue be subtracting `approvedTransactions.head_number()` from `transactionInfo.status.approved`
-
-`Approvals` is a vector who already approved transaction, allows for arbitrarily many parties to a Transaction
-
-Pending transactions are being saved to `TrieMap` structure. As a key we use second `Nat` from `TransactionId`, since we do 
-not care about aggregator identifier at this step. When approveing transaction, we enqueue the key `Nat` to `approvedTransactions` queue
-```motoko
-var pendingTrasfers: TrieMap<Nat, TransactionInfo> = ...;
-```
-
-But with this structure the logic to automatically reject old non-approved transaction could be tricky. 
-So additionally we add TrieMap of pending transaction id-s, where key is principal id, value is a linked list 
-of id-s of pending transaction, initiated by this principal. This will allow us to limit pending transactions per
-user: if he already has, let's say, 100 pending transactions and tries to create a new one, we automatically reject
-the oldest one (first in linked list). When rejecting/approveing transaction, we will acquire principal id from
-Transaction (field `submiter`) object and remove appropriate transaction id from it
-```motoko
-var pendingPrincipalTransactions: TrieMap<PrincipalId, LinkedList<Nat>>
-```
-
-
 Summary lifecycle of the `Transaction` entity:
 ```mermaid
 sequenceDiagram

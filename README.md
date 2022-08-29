@@ -322,69 +322,11 @@ With **HPL**, registered principals can submit and approve multi-token transacti
 
 #### Ledger
 
-For the balance we use a simple record
-
-```motoko
-type TokenBalance = {
-  unit : TokenId;
-  balance : Balance;
-};
-```
-
-Owners are tracked via a "short id" which is a Nat.
-
-```motoko
-type OwnerId = Nat;
-```
-
-The map from principal to short id is stored in a single `RBTree`:
-
-```motoko
-let owners = RBTree<Principal, OwnerId>(Principal.compare);
-```
-
-For each principal we have a simple array of balances, indexed by `SubaccoutId`, which is being issued sequentally:
-
-```motoko
-type OwnerBalances = [TokenBalance]; // indexed by SubaccountId
-```
-
-`OwnerId` is also auto-increment value, so all the balances again can be saved in simple array:
-
-```motoko
-let balances : [OwnerBalances] = []; // indexed by OwnerId
-```
-
-This structure allows us to effectively access any subaccount balance. Particular balance is accessed as
-
-```motoko
-balances[owner_id][subaccount_id].balance
-```
+See [code](src/ledger/main.mo).
 
 #### Aggregator
 
-We save own unique identifier on each aggregator:
-
-*TODO: describe when and how initialize it:*
-```motoko
-var selfAggregatorIndex: Nat = ...
-```
-
-We track transactions counter:
-```motoko
-var transactionsCounter: Nat = 0;
-```
-
-The main concern of the aggregator is the potential situation that it has too many approved transactions: we limit Batch 
-size so the aggregator should be able to handle case when it has more newly approved transactions than batch limit between 
-ticks. To avoid this, we could use [FIFO queue](https://github.com/o0x/motoko-queue) data structure for saving approved transactions. 
-In this case we will transmit to ledger older transactions and keep newer in the queue, waiting for next tick. As a value 
-in the queue, we use second `Nat` from `TransactionId`
-```motoko
-import Queue "Queue";
-
-var approvedTransactions: Queue.Queue<Nat> = Queue.nil();
-```
+See [code](src/aggregator/main.mo).
 
 We need more information for each transaction, so we use this type:
 

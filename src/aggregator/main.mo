@@ -1,4 +1,5 @@
 import { nyi; xxx } "mo:base/Prelude";
+import Deque "mo:base/Deque";
 
 // type imports
 // pattern matching is not available for types (work-around required)
@@ -33,22 +34,24 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   let ledger : Principal = _ledger; 
  
   // the own unique identifier of this aggregator
-  var selfAggregatorIndex: Nat = own_id;
+  let selfAggregatorIndex: Nat = own_id;
 
   // We track transactions counter:
   var transactionsCounter: Nat = 0;
 
   /*
-The main concern of the aggregator is the potential situation that it has too many approved transactions: we limit Batch 
-size so the aggregator should be able to handle case when it has more newly approved transactions than batch limit between 
-ticks. To avoid this, we could use [FIFO queue](https://github.com/o0x/motoko-queue) data structure for saving approved transactions. 
-In this case we will transmit to ledger older transactions and keep newer in the queue, waiting for next tick. As a value 
-in the queue, we use second `Nat` from `TransactionId`
-import Queue "Queue";
+  The aggregator sends the transactions in batches to the ledger. It does so at every invocation by the heartbeat functionality.
+  Between heartbeats, approved transaction queue up and get stored in Deque. The batches have a size limit. At every heartbeat, 
+  we pop as many approved transactions from the queue as fit into a batch and send the batch.
 
-var approvedTransactions: Queue.Queue<Nat> = Queue.nil();
-```
+  In a future iteration we can send more than one batch per heartbeat. But this approach requires a mechanism to slow down when 
+  delivery failures occur. 
+
+  The deque is of type Deque<Transaction>. This results in pointers to Transactions that are stored in the Trie already. 
+  When a Transaction is removed from the Deque and the Trie (i.e. dereferenced) then the garbage collector will delete it.
   */
+
+  var approvedTransactions = Deque.empty<Transaction>();
 
   // updates
 

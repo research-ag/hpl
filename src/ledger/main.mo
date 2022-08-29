@@ -9,9 +9,6 @@ import { compare } "mo:base/Principal";
 import T "../shared/types";
 import R "mo:base/Result";
 
-// types
-
-
 // ledger
 // the constructor arguments are:
 //   initial list of the canister ids of the aggregators

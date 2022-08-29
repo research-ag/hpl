@@ -92,11 +92,11 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   /*
   We also track the pending transactions per submitter principal. 
   This is done so that various forms of fee systems can be designed that are based on the submitter of a transaction.
-
   For example, this allows to delete (long-pending) transactions on a per-submitter basis without having to search through all pending transactions.
-  */
+  But this will only be implemented later.
 
   let submitterTransactions = TrieMap.TrieMap<Principal, List.List<TransactionRequest>>(Principal.equal, Principal.hash);
+  */
 
   // update functions
 

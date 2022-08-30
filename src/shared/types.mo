@@ -36,8 +36,8 @@ module {
   public let max_contribution = 256;
 
   // maximum number of subaccounts per principal in ledger
-  public let max_contribution = 2**16;
+  public let max_subaccounts = 65536; 
 
-  // maximum number of subaccount total in ledger
-  public let max_principals = 2**24;
+  // maximum number of subaccounts total in ledger
+  public let max_principals = 65536;
 }

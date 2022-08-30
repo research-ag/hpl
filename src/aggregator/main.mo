@@ -25,7 +25,6 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   type Result<X,Y> = R.Result<X,Y>;
   type Transaction = T.Transaction;
   type TransactionId = T.TransactionId;
-
  
   // canister id of the ledger canister
   let ledger : Principal = _ledger; 
@@ -89,9 +88,18 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     - delete the oldest element (without the caller knowing which one that is)
     - delete any element provided by the caller
   For example code how to build this data structure with a doubly-linked list see pool.mo.
+
   If there is no space for a new element then the oldest one in the pool gets overwritten by deleting it first. 
-  In the first implementation there is only one global pool. In the future, submitting principals can have their own pool if they pay fees for it.
+  When a transaction is fully approved then it is removed from the pool and placed in the queue.
+  We track the overall number of transactions in the aggregator from pool plus queue with a counter. 
+  If the counter reaches the maximum then new submissions are denied.
+
+  In the first implementation there is only one global pool. 
+  In the future, submitting principals can have their own pool if they pay fees for it.
   */
+
+  // If 256 new transactions are submitted per second and never approved then in a pool of size 2**24 they last for ~18h before they get overwritten. 
+  let max_transactions = 16777216; // 2**24
 
   // uncomment when the data structure is written
   // let pendingPool = OrderedPool<TransactionRequest>(max_size);

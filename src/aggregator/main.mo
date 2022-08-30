@@ -83,20 +83,24 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     status : { #pending : Approvals; #approved : QueueNumber; #rejected : Bool  };
   };
 
-  /*
-  Pending transactions are being saved to a TrieMap structure keyed by the submit number. 
+  /* 
+  Pending transactions are being stored in an "ordered pool" of bounded size. The pool allows to
+    - add a new element 
+    - delete the oldest element (without the caller knowing which one that is)
+    - delete any element provided by the caller
+  For example code how to build this data structure with a doubly-linked list see pool.mo.
+  If there is no space for a new element then the oldest one in the pool gets overwritten by deleting it first. 
+  In the first implementation there is only one global pool. In the future, submitting principals can have their own pool if they pay fees for it.
   */
 
-  let pendingTransfers = TrieMap.TrieMap<SubmitNumber, TransactionRequest>(Nat.equal, Nat32.fromNat);
+  // uncomment when the data structure is written
+  // let pendingPool = OrderedPool<TransactionRequest>(max_size);
 
   /*
-  We also track the pending transactions per submitter principal. 
-  This is done so that various forms of fee systems can be designed that are based on the submitter of a transaction.
-  For example, this allows to delete (long-pending) transactions on a per-submitter basis without having to search through all pending transactions.
-  But this will only be implemented later.
-
-  let submitterTransactions = TrieMap.TrieMap<Principal, List.List<TransactionRequest>>(Principal.equal, Principal.hash);
+  Pending transactions are also saved to a lookup datastructure by submit number. Initially we use a TrieMap.
   */
+
+  let pendingLookup = TrieMap.TrieMap<SubmitNumber, TransactionRequest>(Nat.equal, Nat32.fromNat);
 
   // update functions
 

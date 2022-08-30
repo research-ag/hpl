@@ -85,13 +85,14 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   /* 
   Pending transactions are being stored in an "ordered pool" of bounded size. The pool allows to
     - add a new element 
-    - delete the oldest element (without the caller knowing which one that is)
+    - delete the oldest element (the pool knows which one that is, the caller doesn't)
     - delete any element provided by the caller
-  For example code how to build this data structure with a doubly-linked list see pool.mo.
+  For example code showing how to build this data structure with a doubly-linked list see: src/pool.mo.
+  Also see the same approach followed here (without deletions): https://github.com/canscale/LinkedList/blob/main/src/DoublyLinkedList.mo
 
   If there is no space for a new element then the oldest one in the pool gets overwritten by deleting it first. 
   When a transaction is fully approved then it is removed from the pool and placed in the queue.
-  We track the overall number of transactions in the aggregator from pool plus queue with a counter. 
+  With a counter we track the overall number of transactions that exist in the aggregator, i.e in the pool plus the queue. 
   If the counter reaches the maximum then new submissions are denied.
 
   In the first implementation there is only one global pool. 
@@ -106,6 +107,9 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
 
   /*
   Pending transactions are also saved to a lookup datastructure by submit number. Initially we use a TrieMap.
+  They stay in the lookup data structure when they move from the pool to the queue.
+  They are removed from the lookup data structure when they are popped from the queue and batched.
+  Thus, the number of entries in the lookup data structures equals the number of transactions in the pool plus queue.
   */
 
   let pendingLookup = TrieMap.TrieMap<SubmitNumber, TransactionRequest>(Nat.equal, Nat32.fromNat);

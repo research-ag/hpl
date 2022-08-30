@@ -10,6 +10,7 @@ module {
   };
 
   public type Contribution = {
+    owner : Principal;
     inflow : [(SubaccountId, Asset)];
     outflow : [(SubaccountId, Asset)];
     memo : ?Blob;
@@ -19,10 +20,11 @@ module {
   // subaccount id must be strictly increasing throughout the list to rule out duplicate keys
 
   public type Transaction = { 
-    map : [(Principal, Contribution)]; 
+    map : [Contribution]; 
     committer : ?Principal
   };
-  // principal must be strictly increasing throughout the list to rule out duplicate keys in map
+  // map is seen as a map from a principal to its contribution
+  // the principals must be strictly increasing throughout the list to rule out duplicate keys in map
 
   public type Batch = [Transaction];
 

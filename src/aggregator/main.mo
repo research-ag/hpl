@@ -23,7 +23,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
 
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
-  type Transaction = T.Transaction;
+  public type Transaction = T.Transaction;
   type TransactionId = T.TransactionId;
  
   // canister id of the ledger canister
@@ -32,19 +32,15 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   // the own unique identifier of this aggregator
   let selfAggregatorIndex: Nat = own_id;
 
-  // We track transactions counter:
-  var transactionsCounter: Nat = 0;
-
   /*
   The aggregator sends the transactions in batches to the ledger. It does so at every invocation by the heartbeat functionality.
-  Between heartbeats, approved transaction queue up and get stored in Deque. The batches have a size limit. At every heartbeat, 
+  Between heartbeats, approved transaction queue up and get stored in a queue. The batches have a size limit. At every heartbeat, 
   we pop as many approved transactions from the queue as fit into a batch and send the batch.
 
-  In a future iteration we can send more than one batch per heartbeat. But this approach requires a mechanism to slow down when 
-  delivery failures occur. 
+  In a future iteration we can send more than one batch per heartbeat. But such an approach requires a mechanism to slow down when 
+  delivery failures occur. We currently do not implement it. 
 
-  The deque is of type Deque<Transaction>. This results in pointers to Transactions that are stored in the Trie already. 
-  When a Transaction is removed from the Deque and the Trie (i.e. dereferenced) then the garbage collector will delete it.
+  The queue is of type Deque<Transaction>. 
   */
 
   var approvedTransactions = Deque.empty<Transaction>();
@@ -75,6 +71,8 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   type SubmitNumber = Nat;
   type QueueNumber = Nat;
   type Approvals = [Bool];
+
+  // This is the transaction request that can be queried by submit_number
   type TransactionRequest = {
     transaction : Transaction;
     submitter : Principal;
@@ -82,37 +80,72 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     status : { #pending : Approvals; #approved : QueueNumber; #rejected : Bool  };
   };
 
-  /* 
-  Pending transactions are being stored in an "ordered pool" of bounded size. The pool allows to
-    - add a new element 
-    - delete the oldest element (the pool knows which one that is, the caller doesn't)
-    - delete any element provided by the caller
-  For example code showing how to build this data structure with a doubly-linked list see: src/pool.mo.
-  Also see the same approach followed here (without deletions): https://github.com/canscale/LinkedList/blob/main/src/DoublyLinkedList.mo
+  // This is how we internally store a transaction request.
+  type TransactionRequestInternal = {
+    transaction : Transaction;
+    submitter : Principal;
+    submit_number : SubmitNumber;
+    status : { #pending : Approvals; #approved : QueueNumber; #rejected : Bool  };
+    pool : Nat; 
+    prev_pending : SubmitNumber;  
+    next_pending : SubmitNumber;
+  };
 
-  If there is no space for a new element then the oldest one in the pool gets overwritten by deleting it first. 
-  When a transaction is fully approved then it is removed from the pool and placed in the queue.
-  With a counter we track the overall number of transactions that exist in the aggregator, i.e in the pool plus the queue. 
-  If the counter reaches the maximum then new submissions are denied.
+  /*
+  Transaction requests are assigned to "pools". In the initial implementation there is only one global pool.
+  In the future there can be multiple pools and submitters can reserve their own pool with a chosen capacity for a fee.
+ 
+  A pool has a fixed capacity. A pool tracks how many transaction requests it contains (var total), how many of them are 
+  pending (var pending), and how many are queued (total-pending).
 
-  In the first implementation there is only one global pool. 
-  In the future, submitting principals can have their own pool if they pay fees for it.
+  The pending transaction requests in a pool form one chain that reflects their order of submission. The Pool stores the head and 
+  tail of that chain (first and last) and each TransactionRequest stores its neighbours in the chain (prev and next).
+  
+  When a transaction first becomes fully approved then it is removed from the chain by manipulating the neighbours' prev 
+  and next values and, possibly, the pool's first and last value. Moreover the pending value in the pool is decremented.
+
+  When a transaction request is popped from the queue then the queued value of its pool is decremented.
+
+  When a new transaction request is made then the following happens:
+    1. If queued == capacity then we don't have space for this request. We cannot delete queued requests. 
+    2. If total == capacity (but queued < capacity) then pending must be > 0. Then we delete the first (=oldest) pending transaction.
+       To do this we first look up the transaction request under the submit number first_pending. 
+       Then we remove that transaction request from the lookup data structure. 
+       Then we remove it from the chain of pending transactions by setting the pool's value first_pending to the request's value of next_pending. 
+    3. Then we add the new transaction to the lookup data structure and set the pool's value last_pending. 
   */
 
+  type Pool = {
+    capacity : Nat;
+    var first_pending : ?SubmitNumber;
+    var last_pending : ?SubmitNumber;
+    var pending : Nat;
+    var total : Nat;
+  };
+  
+  let pool : Pool = { 
+    capacity = 16777216;
+    var first_pending = null;
+    var last_pending = null;
+    var pending = 0;
+    var total = 0 
+  };
+  
   // If 256 new transactions are submitted per second and never approved then in a pool of size 2**24 they last for ~18h before they get overwritten. 
   let max_transactions = 16777216; // 2**24
-
-  // uncomment when the data structure is written
-  // let pendingPool = OrderedPool<TransactionRequest>(max_size);
 
   /*
   Pending transactions are also saved to a lookup datastructure by submit number. Initially we use a TrieMap.
   They stay in the lookup data structure when they move from the pool to the queue.
   They are removed from the lookup data structure when they are popped from the queue and batched.
-  Thus, the number of entries in the lookup data structures equals the number of transactions in the pool plus queue.
+  Thus, the number of entries in the lookup data structures equals the value total of the pool. Or the sum of all values total if there are multiple pools.
   */
 
-  let pendingLookup = TrieMap.TrieMap<SubmitNumber, TransactionRequest>(Nat.equal, Nat32.fromNat);
+  let lookup = TrieMap.TrieMap<SubmitNumber, TransactionRequest>(Nat.equal, Nat32.fromNat);
+
+  /*
+  When a TransactionRequest is popped from the queue and batched then it is also removed from the pool it belongs to and from the lookup data structure.
+  */
 
   // update functions
 

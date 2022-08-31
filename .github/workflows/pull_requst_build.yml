@@ -17,4 +17,5 @@ jobs:
 
       - name: Build project
         run: |
+          dfx canister create ledger
           dfx build

@@ -117,9 +117,8 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   let lookup = object {
     let capacity = 16777216; // number of slots available in the table
    
-    var used : Nat = 0; // number of unused slots
-
-    var unmarked : Nat = 0; // individual slots can be "marked", this is the number of used, unmarked slots
+    var unused : Nat =  16777216; // number of unused slots
+    var unmarked : Nat = 0; // individual used slots can be "marked", this is the number of used, unmarked slots
  
     // add an element to the table
     // if the table is not full then take an usued slot (the slot will start as unmarked)
@@ -141,10 +140,78 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   };
 
   /*
-  The lookup table is going to be implemented as an array of size `capacity`. 
-  Details are worked out and will be inserted here.
+  The function `mark` will be called when a tx becomes fully approved. The reason is that we want to be able to overwrite old pending 
+  transactions like in a circular buffer, but we never want to overwrite transactions that are already queued.
 
-  If 256 new transactions are submitted per second and never approved then in a table of size 2**24 they last for ~18h before their slot gets overwritten. 
+  The lookup table is going to be implemented as an array of size `capacity` and element type `Slot` (see below). 
+
+  If 256 new transactions are submitted per second and never approved then, in a table of size 2**24, they last for ~18h before their slot gets overwritten. 
+
+  The elements in the array are called "slots" are numbered 0,..,capacity-1.
+  */
+ 
+  type Slot = {
+    var value : ?TxRequest; // value `none` means the slot is empty
+    var counter : Nat; // must be initialized to 0
+    var next_index : ?Nat; // this must be initialized dynamically to i+1 for slot i and null for slot capacity-1
+    var prev_index : ?Nat; // this must be initialized dynamically to i-1 for slot i and null for slot 0 
+  };
+
+  /* 
+  Given a first index into the table and following recursively the `next_index` one gets a chain of slots inside the table.
+  The chain ends when the `next_index` value is `none`.
+
+  The following type captures such a chain. The value is either the empty chain or the chain with the two ends given by the 
+  two Nats which refer to the index of the first and the last slot in the chain.
+  */  
+
+  type Chain = { #empty; #ends : (Nat, Nat) };
+
+  /* 
+  The following variables are listed as global variables here below but will become part of the lookup object:
+  */
+
+  var unused_chain : Chain = #ends(0, 16777215);
+  var unmarked_chain : Chain = #empty;
+
+  /*
+  Chains are used like queues, i.e. elements are removed from the head (first element) and added at the tail (last element), 
+  but we can also remove elements from somewhere in the middle.
+
+  If a new element is added and the unused chain is non-empty then:
+    - the first slot is popped from the unused_chain
+    - for this slot:
+      - the new element is stored in the `value` field of the slot
+      - the local id to be returned is composed of the index of the slot and the `counter` field of the slot, e.g.:
+          local_id := counter*2**16 + slot_index
+      - the `counter` field of the slot is incremented
+      - the slot is pushed to the unmarked_chain
+
+  If a new element is added, the unused chain is empty and the unmarked chain is non-empty then:
+    - the first slot is popped from the unmarked_chain and used as above to
+      - store the element
+      - build local id
+      - increment `counter` value
+
+  When a lookup happens then the local id is first decomposed to obtain the slot id, e.g.
+    slot_index := local_id % 2**24;
+    counter_value := local_id / 2**24;
+  If the `counter` value in slot `slot_index` does not equal `counter_value` then it means the local id entry is no longer stored (has been overwritten) and the lookup failed. 
+  If it equals and the `value` field in the slot is `none` then it means the local id entry is no longer stored (removed) and the lookup failed.  
+  Otherwise the lookup was successful.
+
+  If a used slot gets marked then it is removed from the unmarked_chain.
+ 
+  If the element in a used slot is removed then:
+    - the value in the slot is set to `none`
+    - the slot is pushed to the unused_chain. 
+
+  So the theoretical transitions of a slot are: 
+    unused_chain ->(add) unmarked_chain ->(remove) unused_chain
+    unused_chain ->(add) unmarked_chain ->(mark) not in any chain ->(remove) unused_chain
+
+  In practice what happens is:
+    unused_chain ->(tx is added) unmarked_chain ->(tx gets fully approved) not in any chain ->(tx gets batched) unused_chain 
   */
 
   // update functions

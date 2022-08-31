@@ -24,13 +24,55 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
   public type Transaction = T.Transaction;
-  type TransactionId = T.TransactionId;
+  type LocalTxId = T.LocalTxId;
+  type GlobalTxId = T.GlobalTxId;
  
   // canister id of the ledger canister
   let ledger : Principal = _ledger; 
  
   // the own unique identifier of this aggregator
   let selfAggregatorIndex: Nat = own_id;
+
+  /* 
+  Glossary:
+  transaction : The information that is being sent to the ledger if the transaction is approved. It captures a) everything needed during ledger-side validation of the transaction and b) everything needed to define the effect on the ledger if executed.
+
+  transaction request: The information of a transaction plus transient information needed while the transaction lives in the aggregator. 
+
+  local tx id : An id that uniquely identifies a transaction request inside this aggregator. It is issued when a transaction request is first submitted. It is never re-used again for any other request regardless of whether the transaction request is approved, rejected or otherwise deleted (expired). It stays with the transaction if the transaction is send to the ledger. 
+
+  global tx is : The local id plus aggregator id makes a globally unique id. 
+ 
+  fully approved: A tx request that is approved by all contributors that are not marked as auto_approve by the tx. A fully approved tx is queued.
+
+  pending tx : A tx request that is not yet fully approved.
+  */
+
+  /* 
+  Lifetime of a transaction request:
+  - transaction (short: tx) submitted by the user becomes a transaction request
+  - pre-validation: is it too large? too many fields, etc.?
+  - tx is added to the lookup table. if there is no space then it is rejected, if there is space then the lookup table
+    - generates a unique local tx id
+    - stores the local tx id in the tx in the request
+    - stores the tx request
+    - returns the local tx id  
+  - global tx id is returned to the user
+  - when approve and reject is called then the tx is looked up by its local id
+  - when a tx is fully approved its local id is added to the queue
+  - value of counter `batch_number` is stored inside the tx request and the counter incremented
+  - when a tx is popped from the queue (batched) then
+    - the tx is deleted from the lookup table 
+    - the counter `batched` is incremented
+
+  The lookup table internally maintains three values:
+  - capacity (constant) = the total number of slots available in the lookup table, used and unused
+  - used = the number of slots used (equals the number of pending txs plus queued txs)
+  - pending = the number of pending txs  
+
+  debug counters:
+  - submitted : counts all that are ever submitted
+  */
 
   /*
   The aggregator sends the transactions in batches to the ledger. It does so at every invocation by the heartbeat functionality.
@@ -40,133 +82,91 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   In a future iteration we can send more than one batch per heartbeat. But such an approach requires a mechanism to slow down when 
   delivery failures occur. We currently do not implement it. 
 
-  The queue is of type Deque<Transaction>. 
+  The queue is of type Deque<Transaction>. We don't need a double-ended queue but this is the only type of queue available in motoko-base.
+  Deque is a functional data structure, hence it is a mutable variable.
   */
 
   var approvedTransactions = Deque.empty<Transaction>();
 
-  /*
-  We track how many transactions were submitted, queued and batched in three counters.
-  The values of the first two counters are associated with a transaction the moment it is submitted and queued (pushed).
-  The value of the "submitted" counter becomes the "submit number" of the transaction.
-  The value of the "queued" counter becomes the "queue number" of the transaction.
-  The values are captured before the counters are incremented, i.e. the numbering is 0-based in both cases.
-  The submit number reflects the order in which transactions were submitted,
-  the queue number reflects the order in which transactions became fully approved.
-  The submit number together with the aggregator id becomes the globally unique transaction id.
-  The value of the batched counter equals the number of elements that have been popped from the queue since the beginning.
-  Thus, it is equal to the queue number of the transaction that sits at the head of the queue. 
-  Hence, a transaction's queue number minus the "batched" counter specifies how far the transaction is from the head of the queue. 
-  */
- 
-  var submitted : Nat = 0;
-  var queued : Nat = 0;
+  // global counters 
+  var batch_number : Nat = 0;
   var batched : Nat = 0;
 
+  // debug counter 
+  var submitted : Nat = 0;
+
   /* 
-  Here is the information that we store for each transaction while we are holding the transaction
+  Here is the information that makes up a transaction request.
   `Approvals` is a vector that captures the information who has already approved the transaction.
   The vector's length equals the number of contributors to the transactions.
+  When a tx is approved (i.e. queued) then it has a batch number and the batch number is stored in the #approved field in the status variant.
   */
-  type SubmitNumber = Nat;
-  type QueueNumber = Nat;
+
   type Approvals = [Bool];
-
-  // This is the transaction request that can be queried by submit_number
-  type TransactionRequest = {
+  type TxRequest = {
     transaction : Transaction;
     submitter : Principal;
-    submit_number : SubmitNumber;
-    status : { #pending : Approvals; #approved : QueueNumber; #rejected : Bool  };
-  };
-
-  // This is how we internally store a transaction request.
-  type TransactionRequestInternal = {
-    transaction : Transaction;
-    submitter : Principal;
-    submit_number : SubmitNumber;
-    status : { #pending : Approvals; #approved : QueueNumber; #rejected : Bool  };
-    pool : Nat; 
-    prev_pending : SubmitNumber;  
-    next_pending : SubmitNumber;
+    local_id : LocalTxId;
+    status : { #pending : Approvals; #approved : Nat; #rejected : Bool  };
   };
 
   /*
-  Transaction requests are assigned to "pools". In the initial implementation there is only one global pool.
-  In the future there can be multiple pools and submitters can reserve their own pool with a chosen capacity for a fee.
+  The lookup table.
+  */
+
+  let lookup = object {
+    let capacity = 16777216; // number of slots available in the table
+   
+    var used : Nat = 0; // number of unused slots
+
+    var unmarked : Nat = 0; // individual slots can be "marked", this is the number of used, unmarked slots
  
-  A pool has a fixed capacity. A pool tracks how many transaction requests it contains (var total), how many of them are 
-  pending (var pending), and how many are queued (total-pending).
+    // add an element to the table
+    // if the table is not full then take an usued slot (the slot will start as unmarked)
+    // if the table is full but there are unmarked slots then overwrite the oldest slot that is unmarked
+    // if the table is full and all slots are marked then abort
+    public func add(txreq : TxRequest) : ?LocalTxId { nyi() }; 
 
-  The pending transaction requests in a pool form one chain that reflects their order of submission. The Pool stores the head and 
-  tail of that chain (first and last) and each TransactionRequest stores its neighbours in the chain (prev and next).
-  
-  When a transaction first becomes fully approved then it is removed from the chain by manipulating the neighbours' prev 
-  and next values and, possibly, the pool's first and last value. Moreover the pending value in the pool is decremented.
+    // look up an element by id and return it 
+    // abort if the id cannot be found 
+    public func get(lid : LocalTxId) : ?TxRequest { nyi() }; 
+ 
+    // look up an element by id and mark its slot 
+    // abort if the id cannot be found 
+    public func mark(lid : LocalTxId) : ?TxRequest { nyi() }; 
 
-  When a transaction request is popped from the queue then the queued value of its pool is decremented.
-
-  When a new transaction request is made then the following happens:
-    1. If queued == capacity then we don't have space for this request. We cannot delete queued requests. 
-    2. If total == capacity (but queued < capacity) then pending must be > 0. Then we delete the first (=oldest) pending transaction.
-       To do this we first look up the transaction request under the submit number first_pending. 
-       Then we remove that transaction request from the lookup data structure. 
-       Then we remove it from the chain of pending transactions by setting the pool's value first_pending to the request's value of next_pending. 
-    3. Then we add the new transaction to the lookup data structure and set the pool's value last_pending. 
-  */
-
-  type Pool = {
-    capacity : Nat;
-    var first_pending : ?SubmitNumber;
-    var last_pending : ?SubmitNumber;
-    var pending : Nat;
-    var total : Nat;
+    // look up an element by id and empty its slot
+    // ignore if the id cannot be found 
+    public func remove(lid : LocalTxId) : () { nyi() };
   };
-  
-  let pool : Pool = { 
-    capacity = 16777216;
-    var first_pending = null;
-    var last_pending = null;
-    var pending = 0;
-    var total = 0 
-  };
-  
-  // If 256 new transactions are submitted per second and never approved then in a pool of size 2**24 they last for ~18h before they get overwritten. 
-  let max_transactions = 16777216; // 2**24
 
   /*
-  Pending transactions are also saved to a lookup datastructure by submit number. Initially we use a TrieMap.
-  They stay in the lookup data structure when they move from the pool to the queue.
-  They are removed from the lookup data structure when they are popped from the queue and batched.
-  Thus, the number of entries in the lookup data structures equals the value total of the pool. Or the sum of all values total if there are multiple pools.
-  */
+  The lookup table is going to be implemented as an array of size `capacity`. 
+  Details are worked out and will be inserted here.
 
-  let lookup = TrieMap.TrieMap<SubmitNumber, TransactionRequest>(Nat.equal, Nat32.fromNat);
-
-  /*
-  When a TransactionRequest is popped from the queue and batched then it is also removed from the pool it belongs to and from the lookup data structure.
+  If 256 new transactions are submitted per second and never approved then in a table of size 2**24 they last for ~18h before their slot gets overwritten. 
   */
 
   // update functions
 
   type SubmitError = { #NoSpace; #Invalid; };
-  public func submit(transfer: Transaction): async Result<TransactionId, SubmitError> {
+  public func submit(transfer: Transaction): async Result<GlobalTxId, SubmitError> {
     nyi();
   };
 
   type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
-  public func approve(transferId: TransactionId): async Result<(),NotPendingError> {
+  public func approve(transferId: GlobalTxId): async Result<(),NotPendingError> {
     nyi();
   };
 
-  public func reject(transferId: TransactionId): async Result<(),NotPendingError> {
+  public func reject(transferId: GlobalTxId): async Result<(),NotPendingError> {
     nyi();
   };
  
   // query functions
 
   type TransactionError = { #NotFound; };
-  public query func txDetails(transferId: TransactionId): async Result<TransactionRequest, TransactionError> {
+  public query func txDetails(transferId: GlobalTxId): async Result<TxRequest, TransactionError> {
     nyi();
   };
 

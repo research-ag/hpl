@@ -21,7 +21,7 @@ actor class Ledger(initial_aggregators : [Principal]) {
   type Result<X,Y> = R.Result<X,Y>;
   type AggregatorId = T.AggregatorId;
   type SubaccountId = T.SubaccountId;
-  type TransactionId = T.TransactionId;
+  type GlobalTxId = T.GlobalTxId;
   type AssetId = T.AssetId;
   type Asset = T.Asset;
   type Batch = T.Batch;
@@ -52,7 +52,7 @@ actor class Ledger(initial_aggregators : [Principal]) {
     nyi();
   };
 
-  public func processBatch(batch: Batch): async [{ #transactionId: TransactionId; #err: Nat }] {
+  public func processBatch(batch: Batch): async [{ #transactionId: GlobalTxId; #err: Nat }] {
     nyi();
   };
 

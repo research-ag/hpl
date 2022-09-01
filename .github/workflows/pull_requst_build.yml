@@ -22,7 +22,10 @@ jobs:
       - name: Get didc
         run: |
           release=$(curl --silent "https://api.github.com/repos/dfinity/candid/releases/latest" | grep -e '"tag_name"' | cut -c 16-25)  	
-          curl -fsSL https://github.com/dfinity/candid/releases/download/${release}/didc-linux64 > ~/bin/didc
+          mkdir ~/bin    
+          echo $release
+          curl -fsSL https://github.com/dfinity/candid/releases/download/2022-08-09/didc-linux64 > ~/bin/didc
+didc-linux64
           chmod +x ~/bin/didc
 
       - name: Check .did files

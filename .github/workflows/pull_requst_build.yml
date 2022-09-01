@@ -17,6 +17,4 @@ jobs:
 
       - name: Build project
         run: |
-          mkdir -p .dfx/local
-          cp canister_ids.json .dfx/local/
-          dfx build
+          dfx build --check

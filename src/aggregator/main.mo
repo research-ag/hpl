@@ -55,10 +55,10 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   - global tx id is returned to the user
   - when approve and reject is called then the tx is looked up by its local id
   - when a tx is fully approved its local id is queued for batching
-  - value of counter `batch_number` is stored inside the tx request and the counter incremented
-  - when a local tx id is popped from the queue (batched) then
+  - value of `push_ctr` is stored inside the tx request (as `queue_number`) and `push_ctr` incremented
+  - when a local tx id is popped from the queue then
     - the tx is deleted from the lookup table 
-    - the counter `batched` is incremented
+    - `pop_ctr` is incremented
 
   The lookup table internally maintains three values:
   - capacity (constant) = the total number of slots available in the lookup table, i.e. used slots plus unused slots
@@ -83,18 +83,26 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
 
   var approvedTxs = Deque.empty<LocalId>();
 
-  // global counters 
-  var batch_number : Nat = 0;
-  var batched : Nat = 0;
+  /*
+  global counters 
+  push_ctr = number of txs that were ever pushed to the queue
+  pop_ctr = number txs that were ever popped from the queue
+  the difference between the two equals the current length of the queue 
+  */
+  var push_ctr : Nat = 0;
+  var pop_ctr : Nat = 0;
 
-  // debug counter 
+  /* 
+  debug counter
+  number of tx requests ever submitted 
+  */
   var submitted : Nat = 0;
 
   /* 
   Here is the information that makes up a transaction request.
   `Approvals` is a vector that captures the information who has already approved the transaction.
   The vector's length equals the number of contributors to the transactions.
-  When a tx is approved (i.e. queued) then it has a batch number and the batch number is stored in the #approved field in the status variant.
+  When a tx is approved (i.e. queued) then the value `push_ctr` is stored in the #approved field in the status variant.
   */
 
   type Approvals = [Bool];

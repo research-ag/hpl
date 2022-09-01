@@ -18,7 +18,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
 
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
-  public type Transaction = T.Transaction;
+  public type Tx = T.Tx;
   type LocalTxId = T.LocalTxId;
   type GlobalTxId = T.GlobalTxId;
  
@@ -77,11 +77,11 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   In a future iteration we can send more than one batch per heartbeat. But such an approach requires a mechanism to slow down when 
   delivery failures occur. We currently do not implement it. 
 
-  The queue is of type Deque<Transaction>. We don't need a double-ended queue but this is the only type of queue available in motoko-base.
+  The queue is of type Deque<Tx>. We don't need a double-ended queue but this is the only type of queue available in motoko-base.
   Deque is a functional data structure, hence it is a mutable variable.
   */
 
-  var approvedTransactions = Deque.empty<Transaction>();
+  var approvedTxs = Deque.empty<Tx>();
 
   // global counters 
   var batch_number : Nat = 0;
@@ -99,7 +99,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
 
   type Approvals = [Bool];
   type TxRequest = {
-    transaction : Transaction;
+    transaction : Tx;
     submitter : Principal;
     local_id : LocalTxId;
     status : { #pending : Approvals; #approved : Nat; #rejected : Bool  };
@@ -212,7 +212,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   // update functions
 
   type SubmitError = { #NoSpace; #Invalid; };
-  public func submit(transfer: Transaction): async Result<GlobalTxId, SubmitError> {
+  public func submit(transfer: Tx): async Result<GlobalTxId, SubmitError> {
     nyi();
   };
 
@@ -227,8 +227,8 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
  
   // query functions
 
-  type TransactionError = { #NotFound; };
-  public query func txDetails(transferId: GlobalTxId): async Result<TxRequest, TransactionError> {
+  type TxError = { #NotFound; };
+  public query func txDetails(transferId: GlobalTxId): async Result<TxRequest, TxError> {
     nyi();
   };
 

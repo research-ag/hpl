@@ -54,15 +54,15 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     - returns the local tx id  
   - global tx id is returned to the user
   - when approve and reject is called then the tx is looked up by its local id
-  - when a tx is fully approved its local id is added to the queue
+  - when a tx is fully approved its local id is queued for batching
   - value of counter `batch_number` is stored inside the tx request and the counter incremented
-  - when a tx is popped from the queue (batched) then
+  - when a local tx id is popped from the queue (batched) then
     - the tx is deleted from the lookup table 
     - the counter `batched` is incremented
 
   The lookup table internally maintains three values:
-  - capacity (constant) = the total number of slots available in the lookup table, used and unused
-  - used = the number of slots used (equals the number of pending txs plus queued txs)
+  - capacity (constant) = the total number of slots available in the lookup table, i.e. used slots plus unused slots
+  - used = the number of used slots (equals the number of pending txs plus queued txs)
   - pending = the number of pending txs  
 
   debug counters:
@@ -77,11 +77,11 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   In a future iteration we can send more than one batch per heartbeat. But such an approach requires a mechanism to slow down when 
   delivery failures occur. We currently do not implement it. 
 
-  The queue is of type Deque<Tx>. We don't need a double-ended queue but this is the only type of queue available in motoko-base.
+  The queue is of type Deque<LocalId>. We don't need a double-ended queue but this is the only type of queue available in motoko-base.
   Deque is a functional data structure, hence it is a mutable variable.
   */
 
-  var approvedTxs = Deque.empty<Tx>();
+  var approvedTxs = Deque.empty<LocalId>();
 
   // global counters 
   var batch_number : Nat = 0;

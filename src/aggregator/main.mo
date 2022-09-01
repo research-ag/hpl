@@ -1,10 +1,5 @@
 import { nyi; xxx } "mo:base/Prelude";
 import Deque "mo:base/Deque";
-import TrieMap "mo:base/TrieMap";
-import Nat32 "mo:base/Nat32";
-import Nat "mo:base/Nat";
-import Principal "mo:base/Principal";
-import List "mo:base/List";
 
 // type imports
 // pattern matching is not available for types (work-around required)

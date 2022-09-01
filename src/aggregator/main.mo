@@ -108,10 +108,10 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
 
   type Approvals = [Bool];
   type TxRequest = {
-    transaction : Tx;
+    tx : Tx;
     submitter : Principal;
     lid : LocalId;
-    status : { #pending : Approvals; #approved : Nat; #rejected : Bool  };
+    status : { #pending : Approvals; #approved : Nat; #rejected };
   };
 
   /*
@@ -271,7 +271,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   // query functions
 
   type TxError = { #NotFound; };
-  public query func txDetails(transferId: GlobalId): async Result<TxRequest, TxError> {
+  public query func txDetails(gid: GlobalId): async Result<TxRequest, TxError> {
     nyi();
   };
 

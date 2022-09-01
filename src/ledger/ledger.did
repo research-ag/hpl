@@ -19,6 +19,7 @@ type Asset = variant {ft: record {
 // auto_approve = true indicates that the owner is expected to have auto-approve configured in the ledger (if not the transaction will fail).
 type Contribution = 
  record {
+   owner : principal;
    inflow: vec record {
                  SubaccountId;
                  Asset;
@@ -35,24 +36,17 @@ type Contribution =
 // A transaction can specify an optional committer. 
 // The committer is the only one who can make an update call and receive the success in the response.
 // In that way the committer can process the transaction in a continuation and does not need to rely on polling. 
-type Transaction = 
+type Tx = 
  record {
-   map: vec record {
-              principal;
-              Contribution;
-            };
+   map: vec Contribution;
    committer: opt principal;
  };
 
 // The globally unique transaction id
-type TransactionId = 
- record {
-   aid: AggregatorId;
-   tid: nat;
- };
+type GlobalId = record { AggregatorId; nat };
 
 // The batches sent from aggregator to ledger
-type Batch = vec Transaction;
+type Batch = vec Tx;
 
 // Result types
 
@@ -96,8 +90,8 @@ service : {
  
   // process a batch of transaction, caller must be an aggregator
   processBatch: (Batch) -> (vec variant {
+                                  gid: GlobalId;
                                   err: nat;
-                                  transactionId: TransactionId;
                                 });
 
   // queries

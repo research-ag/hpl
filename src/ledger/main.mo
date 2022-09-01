@@ -52,7 +52,7 @@ actor class Ledger(initial_aggregators : [Principal]) {
     nyi();
   };
 
-  public func processBatch(batch: Batch): async [{ #transactionId: GlobalId; #err: Nat }] {
+  public func processBatch(batch: Batch): async [{ #gid: GlobalId; #err: Nat }] {
     nyi();
   };
 

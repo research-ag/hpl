@@ -17,6 +17,16 @@ jobs:
 
       - name: Build project
         run: |
-          mkdir -p .dfx/local
-          cp canister_ids.json .dfx/local/
-          dfx build
+          dfx build --check
+
+      - name: Get didc
+        run: |
+          release=$(curl --silent "https://api.github.com/repos/dfinity/candid/releases/latest" | grep -e '"tag_name"' | cut -c 16-25)  	
+          mkdir ~/bin    
+          curl -fsSL https://github.com/dfinity/candid/releases/download/2022-08-09/didc-linux64 > ~/bin/didc
+          chmod +x ~/bin/didc
+
+      - name: Check .did files
+        run: |
+          ~/bin/didc check .dfx/local/canisters/ledger/ledger.did src/ledger/ledger.did   
+          ~/bin/didc check .dfx/local/canisters/aggregator/aggregator.did src/aggregator/aggregator.did   

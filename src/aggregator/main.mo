@@ -19,33 +19,33 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
   public type Tx = T.Tx;
-  type LocalTxId = T.LocalTxId;
-  type GlobalTxId = T.GlobalTxId;
- 
-  // canister id of the ledger canister
+  type LocalId = T.LocalId;
+  type GlobalId = T.GlobalId;
+
+  // store the init arguments: 
+  //   - canister id of the ledger canister
+  //   - own unique identifier of this aggregator
   let ledger : Principal = _ledger; 
- 
-  // the own unique identifier of this aggregator
   let selfAggregatorIndex: Nat = own_id;
 
   /* 
   Glossary:
-  transaction : The information that is being sent to the ledger if the transaction is approved. It captures a) everything needed during ledger-side validation of the transaction and b) everything needed to define the effect on the ledger if executed.
+  transaction (short: tx): The information that is being sent to the ledger if the transaction is approved. It captures a) everything needed during ledger-side validation of the transaction and b) everything needed to define the effect on the ledger if executed.
 
-  transaction request: The information of a transaction plus transient information needed while the transaction lives in the aggregator. 
+  transaction request (short: tx request): The information of a transaction plus transient information needed while the transaction lives in the aggregator. 
 
-  local tx id : An id that uniquely identifies a transaction request inside this aggregator. It is issued when a transaction request is first submitted. It is never re-used again for any other request regardless of whether the transaction request is approved, rejected or otherwise deleted (expired). It stays with the transaction if the transaction is send to the ledger. 
+  local tx id (short: local id): An id that uniquely identifies a transaction request inside this aggregator. It is issued when a transaction request is first submitted. It is never re-used again for any other request regardless of whether the transaction request is approved, rejected or otherwise deleted (expired). It stays with the transaction if the transaction is send to the ledger. 
 
-  global tx is : The local id plus aggregator id makes a globally unique id. 
+  global tx id (short: global id): The local id plus aggregator id makes a globally unique id. 
  
   fully approved: A tx request that is approved by all contributors that are not marked as auto_approve by the tx. A fully approved tx is queued.
 
-  pending tx : A tx request that is not yet fully approved.
+  pending: A tx request that is not yet fully approved.
   */
 
   /* 
   Lifetime of a transaction request:
-  - transaction (short: tx) submitted by the user becomes a transaction request
+  - tx submitted by the user becomes a transaction request
   - pre-validation: is it too large? too many fields, etc.?
   - tx is added to the lookup table. if there is no space then it is rejected, if there is space then the lookup table
     - generates a unique local tx id
@@ -101,7 +101,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   type TxRequest = {
     transaction : Tx;
     submitter : Principal;
-    local_id : LocalTxId;
+    local_id : LocalId;
     status : { #pending : Approvals; #approved : Nat; #rejected : Bool  };
   };
 
@@ -119,19 +119,19 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     // if the table is not full then take an usued slot (the slot will start as unmarked)
     // if the table is full but there are unmarked slots then overwrite the oldest slot that is unmarked
     // if the table is full and all slots are marked then abort
-    public func add(txreq : TxRequest) : ?LocalTxId { nyi() }; 
+    public func add(txreq : TxRequest) : ?LocalId { nyi() }; 
 
     // look up an element by id and return it 
     // abort if the id cannot be found 
-    public func get(lid : LocalTxId) : ?TxRequest { nyi() }; 
+    public func get(lid : LocalId) : ?TxRequest { nyi() }; 
  
     // look up an element by id and mark its slot 
     // abort if the id cannot be found 
-    public func mark(lid : LocalTxId) : ?TxRequest { nyi() }; 
+    public func mark(lid : LocalId) : ?TxRequest { nyi() }; 
 
     // look up an element by id and empty its slot
     // ignore if the id cannot be found 
-    public func remove(lid : LocalTxId) : () { nyi() };
+    public func remove(lid : LocalId) : () { nyi() };
   };
 
   /*
@@ -212,23 +212,23 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   // update functions
 
   type SubmitError = { #NoSpace; #Invalid; };
-  public func submit(transfer: Tx): async Result<GlobalTxId, SubmitError> {
+  public func submit(transfer: Tx): async Result<GlobalId, SubmitError> {
     nyi();
   };
 
   type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
-  public func approve(transferId: GlobalTxId): async Result<(),NotPendingError> {
+  public func approve(transferId: GlobalId): async Result<(),NotPendingError> {
     nyi();
   };
 
-  public func reject(transferId: GlobalTxId): async Result<(),NotPendingError> {
+  public func reject(transferId: GlobalId): async Result<(),NotPendingError> {
     nyi();
   };
  
   // query functions
 
   type TxError = { #NotFound; };
-  public query func txDetails(transferId: GlobalTxId): async Result<TxRequest, TxError> {
+  public query func txDetails(transferId: GlobalId): async Result<TxRequest, TxError> {
     nyi();
   };
 

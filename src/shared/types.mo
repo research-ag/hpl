@@ -3,8 +3,9 @@ module {
   public type SubaccountId = Nat;
   public type AssetId = Nat;
 
-  public type LocalTxId = Nat;
-  public type GlobalTxId = ( aggregator: AggregatorId, local_id: LocalTxId );
+  // transaction ids
+  public type LocalId = Nat;
+  public type GlobalId = ( aggregator: AggregatorId, local_id: LocalId );
 
   public type Asset = { 
     #ft : (id : AssetId, quantity : Nat); 

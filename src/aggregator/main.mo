@@ -1,5 +1,6 @@
 import { nyi; xxx } "mo:base/Prelude";
 import Deque "mo:base/Deque";
+import Array "mo:base/Array";
 
 // type imports
 // pattern matching is not available for types (work-around required)
@@ -55,7 +56,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   - global tx id is returned to the user
   - when approve and reject is called then the tx is looked up by its local id
   - when a tx is fully approved its local id is queued for batching
-  - value of `push_ctr` is stored inside the tx request (as `queue_number`) and `push_ctr` incremented
+  - value of `push_ctr` is stored inside the tx request and `push_ctr` incremented
   - when a local tx id is popped from the queue then
     - the tx is deleted from the lookup table 
     - `pop_ctr` is incremented
@@ -109,7 +110,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   type TxRequest = {
     transaction : Tx;
     submitter : Principal;
-    local_id : LocalId;
+    lid : LocalId;
     status : { #pending : Approvals; #approved : Nat; #rejected : Bool  };
   };
 
@@ -119,7 +120,13 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
 
   let lookup = object {
     let capacity = 16777216; // number of slots available in the table
-   
+  
+    let slots : [Slot] = Array.tabulate<Slot>(16777216, func(n : Nat) { switch (n) {
+      case (0) { let s : Slot = { var value = null; var counter = 0; var next_index = ?(n+1); var prev_index = null} };
+      case (16777215) { let s : Slot = { var value = null; var counter = 0; var next_index = null; var prev_index = ?(n-1)} };
+      case (_) { let s : Slot = { var value = null; var counter = 0; var next_index = ?(n+1); var prev_index = ?(n-1)} };
+    }});
+  
     var unused : Nat =  16777216; // number of unused slots
     var unmarked : Nat = 0; // individual used slots can be "marked", this is the number of used, unmarked slots
  
@@ -186,7 +193,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     - for this slot:
       - the new element is stored in the `value` field of the slot
       - the local id to be returned is composed of the index of the slot and the `counter` field of the slot, e.g.:
-          local_id := counter*2**16 + slot_index
+          lid := counter*2**16 + slot_index
       - the `counter` field of the slot is incremented
       - the slot is pushed to the unmarked_chain
 
@@ -197,8 +204,8 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
       - increment `counter` value
 
   When a lookup happens then the local id is first decomposed to obtain the slot id, e.g.
-    slot_index := local_id % 2**24;
-    counter_value := local_id / 2**24;
+    slot_index := lid % 2**24;
+    counter_value := lid / 2**24;
   If the `counter` value in slot `slot_index` does not equal `counter_value` then it means the local id entry is no longer stored (has been overwritten) and the lookup failed. 
   If it equals and the `value` field in the slot is `none` then it means the local id entry is no longer stored (removed) and the lookup failed.  
   Otherwise the lookup was successful.

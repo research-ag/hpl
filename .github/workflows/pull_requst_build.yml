@@ -26,5 +26,5 @@ jobs:
 
       - name: Check .did files
         run: |
-          didc check .dfx/local/canisters/ledger/ledger.did src/ledger/ledger.did   
-          didc check .dfx/local/canisters/aggregator/aggregator.did src/aggregator/aggregator.did   
+          ~/bin/didc check .dfx/local/canisters/ledger/ledger.did src/ledger/ledger.did   
+          ~/bin/didc check .dfx/local/canisters/aggregator/aggregator.did src/aggregator/aggregator.did   

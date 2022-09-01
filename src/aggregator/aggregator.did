@@ -21,6 +21,7 @@ type Asset = variant {ft: record {
 // auto_approve = true indicates that the owner is expected to have auto-approve configured in the ledger (if not the transaction will fail).
 type Contribution = 
  record {
+   owner : principal;
    inflow: vec record {
                  SubaccountId;
                  Asset;
@@ -37,24 +38,17 @@ type Contribution =
 // A transaction can specify an optional committer. 
 // The committer is the only one who can make an update call and receive the success in the response.
 // In that way the committer can process the transaction in a continuation and does not need to rely on polling. 
-type Transaction = 
+type Tx = 
  record {
-   map: vec record {
-              principal;
-              Contribution;
-            };
+   map: vec Contribution;
    committer: opt principal;
  };
 
 // The globally unique transaction id
-type TransactionId = 
- record {
-   aid: AggregatorId;
-   tid: nat;
- };
+type GlobalId = record { AggregatorId; nat };
 
 // The batches sent from aggregator to ledger
-type Batch = vec Transaction;
+type Batch = vec Tx;
 
 // The information about a Transaction that is supplied by the user
 // We store the principal who first submited the Transaction.
@@ -62,15 +56,16 @@ type Batch = vec Transaction;
 // The status goes from pending to approveed or from pending to rejected. 
 // While a transaction is pending we store a vector of who has approveed it.
 // When a transaction is approveed then we store its position number in the queue. 
-type TransactionInfo = 
+type TxRequest = 
  record {
+   tx : Tx;
    submitter: principal;
    status: variant {
              pending: Approvals;
              approved: QueueNumber;
              rejected;
            };
-   id: TransactionId;
+   lid: nat;
  };
 
 // Result types
@@ -83,7 +78,7 @@ type SubmitError =
 
 type Submit_Result = 
  variant {
-   ok: TransactionId;
+   ok: GlobalId;
    err: SubmitError;
  };
 
@@ -101,12 +96,12 @@ type ApproveReject_Result =
    err: NotPendingError;
  };
 
-type TransactionError = variant {NotFound;};
+type TxError = variant {NotFound;};
 
 type Details_Result = 
  variant {
-   ok: TransactionInfo;
-   err: TransactionError;
+   ok: TxRequest;
+   err: TxError;
  };
 
 
@@ -120,7 +115,7 @@ service : {
   // returns the transaction id or an error
   // Invalid if the Transaction is structurally invalid
   // NoSpace if the submiter has no capacity
-  submit: (Transaction) -> (Submit_Result);
+  submit: (Tx) -> (Submit_Result);
  
   // approve/reject a transaction by its transaction id
   // approveing twice while still pending is ok
@@ -128,13 +123,13 @@ service : {
   // returns NoPart if the caller is not part of the transaction 
   // return AlreadyApproved if the status is #approveed
   // returns AlreadyRejected if the status is #rejected
-  approve: (TransactionId) -> (ApproveReject_Result);
-  reject: (TransactionId) -> (ApproveReject_Result);
+  approve: (GlobalId) -> (ApproveReject_Result);
+  reject: (GlobalId) -> (ApproveReject_Result);
 
   // queries
 
   // get transaction details
   // NotFound means the transaction id is unknown
   // (was never known or has already been deleted) 
-  txDetails: (TransactionId) -> (Details_Result) query;
+  txDetails: (GlobalId) -> (Details_Result) query;
 }

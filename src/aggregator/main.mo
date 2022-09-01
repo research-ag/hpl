@@ -115,25 +115,89 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   };
 
   /*
-  The lookup table.
+  Our lookup data structure has the following interface.
+
+  The function `mark` will be called when a tx becomes fully approved. The reason is that we want to be able to overwrite old pending 
+  transactions like in a circular buffer, but we never want to overwrite transactions that are already queued.
   */
 
-  let lookup = object {
+  type Lookup = {
+    // add an element to the data structure  
+    // return null if there is no space, otherwise assign a new local id to the element and return the id
+    // the data structure is allowed to overwrite the oldest unmarked element
+    add : (txreq : TxRequest) -> (?LocalId) ; 
+
+    // look up an element by id and return it 
+    // return null if the id cannot be found 
+    get : (lid : LocalId) -> (?TxRequest) ; 
+ 
+    // look up an element by id and mark it so it cannot be overwritten 
+    // return null if the id cannot be found 
+    mark : (lid : LocalId) -> (?TxRequest) ; 
+
+    // look up an element by id and delete it
+    // ignore if the id cannot be found 
+    remove : (lid : LocalId) -> () ;
+  };
+
+  /*
+  We implement our lookup data structure as a lookup table (array) with a fixed number of slots.
+  The slots are numbered 0,..,N-1.
+
+  If 256 new transactions are submitted per second and never approved then, in a table with N=2**24 slots, they stay for ~18h before their slot gets overwritten. 
+
+  Each slot is an element of the following type:
+    value : stored the tx request if the slot is currently used
+    counter : counts how many times the slot has already been used (a trick to generate a unique local id)
+    next/prev_index : used to track the order in which slots are to be used
+  */
+
+  type Slot = {
+    var value : ?TxRequest; // value `none` means the slot is empty
+    var counter : Nat; // must be initialized to 0
+    var next_index : ?Nat; // this must be initialized dynamically to i+1 for slot i and null for slot capacity-1
+    var prev_index : ?Nat; // this must be initialized dynamically to i-1 for slot i and null for slot 0 
+  };
+
+  /* 
+  Given a first index into the table and following recursively the `next_index` one gets a chain of slots inside the table.
+  The chain ends when the `next_index` value is `none`.
+
+  The following type captures such a chain.
+
+  Chains are used like queues, i.e. elements are removed from the head (first element) and added at the tail (last element), 
+  but we can also remove elements from somewhere in the middle.
+  */  
+
+  type Chain = { var length : Nat; var head : ?Nat; var tail : ?Nat };
+
+  /* 
+  Our lookup table is the following object.
+  The `unused` chain contains all unused slot indices and defines the order in which they are filled with new tx requests.
+  The `pending` chain contains all used slot indices that contain a pending (non-approved) tx request and defines the order in which they are to be overwritten.
+
+  We currently utilize only one pending chain. In the future there can be multiple chains. A principal can buy its own chain of a certain capacity for a fee.
+  Then the principal's own requests cannot be overwritten by others. But there is an recurring fee to reserve the chain capacity.
+  */
+
+  let lookup : Lookup = object {
     let capacity = 16777216; // number of slots available in the table
-  
+
+    // see below for explanation of the Slot type  
     let slots : [Slot] = Array.tabulate<Slot>(16777216, func(n : Nat) { switch (n) {
       case (0) { let s : Slot = { var value = null; var counter = 0; var next_index = ?(n+1); var prev_index = null} };
       case (16777215) { let s : Slot = { var value = null; var counter = 0; var next_index = null; var prev_index = ?(n-1)} };
       case (_) { let s : Slot = { var value = null; var counter = 0; var next_index = ?(n+1); var prev_index = ?(n-1)} };
     }});
-  
-    var unused : Nat =  16777216; // number of unused slots
-    var unmarked : Nat = 0; // individual used slots can be "marked", this is the number of used, unmarked slots
+
+    // see below for explanation of the Chain type  
+    let unused : Chain = { var length = 16777216; var head = ?0; var tail = ?16777215 }; // chain of all unused slots 
+    let pending : Chain = { var length = 0; var head = null; var tail = null }; // chain of all used slots with a non-approved tx request
  
     // add an element to the table
-    // if the table is not full then take an usued slot (the slot will start as unmarked)
-    // if the table is full but there are unmarked slots then overwrite the oldest slot that is unmarked
-    // if the table is full and all slots are marked then abort
+    // if the table is not full then take an usued slot (the slot will shift to pending)
+    // if the table is full but there are pending slots then overwrite the oldest pending slot
+    // if the table is full and there are no pending slots then abort
     public func add(txreq : TxRequest) : ?LocalId { nyi() }; 
 
     // look up an element by id and return it 
@@ -150,55 +214,19 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   };
 
   /*
-  The function `mark` will be called when a tx becomes fully approved. The reason is that we want to be able to overwrite old pending 
-  transactions like in a circular buffer, but we never want to overwrite transactions that are already queued.
-
-  The lookup table is going to be implemented as an array of size `capacity` and element type `Slot` (see below). 
-
-  If 256 new transactions are submitted per second and never approved then, in a table of size 2**24, they last for ~18h before their slot gets overwritten. 
-
-  The elements in the array are called "slots" are numbered 0,..,capacity-1.
-  */
- 
-  type Slot = {
-    var value : ?TxRequest; // value `none` means the slot is empty
-    var counter : Nat; // must be initialized to 0
-    var next_index : ?Nat; // this must be initialized dynamically to i+1 for slot i and null for slot capacity-1
-    var prev_index : ?Nat; // this must be initialized dynamically to i-1 for slot i and null for slot 0 
-  };
-
-  /* 
-  Given a first index into the table and following recursively the `next_index` one gets a chain of slots inside the table.
-  The chain ends when the `next_index` value is `none`.
-
-  The following type captures such a chain. The value is either the empty chain or the chain with the two ends given by the 
-  two Nats which refer to the index of the first and the last slot in the chain.
-  */  
-
-  type Chain = { #empty; #ends : (Nat, Nat) };
-
-  /* 
-  The following variables are listed as global variables here below but will become part of the lookup object:
-  */
-
-  var unused_chain : Chain = #ends(0, 16777215);
-  var unmarked_chain : Chain = #empty;
-
-  /*
-  Chains are used like queues, i.e. elements are removed from the head (first element) and added at the tail (last element), 
-  but we can also remove elements from somewhere in the middle.
+  Further details about the implementation of the functions:
 
   If a new element is added and the unused chain is non-empty then:
-    - the first slot is popped from the unused_chain
+    - the first slot is popped from the `unused` chain
     - for this slot:
       - the new element is stored in the `value` field of the slot
       - the local id to be returned is composed of the index of the slot and the `counter` field of the slot, e.g.:
           lid := counter*2**16 + slot_index
       - the `counter` field of the slot is incremented
-      - the slot is pushed to the unmarked_chain
+      - the slot is pushed to the `pending` chain
 
-  If a new element is added, the unused chain is empty and the unmarked chain is non-empty then:
-    - the first slot is popped from the unmarked_chain and used as above to
+  If a new element is added, the unused chain is empty and the pending chain is non-empty then:
+    - the first slot is popped from the `pending` chain and used as above to
       - store the element
       - build local id
       - increment `counter` value
@@ -210,18 +238,18 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   If it equals and the `value` field in the slot is `none` then it means the local id entry is no longer stored (removed) and the lookup failed.  
   Otherwise the lookup was successful.
 
-  If a used slot gets marked then it is removed from the unmarked_chain.
+  If a used slot gets marked (happens when the tx request gets approved) then it is removed from the `pending` chain.
  
   If the element in a used slot is removed then:
     - the value in the slot is set to `none`
-    - the slot is pushed to the unused_chain. 
+    - the slot is pushed to the `unused` chain. 
 
   So the theoretical transitions of a slot are: 
-    unused_chain ->(add) unmarked_chain ->(remove) unused_chain
-    unused_chain ->(add) unmarked_chain ->(mark) not in any chain ->(remove) unused_chain
+    unused ->(add) pending ->(remove) unused
+    unused ->(add) pending ->(mark) not in any chain ->(remove) unused
 
   In practice what happens is:
-    unused_chain ->(tx is added) unmarked_chain ->(tx gets fully approved) not in any chain ->(tx gets batched) unused_chain 
+    unused_chain ->(tx is added) pending ->(tx gets fully approved) not in any chain ->(tx gets batched) unused 
   */
 
   // update functions

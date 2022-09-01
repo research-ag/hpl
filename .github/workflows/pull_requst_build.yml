@@ -17,5 +17,6 @@ jobs:
 
       - name: Build project
         run: |
-          dfx canister create ledger
+          mkdir -p .dfx/local
+          cp canister_ids.json .dfx/local/
           dfx build

@@ -1,0 +1,22 @@
+name: App build
+on:
+  pull_request:
+    types: [synchronize, opened, reopened, ready_for_review, unlabeled]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Get dfx
+        run: |
+          sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
+
+      - name: Build project
+        run: |
+          mkdir -p .dfx/local
+          cp canister_ids.json .dfx/local/
+          dfx build

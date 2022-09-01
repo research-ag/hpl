@@ -1,19 +1,48 @@
 module {
   public type AggregatorId = Nat;
   public type SubaccountId = Nat;
-  public type TokenId = Nat;
+  public type AssetId = Nat;
 
-  public type TransferId = { aid: AggregatorId; tid: Nat };
-  public type Flow = {
-    token : TokenId;
-    subaccount : Nat;
-    amount : Int;
+  // transaction ids
+  public type LocalId = Nat;
+  public type GlobalId = ( aggregator: AggregatorId, local_id: LocalId );
+
+  public type Asset = { 
+    #ft : (id : AssetId, quantity : Nat); 
   };
-  public type Part = {
+
+  public type Contribution = {
     owner : Principal;
-    flows : [Flow];
-    memo : ?Blob
+    inflow : [(SubaccountId, Asset)];
+    outflow : [(SubaccountId, Asset)];
+    memo : ?Blob;
+    auto_approve : Bool
   };
-  public type Transfer = [Part];
-  public type Batch = [Transfer];
+  // inflow/outflow encodes a map subaccount -> asset list
+  // subaccount id must be strictly increasing throughout the list to rule out duplicate keys
+
+  // Tx = Tx
+  public type Tx = { 
+    map : [Contribution]; 
+    committer : ?Principal
+  };
+  // map is seen as a map from a principal to its contribution
+  // the principals must be strictly increasing throughout the list to rule out duplicate keys in map
+
+  public type Batch = [Tx];
+
+  // maximal memo size is 256 bytes
+  public let max_memo_size = 256;
+
+  // maximum number of inflows and outflows per contribution
+  public let max_flows = 256;
+
+  // maximum number of contributions per transaction
+  public let max_contribution = 256;
+
+  // maximum number of subaccounts per principal in ledger
+  public let max_subaccounts = 65536; 
+
+  // maximum number of subaccounts total in ledger
+  public let max_principals = 65536;
 }

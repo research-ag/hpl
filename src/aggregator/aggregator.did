@@ -1,0 +1,140 @@
+type AggregatorId = nat;
+type SubaccountId = nat;
+type AssetId = nat;
+type QueueNumber = nat;
+type Approvals = vec bool;
+
+// An asset can be a fungible or non-fungible token.
+// Currently only fungible tokens are defined.
+// Non-fungible tokens can be introduced later as a variant.
+// A fungible token asset is a pair consisting of the token id (AssetId)
+// and the quantity (nat).
+type Asset = variant {ft: record {
+                            AssetId;
+                            nat;
+                          };};
+
+// A transaction has contributions from multiple parties, each of which is of the following type.
+// A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.
+// The memo is limited to 256 bytes.
+// auto_approve = false indicates that the aggregator waits for approveance of the owner.
+// auto_approve = true indicates that the owner is expected to have auto-approve configured in the ledger (if not the transaction will fail).
+type Contribution = 
+ record {
+   inflow: vec record {
+                 SubaccountId;
+                 Asset;
+               };
+   outflow: vec record {
+                  SubaccountId;
+                  Asset;
+                };
+   memo: opt blob;
+   auto_approve: bool;
+ };
+
+// A transaction is a map from owner to the owner's contribution.
+// A transaction can specify an optional committer. 
+// The committer is the only one who can make an update call and receive the success in the response.
+// In that way the committer can process the transaction in a continuation and does not need to rely on polling. 
+type Transaction = 
+ record {
+   map: vec record {
+              principal;
+              Contribution;
+            };
+   committer: opt principal;
+ };
+
+// The globally unique transaction id
+type TransactionId = 
+ record {
+   aid: AggregatorId;
+   tid: nat;
+ };
+
+// The batches sent from aggregator to ledger
+type Batch = vec Transaction;
+
+// The information about a Transaction that is supplied by the user
+// We store the principal who first submited the Transaction.
+// The submiter and only the submiter is responsible for the fee at the aggregator level.
+// The status goes from pending to approveed or from pending to rejected. 
+// While a transaction is pending we store a vector of who has approveed it.
+// When a transaction is approveed then we store its position number in the queue. 
+type TransactionInfo = 
+ record {
+   submitter: principal;
+   status: variant {
+             pending: Approvals;
+             approved: QueueNumber;
+             rejected;
+           };
+   id: TransactionId;
+ };
+
+// Result types
+
+type SubmitError = 
+ variant {
+   Invalid;
+   NoSpace;
+ };
+
+type Submit_Result = 
+ variant {
+   ok: TransactionId;
+   err: SubmitError;
+ };
+
+type NotPendingError = 
+ variant {
+   NotFound;
+   NoPart;
+   AlreadyApproved;
+   AlreadyRejected;
+ };
+
+type ApproveReject_Result = 
+ variant {
+   ok;
+   err: NotPendingError;
+ };
+
+type TransactionError = variant {NotFound;};
+
+type Details_Result = 
+ variant {
+   ok: TransactionInfo;
+   err: TransactionError;
+ };
+
+
+// API
+
+service : {
+  // updates
+
+  // submit a new transaction
+  // the caller (= the submiter) needs to have capacity or pay the fee
+  // returns the transaction id or an error
+  // Invalid if the Transaction is structurally invalid
+  // NoSpace if the submiter has no capacity
+  submit: (Transaction) -> (Submit_Result);
+ 
+  // approve/reject a transaction by its transaction id
+  // approveing twice while still pending is ok
+  // returns NotFound if the transaction id isn't found
+  // returns NoPart if the caller is not part of the transaction 
+  // return AlreadyApproved if the status is #approveed
+  // returns AlreadyRejected if the status is #rejected
+  approve: (TransactionId) -> (ApproveReject_Result);
+  reject: (TransactionId) -> (ApproveReject_Result);
+
+  // queries
+
+  // get transaction details
+  // NotFound means the transaction id is unknown
+  // (was never known or has already been deleted) 
+  txDetails: (TransactionId) -> (Details_Result) query;
+}

@@ -25,7 +25,6 @@ jobs:
           mkdir ~/bin    
           echo $release
           curl -fsSL https://github.com/dfinity/candid/releases/download/2022-08-09/didc-linux64 > ~/bin/didc
-didc-linux64
           chmod +x ~/bin/didc
 
       - name: Check .did files

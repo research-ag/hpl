@@ -23,6 +23,32 @@
 
 ---
 
+```mermaid
+sequenceDiagram
+    Note left of User: submit
+    User->>API: submit(tx)
+    API->>API: pre-validate tx 
+    API->>Lookup Table: get next local id
+    API->>API: build TxRequest (with lid)
+    API->>Lookup Table: store TxRequest
+    Lookup Table->>Lookup Table: mark request as "pending"
+    API->>API: check if request fully approved
+    API->>Queue: if fully approved, push(lid)
+    API->>User: txid (=global id) 
+    Note left of User: approve
+    User->>API: approve(txid)
+    API->>Lookup Table: get tx request (lid) 
+    API->>API: set approve bit
+    API->>API: check if request fully approved
+    API->>Queue: if fully approved, push(lid)
+    API->>Lookup Table: mark request as "approved"
+    Note left of User: batch tick
+    API->>Queue: dequeue N lids
+    API->>Lookup Table: fetch txs for lids
+    API->>Ledger canister: submit Batch
+    Ledger canister-->>API: return results
+```
+
 ## About
 
 The goal is to design and demonstrate a ledger on the IC(https://internetcomputer.org/) that can handle 10,000 transactions per second which are submitted individually by different end users via ingress messages. The number of ingress messages that the consensus mechanism of a single subnet can process is only in the order of 1,000 per second and is in fact rate limited by boundary nodes to a lower number (maybe around 400 per second). Therefore, to get to the desired throughput we plan to utilize 25 subnets.
@@ -348,17 +374,6 @@ sequenceDiagram
     Note left of API: transactionDetails (TransactionId)
     API->>TrieMap pendingTransactions: get data
     TrieMap pendingTransactions-->>API: return
-```
-
-```mermaid
-sequenceDiagram
-    Note left of API: submit
-    User->>API: submit(tx)
-    API->>API: pre-validate tx 
-    API->>Lookup Table: get next local id
-    API->>API: build TxRequest
-    API->>Lookup Table: store TxRequest
-    API->>User: global tx id 
 ```
 
 ## Deployment

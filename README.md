@@ -350,6 +350,17 @@ sequenceDiagram
     TrieMap pendingTransactions-->>API: return
 ```
 
+```mermaid
+sequenceDiagram
+    Note left of API: submit
+    User->>API: submit(tx)
+    API->>API: pre-validate tx 
+    API->>Lookup Table: get next local id
+    API->>API: build TxRequest
+    API->>Lookup Table: store TxRequest
+    API->>User: global tx id 
+```
+
 ## Deployment
 
 TBD

@@ -79,7 +79,7 @@ type Assets_Result =
    err: variant {NotFound;};
  };
 
-service : {
+service : (vec principal) -> {
   // updates
 
   // open n new subaccounts for owner = caller

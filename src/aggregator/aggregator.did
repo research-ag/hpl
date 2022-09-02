@@ -107,7 +107,7 @@ type Details_Result =
 
 // API
 
-service : {
+service : (principal, nat) {
   // updates
 
   // submit a new transaction

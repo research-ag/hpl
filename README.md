@@ -23,38 +23,6 @@
 
 ---
 
-```mermaid
-sequenceDiagram
-    Note left of User: submit
-    User->>API: submit(tx)
-    API->>API: pre-validate tx 
-    API->>Lookup Table: request next local id
-    Lookup Table->>API: local id or error if no space
-    API->>API: build TxRequest record (with local id)
-    API->>Lookup Table: store request
-    Lookup Table->>Lookup Table: add request to "pending"
-    API->>API: check if request fully approved
-    API-->>Queue: if fully approved, push(local id)
-    API-->>Lookup Table: inform request was approved
-    Lookup Table-->>Lookup Table: remove request from "pending"
-    API->>User: txid (=global id) 
-    Note left of User: approve
-    User->>API: approve(txid)
-    API->>Lookup Table: get tx request (local id) 
-    API->>API: set approve bit
-    API->>API: check if request fully approved
-    API->>Queue: if fully approved, push(local id)
-    API->>Lookup Table: inform request was approved
-    Lookup Table->>Lookup Table: remove request from "pending"
-    Note left of User: batch tick
-    API->>Queue: dequeue N local ids
-    API->>Lookup Table: fetch txs for local ids
-    API->>Ledger canister: submit Batch
-    API->>Lookup Table: inform requests were batched
-    Lookup Table->>Lookup Table: delete requests
-    Ledger canister->>API: return results
-```
-
 ## About
 
 The goal is to design and demonstrate a ledger on the IC(https://internetcomputer.org/) that can handle 10,000 transactions per second which are submitted individually by different end users via ingress messages. The number of ingress messages that the consensus mechanism of a single subnet can process is only in the order of 1,000 per second and is in fact rate limited by boundary nodes to a lower number (maybe around 400 per second). Therefore, to get to the desired throughput we plan to utilize 25 subnets.
@@ -183,23 +151,37 @@ See [code](src/aggregator/main.mo).
 Summary lifecycle of the `Transaction` entity:
 ```mermaid
 sequenceDiagram
-    Note left of API: submit (Transaction) 
-    API->>TrieMap pendingTransactions: Putting TransactionInfo 
-    TrieMap pendingTransactions->>TrieMap pendingTransactions: Setting pending status
-    Note left of API: approve (Transaction) 
-    API->>TrieMap pendingTransactions: put "true" to status.pending
-    TrieMap pendingTransactions->>TrieMap pendingTransactions: Check if everyone set true to status.pending
-    TrieMap pendingTransactions->>Queue approvedTransaction: put transaction ID to queue
-    TrieMap pendingTransactions->>TrieMap pendingTransactions: Set status.approved
-    Note left of API: batch tick
-    API->>Queue approvedTransaction: dequeue N transactions
-    Queue approvedTransaction->>TrieMap pendingTransactions: fetch transactions
-    TrieMap pendingTransactions->>Ledger canister: submit Batch
-    Ledger canister-->>TrieMap pendingTransactions: return results
-    TrieMap pendingTransactions->>TrieMap pendingTransactions: Set DONE status or error code
-    Note left of API: transactionDetails (TransactionId)
-    API->>TrieMap pendingTransactions: get data
-    TrieMap pendingTransactions-->>API: return
+    Note left of User: submit
+    User->>API: submit(tx)
+    API->>API: pre-validate tx 
+    API->>Lookup Table: request next local id
+    Lookup Table->>API: local id or error if no space
+    API->>API: build TxRequest record (with local id)
+    API->>Lookup Table: store request
+    Lookup Table->>Lookup Table: add request to "pending"
+    API->>API: check if request fully approved
+    API-->>Queue: if fully approved, push(local id)
+    API-->>Lookup Table: inform request was approved
+    Lookup Table-->>Lookup Table: remove request from "pending"
+    API->>User: txid (=global id) 
+    Note left of User: approve
+    User->>API: approve(txid)
+    API->>Lookup Table: get tx request (local id) 
+    API->>API: set approve bit
+    API->>API: check if request fully approved
+    API->>Queue: if fully approved, push(local id)
+    API->>Lookup Table: inform request was approved
+    Lookup Table->>Lookup Table: remove request from "pending"
+    Note left of User: batch tick
+    API->>Queue: dequeue N local ids
+    API->>Lookup Table: fetch txs for local ids
+    API->>Ledger canister: submit Batch
+    API->>Lookup Table: inform requests were batched
+    Lookup Table->>Lookup Table: delete requests
+    Ledger canister->>API: return results
+    Note left of API: txDetails(txid)
+    API->>Lookup Table: get data
+    Lookup Table-->>API: return
 ```
 
 ## Deployment

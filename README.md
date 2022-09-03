@@ -81,18 +81,6 @@ Any party can initiate the transaction: the sender, the receiver or even a third
 
 - [Terminology](#terminology)
 - [Candid types of the API](#data-types)
-- [Ledger API](#ledger-api)
-  - [Get number of aggregators](#get-number-of-aggregators)
-  - [Get aggregator principal](#get-aggregator-principal)
-  - [Get number of open subaccounts](#get-number-of-open-subaccounts)
-  - [Open new subaccount](#open-new-subaccount)
-  - [Check balance](#check-balance)
-  - [Process Batch](#process-batch)
-- [Aggregator API](#aggregator-api)
-  - [Initialize transaction](#initialize-transaction)
-  - [Approve transaction](#approve-transaction)
-  - [Reject transaction](#reject-transaction)
-  - [Get transaction status](#get-transaction-status)
 
 ### Terminology
 

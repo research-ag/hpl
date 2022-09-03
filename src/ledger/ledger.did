@@ -82,11 +82,14 @@ type Assets_Result =
 service : (vec principal) -> {
   // updates
 
-  // open n new subaccounts for owner = caller
-  // if the owner isn't known then the owner is newly registered
-  // result is the id of the first newly created subaccount
-  // the remaining ones are consecutively numbered
-  openNewAccounts: (nat) -> (SubaccountId_Result);
+  /* 
+  open n new subaccounts for owner = caller
+  set the new subaccounts to auto_approve if the second argument (bool) is true
+  if the owner isn't known then the owner is newly registered
+  return value is the id of the first newly created subaccount
+  the remaining ones are consecutively numbered
+  */
+  openNewAccounts: (nat, bool) -> (SubaccountId_Result);
  
   // process a batch of transaction, caller must be an aggregator
   processBatch: (Batch) -> (vec variant {

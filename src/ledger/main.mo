@@ -1,6 +1,4 @@
 import { nyi } "mo:base/Prelude";
-import Prelude "mo:base/Prelude";
-import List "mo:base/List";
 import RBTree "mo:base/RBTree";
 import { compare } "mo:base/Principal";
 
@@ -33,24 +31,50 @@ actor class Ledger(initial_aggregators : [Principal]) {
   // data structures
 
   // list of all aggregators by their principals
-  // TODO: insert hard-coded principals of all aggregators
-  let aggregators = List.fromArray<Principal>([]);
+  let aggregators = initial_aggregators;
 
   // The map from principal to short id is stored in a single `RBTree`:
   let owners : RBTree.RBTree<Principal, OwnerId> = RBTree.RBTree<Principal, OwnerId>(compare);
 
-  // The content of all accounts is stored in an array of arrays
-  var accounts : [var [var Asset]] = [var [var]];
+  /* 
+  The content of all accounts is stored in an array of arrays.
+  The first index is the owner id and the second index is the subaccount id 
+  For example, a particular balance in a fungible token is accessed like this:
+    let #ft(id, balance) = accounts[owner_id][subaccount_id]
 
-  // The first index is the owner id and the second index is the subaccount id 
-  // For example, a particular balance in a fungible token is accessed like this:
-  // let #ft(id, balance) = accounts[owner_id][subaccount_id]
+  When a new principal is registered then the outer Array of n existing owner_ids has to be copied
+  into a new array. This is inefficient. But it has the same or better worst-case than a Buffer. 
+  We will improve on the data structure later. It will then also be optimized for stable memory.
+  */
+
+  var accounts : [var [var Asset]] = [var [var]];
 
   // updates
 
-  public func openNewAccounts(amount: Nat): async Result<SubaccountId, { #NoSpace; }> {
+  /*
+  Open n new subaccounts. When `auto_approve` is true then all subaccounts will be set to be "auto approving".
+  This setting cannot be changed anymore afterwards with the current API.
+
+  Note that the owner does not specify a token id. The new subaccounts hold the Asset value none. 
+  The token id of a subaccount is determined by the first inflow. 
+  After that, the token id cannot be changed anymore with the current API.
+  For any subsequent transaction the inflow has to match the token id of the subaccount or else is rejected.
+
+  If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
+  That will set the Asset value in the subaccount to the wanted token id.
+  */
+
+  public func openNewAccounts(n: Nat, auto_approve : Bool): async Result<SubaccountId, { #NoSpace; }> {
     nyi();
   };
+
+  /* 
+  Process a batch of transactions. Each transaction only executes if the following conditions are met:
+  - all subaccounts that are marked `auto_approve` in the transactions are also auto_approve in the ledger
+  - all outflow subaccounts have matching token id and sufficient balance
+  - all inflow subaccounts have matching token id (or Asset value `none`)
+  - on a per-token id basis the sum of all outflows matches all inflows
+  */
 
   public func processBatch(batch: Batch): async [{ #gid: GlobalId; #err: Nat }] {
     nyi();

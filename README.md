@@ -34,7 +34,9 @@ sequenceDiagram
     API->>Lookup Table: store request
     Lookup Table->>Lookup Table: add request to "pending"
     API->>API: check if request fully approved
-    API->>Queue: if fully approved, push(local id)
+    API-->>Queue: if fully approved, push(local id)
+    API-->>Lookup Table: inform request was approved
+    Lookup Table-->>Lookup Table: remove request from "pending"
     API->>User: txid (=global id) 
     Note left of User: approve
     User->>API: approve(txid)
@@ -42,13 +44,15 @@ sequenceDiagram
     API->>API: set approve bit
     API->>API: check if request fully approved
     API->>Queue: if fully approved, push(local id)
-    API->>Lookup Table: inform request was "approved"
+    API->>Lookup Table: inform request was approved
     Lookup Table->>Lookup Table: remove request from "pending"
     Note left of User: batch tick
     API->>Queue: dequeue N local ids
     API->>Lookup Table: fetch txs for local ids
     API->>Ledger canister: submit Batch
-    Ledger canister-->>API: return results
+    API->>Lookup Table: inform requests were batched
+    Lookup Table->>Lookup Table: delete requests
+    Ledger canister->>API: return results
 ```
 
 ## About

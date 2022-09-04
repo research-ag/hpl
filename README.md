@@ -125,7 +125,7 @@ With **HPL**, registered principals can submit and approve multi-token transacti
 3. **A** and **B** communicate directly to agree on the transaction details and on who initiates the transaction  (say **A**).
 4. **A** [queries](#get-number-of-aggregators) available aggregators from **L** and chooses aggregator **G**
 5. **A** calls a [function](#initialize-transaction) on **G** with the transaction details
-6. **G** generates a **transactionId** and stores the pending transaction under this id
+6. **G** generates a **transactionId** and stores the unapproved transaction under this id
 7. **G** returns **transactionId** to **A** as response
 8. **A** sends **transactionId** and **G** principal to **B** directly
 9. **B** [calls](doc/archived/README.md#get-transaction-status) **G** with **transactionId** to get the transaction details
@@ -161,11 +161,11 @@ sequenceDiagram
     Lookup Table->>API: local id or error if no space
     API->>API: build TxRequest record (with local id)
     API->>Lookup Table: store request
-    Lookup Table->>Lookup Table: add request to "pending"
+    Lookup Table->>Lookup Table: add request to "unapproved"
     API->>API: check if request fully approved
     API-->>Queue: if fully approved, push(local id)
     API-->>Lookup Table: inform request was approved
-    Lookup Table-->>Lookup Table: remove request from "pending"
+    Lookup Table-->>Lookup Table: remove request from "unapproved"
     API->>User: txid (=global id) 
     Note left of User: approve
     User->>API: approve(txid)
@@ -174,7 +174,7 @@ sequenceDiagram
     API->>API: check if request fully approved
     API-->>Queue: if fully approved, push(local id)
     API-->>Lookup Table: inform request was approved
-    Lookup Table-->>Lookup Table: remove request from "pending"
+    Lookup Table-->>Lookup Table: remove request from "unapproved"
     Note left of User: batch tick
     API->>Queue: dequeue N local ids
     API->>Lookup Table: fetch txs for local ids

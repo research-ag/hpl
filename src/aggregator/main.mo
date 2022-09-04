@@ -41,7 +41,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
  
   fully approved: A tx request that is approved by all contributors that are not marked as auto_approve by the tx. A fully approved tx is queued.
 
-  pending: A tx request that is not yet fully approved.
+  unapproved: A tx request that is not yet fully approved.
   */
 
   /* 
@@ -63,8 +63,8 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
 
   The lookup table internally maintains three values:
   - capacity (constant) = the total number of slots available in the lookup table, i.e. used slots plus unused slots
-  - used = the number of used slots (equals the number of pending txs plus queued txs)
-  - pending = the number of pending txs  
+  - used = the number of used slots (equals the number of unapproved txs plus queued txs)
+  - unapproved = the number of unapproved txs  
 
   debug counters:
   - submitted : counts all that are ever submitted
@@ -111,13 +111,27 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     tx : Tx;
     submitter : Principal;
     lid : LocalId;
-    status : { #pending : Approvals; #approved : Nat; #rejected };
+    status : { #unapproved : Approvals; #approved : Nat; #rejected };
   };
+ 
+  /* 
+  Here is the information we return to the user when the user queries for tx details.
+  The difference to the internally stored TxRequest is:
+  - global id instead of local id
+  - the Nat in variant #approved is not the same. Here, we subtract the value `pop_ctr` to return the queue position.
+  */
 
+  type TxDetails = {
+    tx : Tx;
+    submitter : Principal;
+    gid : GlobalId;
+    status : { #unapproved : Approvals; #approved : Nat; #rejected };
+  };
+ 
   /*
   Our lookup data structure has the following interface.
 
-  The function `mark` will be called when a tx becomes fully approved. The reason is that we want to be able to overwrite old pending 
+  The function `mark` will be called when a tx becomes fully approved. The reason is that we want to be able to overwrite old unapproved 
   transactions like in a circular buffer, but we never want to overwrite transactions that are already queued.
   */
 
@@ -174,9 +188,9 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   /* 
   Our lookup table is the following object.
   The `unused` chain contains all unused slot indices and defines the order in which they are filled with new tx requests.
-  The `pending` chain contains all used slot indices that contain a pending (non-approved) tx request and defines the order in which they are to be overwritten.
+  The `unapproved` chain contains all used slot indices that contain a unapproved tx request and defines the order in which they are to be overwritten.
 
-  We currently utilize only one pending chain. In the future there can be multiple chains. A principal can buy its own chain of a certain capacity for a fee.
+  We currently utilize only one unapproved chain. In the future there can be multiple chains. A principal can buy its own chain of a certain capacity for a fee.
   Then the principal's own requests cannot be overwritten by others. But there is an recurring fee to reserve the chain capacity.
   */
 
@@ -192,12 +206,12 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
 
     // see below for explanation of the Chain type  
     let unused : Chain = { var length = 16777216; var head = ?0; var tail = ?16777215 }; // chain of all unused slots 
-    let pending : Chain = { var length = 0; var head = null; var tail = null }; // chain of all used slots with a non-approved tx request
+    let unapproved : Chain = { var length = 0; var head = null; var tail = null }; // chain of all used slots with a unapproved tx request
  
     // add an element to the table
-    // if the table is not full then take an usued slot (the slot will shift to pending)
-    // if the table is full but there are pending slots then overwrite the oldest pending slot
-    // if the table is full and there are no pending slots then abort
+    // if the table is not full then take an usued slot (the slot will shift to unapproved)
+    // if the table is full but there are unapproved slots then overwrite the oldest unapproved slot
+    // if the table is full and there are no unapproved slots then abort
     public func add(txreq : TxRequest) : ?LocalId { nyi() }; 
 
     // look up an element by id and return it 
@@ -223,10 +237,10 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
       - the local id to be returned is composed of the index of the slot and the `counter` field of the slot, e.g.:
           lid := counter*2**16 + slot_index
       - the `counter` field of the slot is incremented
-      - the slot is pushed to the `pending` chain
+      - the slot is pushed to the `unapproved` chain
 
-  If a new element is added, the unused chain is empty and the pending chain is non-empty then:
-    - the first slot is popped from the `pending` chain and used as above to
+  If a new element is added, the unused chain is empty and the unapproved chain is non-empty then:
+    - the first slot is popped from the `unapproved` chain and used as above to
       - store the element
       - build local id
       - increment `counter` value
@@ -238,18 +252,18 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   If it equals and the `value` field in the slot is `none` then it means the local id entry is no longer stored (removed) and the lookup failed.  
   Otherwise the lookup was successful.
 
-  If a used slot gets marked (happens when the tx request gets approved) then it is removed from the `pending` chain.
+  If a used slot gets marked (happens when the tx request gets approved) then it is removed from the `unapproved` chain.
  
   If the element in a used slot is removed then:
     - the value in the slot is set to `none`
     - the slot is pushed to the `unused` chain. 
 
   So the theoretical transitions of a slot are: 
-    unused ->(add) pending ->(remove) unused
-    unused ->(add) pending ->(mark) not in any chain ->(remove) unused
+    unused ->(add) unapproved ->(remove) unused
+    unused ->(add) unapproved ->(mark) not in any chain ->(remove) unused
 
   In practice what happens is:
-    unused_chain ->(tx is added) pending ->(tx gets fully approved) not in any chain ->(tx gets batched) unused 
+    unused_chain ->(tx is added) unapproved ->(tx gets fully approved) not in any chain ->(tx gets batched) unused 
   */
 
   // update functions
@@ -271,7 +285,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   // query functions
 
   type TxError = { #NotFound; };
-  public query func txDetails(gid: GlobalId): async Result<TxRequest, TxError> {
+  public query func txDetails(gid: GlobalId): async Result<TxDetails, TxError> {
     nyi();
   };
 

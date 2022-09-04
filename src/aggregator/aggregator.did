@@ -53,15 +53,15 @@ type Batch = vec Tx;
 // The information about a Transaction that is supplied by the user
 // We store the principal who first submited the Transaction.
 // The submiter and only the submiter is responsible for the fee at the aggregator level.
-// The status goes from pending to approveed or from pending to rejected. 
-// While a transaction is pending we store a vector of who has approveed it.
-// When a transaction is approveed then we store its position number in the queue. 
+// The status goes from unapproved to approved or from unapproved to rejected. 
+// While a transaction is unapproved we store a vector of who has already approved it.
+// When a transaction is approved then we store its position number in the queue. 
 type TxRequest = 
  record {
    tx : Tx;
    submitter: principal;
    status: variant {
-             pending: Approvals;
+             unapproved: Approvals;
              approved: QueueNumber;
              rejected;
            };
@@ -98,12 +98,23 @@ type ApproveReject_Result =
 
 type TxError = variant {NotFound;};
 
-type Details_Result = 
- variant {
-   ok: TxRequest;
-   err: TxError;
+type TxDetails = 
+ record {
+   tx : Tx;
+   submitter: principal;
+   status: variant {
+             unapproved: Approvals;
+             approved: QueueNumber;
+             rejected;
+           };
+   gid: record { nat; nat };
  };
 
+type Details_Result = 
+ variant {
+   ok: TxDetails;
+   err: TxError;
+ };
 
 // API
 
@@ -118,10 +129,10 @@ service : (principal, nat) -> {
   submit: (Tx) -> (Submit_Result);
  
   // approve/reject a transaction by its transaction id
-  // approveing twice while still pending is ok
+  // approving twice while still unapproved is ok
   // returns NotFound if the transaction id isn't found
   // returns NoPart if the caller is not part of the transaction 
-  // return AlreadyApproved if the status is #approveed
+  // return AlreadyApproved if the status is #approved
   // returns AlreadyRejected if the status is #rejected
   approve: (GlobalId) -> (ApproveReject_Result);
   reject: (GlobalId) -> (ApproveReject_Result);

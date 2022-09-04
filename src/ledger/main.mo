@@ -82,6 +82,7 @@ actor class Ledger(initial_aggregators : [Principal]) {
   - on a per-token id basis the sum of all outflows matches all inflows
   */
 
+  // TODO: define a variant instead of error codes
   public func processBatch(batch: Batch): async [{ #gid: GlobalId; #err: Nat }] {
     nyi();
   };

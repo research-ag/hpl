@@ -32,7 +32,7 @@ actor class Ledger(initial_aggregators : [Principal]) {
   // data structures
 
   // list of all aggregators by their principals
-  let aggregators = initial_aggregators;
+  var aggregators = initial_aggregators;
 
   // The map from principal to short id is stored in a single `RBTree`:
   let owners : RBTree.RBTree<Principal, OwnerId> = RBTree.RBTree<Principal, OwnerId>(compare);

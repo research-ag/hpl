@@ -160,9 +160,9 @@ sequenceDiagram
     API->>Lookup Table: request next local id
     Lookup Table->>API: local id or error if no space
     API->>API: build TxRequest record (with local id)
-    API->>API: set request status to #unapproved
+    API->>API: set request status to `unapproved`
     API->>Lookup Table: store request
-    Lookup Table->>Lookup Table: add request to "unapproved"
+    Lookup Table->>Lookup Table: add request to "unapproved" chain
     API->>API: check if request fully approved
     API-->>Queue: if fully approved, push(local id)
     API-->>API: set request status to #approved (with queue number)
@@ -172,21 +172,21 @@ sequenceDiagram
     Note left of User: approve
     User->>API: approve(txid)
     API->>Lookup Table: get tx request (local id) 
-    API->>API: set approve bit in status #unapproved
+    API->>API: set approve bit in status `unapproved`
     API->>API: check if request fully approved
     API-->>Queue: if fully approved, push(local id)
-    API-->>API: set request status to #approved (with queue number)
+    API-->>API: set request status to `approved` (with queue number)
     API-->>Lookup Table: inform request was approved
-    Lookup Table-->>Lookup Table: remove request from "unapproved"
+    Lookup Table-->>Lookup Table: remove request from "unapproved" chain
     Note left of User: batch tick
     API->>Queue: dequeue N local ids
     API->>Lookup Table: fetch txs for local ids
     API->>Ledger canister: submit batch
-    API->>API: set request status to #pending
+    API->>API: set request status to `pending`
     API->>Lookup Table: inform requests were batched
     Lookup Table->>Lookup Table: delete batched requests
     Ledger canister->>API: return results
-    API->>Lookup table: delete request
+    API->>Lookup Table: delete request
     Note left of User: txDetails(txid)
     User->API: txDetails(txid)
     API->>Lookup Table: get data

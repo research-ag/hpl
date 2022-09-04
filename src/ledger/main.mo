@@ -1,5 +1,6 @@
 import { nyi } "mo:base/Prelude";
 import RBTree "mo:base/RBTree";
+import Array "mo:base/Array";
 import { compare } "mo:base/Principal";
 
 // type imports
@@ -47,7 +48,7 @@ actor class Ledger(initial_aggregators : [Principal]) {
   We will improve on the data structure later. It will then also be optimized for stable memory.
   */
 
-  var accounts : [var [var Asset]] = [var [var]];
+  let accounts : [var [var Asset]] = Array.init(16777216, [var] : [var Asset]);
 
   // updates
 

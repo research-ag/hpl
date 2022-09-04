@@ -32,7 +32,7 @@ actor class Ledger(initial_aggregators : [Principal]) {
   // data structures
 
   // list of all aggregators by their principals
-  let aggregators = initial_aggregators;
+  var aggregators = initial_aggregators;
 
   // The map from principal to short id is stored in a single `RBTree`:
   let owners : RBTree.RBTree<Principal, OwnerId> = RBTree.RBTree<Principal, OwnerId>(compare);
@@ -82,6 +82,7 @@ actor class Ledger(initial_aggregators : [Principal]) {
   - on a per-token id basis the sum of all outflows matches all inflows
   */
 
+  // TODO: define a variant instead of error codes
   public func processBatch(batch: Batch): async [{ #gid: GlobalId; #err: Nat }] {
     nyi();
   };

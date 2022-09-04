@@ -86,34 +86,36 @@ With **HPL**, registered principals can submit and approve multi-token transacti
 
 ### High-level user story:
 
-1. Principals **A** and **B** are registering themselves in **HLS**
+1. Principals **A** and **B** are registering themselves in **HPL**
 2. Principals communicate directly to agree on the transaction details and on who initiates the transaction  (say **A**). 
 3. **A** submits transaction on **HPL** and receives generated **transactionId** as response
 4. **A** sends **transactionId** to **B** directly
-5. *B** calls **HPL** with **transactionId** to approve the transaction
-6. **HPL** asynchronously processes the transaction
-7. **A** and **B** can query HPL about the status of transaction (processing, success, failed)
+5. **B** calls **HPL** with **transactionId** to get the transaction details
+6. *B** calls **HPL** with **transactionId** to approve the transaction
+7. **HPL** asynchronously processes the transaction
+8. **A** and **B** can query HPL about the status of transaction (processing, success, failed)
 
 ---
-### Containers diagram
+### Canister diagram
 <p align="center">
     <img src=".github/assets/container.drawio.png" alt="Container diagram"/>
     <br/><span style="font-style: italic">container diagram</span>
 </p>
 
-**HPL** infrastructure consists of 1 **Ledger** and N **Aggregators**. N == 25 by default
+**HPL** infrastructure consists of 1 **Ledger** and N **Aggregators** (N=25 by default).
 - **Aggregator** canister is an entrypoint for principals. During the transaction process, both sender and receiver principal have to use one single aggregator. The aggregator is responsible for:
     - principals authentication
     - initial transaction validation
     - charging fee
+    - collecting approvals
     - sending batched prepared transactions to the **Ledger**
-    - receiving confirmation from the **ledger** for each transaction
+    - receiving confirmation from the **Ledger** for each transaction
     - serving transaction status to principals
 - **Ledger** canister has the complete token ledger. It is the single source of truth on account balances. It settles all transactions. It cannot be called directly by principals in relation to individual transactions, only in relation to accounts. The ledger is responsible for:
   - receiving batched transactions from aggregators
   - validation and execution of each transaction
   - saving all account balances
-  - saving latest transactions
+  - archiving latest transactions
   - providing list of available aggregators
 
 ### Low-level user story:
@@ -126,13 +128,14 @@ With **HPL**, registered principals can submit and approve multi-token transacti
 6. **G** generates a **transactionId** and stores the pending transaction under this id
 7. **G** returns **transactionId** to **A** as response
 8. **A** sends **transactionId** and **G** principal to **B** directly
-9. **B** [calls](#approve-transaction) **G** with **transactionId** to approve the transaction
-10. **G** puts the transaction in the next batch
-11. At the next heartbeat, **G** sends a batch of transactions in a single cross-canister [call](#process-batch) to the ledger **L**
-12. **L** processes the transactions in the batch in order, i.e. executes the transaction if valid and discards it if invalid
-13. **L** returns the list of successfully executed transaction ids to **G**
-14. **L** returns error codes for failed transaction ids to **G**
-15. **A** and **B** can [query](#get-transaction-status) **G** about the status of a transaction id (processing, success, failed)
+9. **B** [calls](doc/archived/README.md#get-transaction-status) **G** with **transactionId** to get the transaction details
+10. **B** [calls](doc/archived/README.md#approve-transaction) **G** with **transactionId** to approve the transaction
+11. **G** puts the transaction in the queue
+12. At the next heartbeat, **G** sends a batch of queued transactions in a single cross-canister [call](#process-batch) to **L**
+13. **L** processes the transactions in the batch in order, i.e. executes the transaction if valid and discards it if invalid
+14. **L** returns the list of successfully executed transaction ids to **G**
+15. **L** returns error codes for failed transaction ids to **G**
+16. **A** and **B** can [query](#get-transaction-status) **G** about the status of a transaction id (processing, success, failed)
 
 <p align="center">
     <img src=".github/assets/flow.drawio.png" alt="Container diagram"/>

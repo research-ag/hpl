@@ -64,9 +64,7 @@ type TxRequest =
              unapproved: Approvals;
              approved: QueueNumber;
              rejected;
-             pending;
-             executed;
-             failed
+             pending
            };
    lid: nat;
  };
@@ -109,9 +107,7 @@ type TxDetails =
              unapproved: Approvals;
              approved: QueueNumber;
              rejected;
-             pending;
-             executed;
-             failed
+             pending
            };
    gid: record { nat; nat };
  };

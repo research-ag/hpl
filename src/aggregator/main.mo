@@ -1,6 +1,8 @@
 import { nyi; xxx } "mo:base/Prelude";
 import Deque "mo:base/Deque";
 import Array "mo:base/Array";
+import Principal "mo:base/Principal";
+import Ledger "../ledger/main";
 
 // type imports
 // pattern matching is not available for types (work-around required)
@@ -22,12 +24,17 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   public type Tx = T.Tx;
   type LocalId = T.LocalId;
   type GlobalId = T.GlobalId;
+  type Batch = T.Batch;
 
-  // store the init arguments: 
-  //   - canister id of the ledger canister
-  //   - own unique identifier of this aggregator
+  /* store the init arguments: 
+       - canister id of the ledger canister
+       - own unique identifier of this aggregator
+  */
   let ledger : Principal = _ledger; 
   let selfAggregatorIndex: Nat = own_id;
+
+  // define the ledger actor
+  let Ledger_actor = actor (Principal.toText(ledger)) : Ledger.Ledger;
 
   /* 
   Glossary:
@@ -111,7 +118,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     tx : Tx;
     submitter : Principal;
     lid : LocalId;
-    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #executed; #failed };
+    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending };
   };
  
   /* 
@@ -125,7 +132,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     tx : Tx;
     submitter : Principal;
     gid : GlobalId;
-    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #executed; #failed  };
+    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending };
   };
  
   /*
@@ -295,4 +302,16 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   public func set_id(id : Nat) {
     nyi();
   };
+
+  // heartbeat function
+
+  system func heartbeat() : async () {
+    let b : Batch = []; // pop from queue here
+    try {
+      await Ledger_actor.processBatch(b);
+    } catch (e) {
+      // batch was not processed
+    };
+  };
+
 };

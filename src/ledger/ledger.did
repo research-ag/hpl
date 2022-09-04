@@ -92,10 +92,7 @@ service : (vec principal) -> {
   openNewAccounts: (nat, bool) -> (SubaccountId_Result);
  
   // process a batch of transaction, caller must be an aggregator
-  processBatch: (Batch) -> (vec variant {
-                                  gid: GlobalId;
-                                  err: nat;
-                                });
+  processBatch: (Batch) -> ();
 
   // queries
 
@@ -115,6 +112,10 @@ service : (vec principal) -> {
   // NotFound if the caller isn't registered
   // SubaccountNotFound if the caller is registered but does not have n accounts
   asset: (SubaccountId) -> (Asset_Result) query;
+
+  // admin interface
+
+  add_aggregator: (principal) -> (variant { ok; err });
 
   // debug interface
 

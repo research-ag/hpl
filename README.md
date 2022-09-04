@@ -183,9 +183,9 @@ sequenceDiagram
     API->>Lookup Table: fetch txs for local ids
     API->>Ledger canister: submit batch
     API->>API: set request status to `pending`
-    Ledger canister->>API: return results
-    API->>Lookup Table: inform requests were executed (or failed)
-    Lookup Table->>Lookup Table: delete requests
+    Ledger canister-->>API: return results
+    API-->>Lookup Table: inform requests were executed (or failed)
+    Lookup Table-->>Lookup Table: delete requests
     Note left of User: txDetails(txid)
     User->API: txDetails(txid)
     API->>Lookup Table: get data

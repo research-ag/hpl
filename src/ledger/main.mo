@@ -4,7 +4,7 @@ import Array "mo:base/Array";
 import { compare } "mo:base/Principal";
 
 // type imports
-// pattern matching is not available for types (work-around required)
+// pattern matching is not available for types during import (work-around required)
 import T "../shared/types";
 import R "mo:base/Result";
 
@@ -80,10 +80,11 @@ actor class Ledger(initial_aggregators : [Principal]) {
   - all outflow subaccounts have matching token id and sufficient balance
   - all inflow subaccounts have matching token id (or Asset value `none`)
   - on a per-token id basis the sum of all outflows matches all inflows
-  Return to the aggregator the list of transaction ids.
+  There is no return value. 
+  If the call returns (i.e. no system-level failure) the aggregator knows that the batch has been processed.
+  If the aggregator catches a system-level failure then it knows that the batch has not been processed.
   */
 
-  // TODO: define a variant instead of error codes
   public func processBatch(batch: Batch): async () {
     nyi();
   };

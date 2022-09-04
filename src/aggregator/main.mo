@@ -118,7 +118,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     tx : Tx;
     submitter : Principal;
     lid : LocalId;
-    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending };
+    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
  
   /* 
@@ -296,21 +296,22 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     nyi();
   };
 
-  // admin interface
-
-  // set own aggregator id
-  public func set_id(id : Nat) {
-    nyi();
-  };
-
   // heartbeat function
 
   system func heartbeat() : async () {
     let b : Batch = []; // pop from queue here
     try {
       await Ledger_actor.processBatch(b);
+      // the batch has been processed
+      // the transactions in b can now be deleted from the lookup table
+      // the aggregator has now done its job
+      // the user has to query the ledger to see the execution status (executed or failed) and the order relative to other transactions 
     } catch (e) {
       // batch was not processed
+      // we do not retry sending the batch
+      // we set the status of all txs to #failed_to_send
+      // we leave all txs in the lookup table forever
+      // only an upgrade can clean them up 
     };
   };
 

@@ -6,6 +6,7 @@
     },
     "ledger": {
       "main": "src/ledger/main.mo",
+      "candid": "src/ledger/ledger.did",     
       "type": "motoko"
     }
   },

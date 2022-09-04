@@ -1,5 +1,6 @@
 import { nyi } "mo:base/Prelude";
 import RBTree "mo:base/RBTree";
+import Array "mo:base/Array";
 import { compare } "mo:base/Principal";
 
 // type imports
@@ -42,12 +43,17 @@ actor class Ledger(initial_aggregators : [Principal]) {
   For example, a particular balance in a fungible token is accessed like this:
     let #ft(id, balance) = accounts[owner_id][subaccount_id]
 
-  When a new principal is registered then the outer Array of n existing owner_ids has to be copied
-  into a new array. This is inefficient. But it has the same or better worst-case than a Buffer. 
-  We will improve on the data structure later. It will then also be optimized for stable memory.
+  The outer array is of fixed-length N (currently, N=2**24).
+  This means there is space for N different owners and N cannot grow.
+  In the future we will replace this with our own implementation of an array that can grow.
+  The currently available implementations Array and Buffer perform bad in their worst-case when it comes to extending them.
+
+  When an owner open new subaccounts then we use Array.append to grow the owners array of subaccounts.
+  We accept the inefficiency of that implementation until there is a better alternative.
+  Since this isn't happening in a loop and happens only once during the canister call it is fine.
   */
 
-  var accounts : [var [var Asset]] = [var [var]];
+  let accounts : [var [var Asset]] = Array.init(16777216, [var] : [var Asset]);
 
   // updates
 

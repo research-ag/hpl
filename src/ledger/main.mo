@@ -80,10 +80,11 @@ actor class Ledger(initial_aggregators : [Principal]) {
   - all outflow subaccounts have matching token id and sufficient balance
   - all inflow subaccounts have matching token id (or Asset value `none`)
   - on a per-token id basis the sum of all outflows matches all inflows
+  Return to the aggregator the list of transaction ids.
   */
 
   // TODO: define a variant instead of error codes
-  public func processBatch(batch: Batch): async [{ #gid: GlobalId; #err: Nat }] {
+  public func processBatch(batch: Batch): async () {
     nyi();
   };
 

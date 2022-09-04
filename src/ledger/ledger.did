@@ -92,10 +92,7 @@ service : (vec principal) -> {
   openNewAccounts: (nat, bool) -> (SubaccountId_Result);
  
   // process a batch of transaction, caller must be an aggregator
-  processBatch: (Batch) -> (vec variant {
-                                  gid: GlobalId;
-                                  err: nat;
-                                });
+  processBatch: (Batch) -> ();
 
   // queries
 

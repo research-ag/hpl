@@ -111,7 +111,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     tx : Tx;
     submitter : Principal;
     lid : LocalId;
-    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #executed; #failed };
+    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending };
   };
  
   /* 
@@ -125,7 +125,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     tx : Tx;
     submitter : Principal;
     gid : GlobalId;
-    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #executed; #failed  };
+    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending };
   };
  
   /*

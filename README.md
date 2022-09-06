@@ -23,6 +23,8 @@
 
 ---
 
+Find more documentation on [GitHub Pages](https://research-ag.github.io/hpl/)
+
 ## About
 
 The goal is to design and demonstrate a ledger on the IC(https://internetcomputer.org/) that can handle 10,000 transactions per second which are submitted individually by different end users via ingress messages. The number of ingress messages that the consensus mechanism of a single subnet can process is only in the order of 1,000 per second and is in fact rate limited by boundary nodes to a lower number (maybe around 400 per second). Therefore, to get to the desired throughput we plan to utilize 25 subnets.

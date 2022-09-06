@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link rel="shortcut icon" href="../img/favicon.ico" />
+    <title>Archived - HPL Docs</title>
+    <link rel="stylesheet" href="../css/theme.css" />
+    <link rel="stylesheet" href="../css/theme_extra.css" />
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/github.min.css" />
+    
+      <script>
+        // Current page data
+        var mkdocs_page_name = "Archived";
+        var mkdocs_page_input_path = "archived_README.md";
+        var mkdocs_page_url = null;
+      </script>
+    
+    <script src="../js/jquery-3.6.0.min.js" defer></script>
+    <!--[if lt IE 9]>
+      <script src="../js/html5shiv.min.js"></script>
+    <![endif]-->
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script>
+      <script>hljs.initHighlightingOnLoad();</script> 
+</head>
+
+<body class="wy-body-for-nav" role="document">
+
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side stickynav">
+    <div class="wy-side-scroll">
+      <div class="wy-side-nav-search">
+          <a href=".." class="icon icon-home"> HPL Docs
+        </a><div role="search">
+  <form id ="rtd-search-form" class="wy-form" action="../search.html" method="get">
+      <input type="text" name="q" placeholder="Search docs" title="Type search term here" />
+  </form>
+</div>
+      </div>
+
+      <div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <ul>
+                <li class="toctree-l1"><a class="reference internal" href="..">Home</a>
+                </li>
+              </ul>
+              <ul class="current">
+                <li class="toctree-l1 current"><a class="reference internal current" href="./">Archived</a>
+    <ul class="current">
+    </ul>
+                </li>
+              </ul>
+      </div>
+    </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap">
+      <nav class="wy-nav-top" role="navigation" aria-label="Mobile navigation menu">
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="..">HPL Docs</a>
+        
+      </nav>
+      <div class="wy-nav-content">
+        <div class="rst-content"><div role="navigation" aria-label="breadcrumbs navigation">
+  <ul class="wy-breadcrumbs">
+    <li><a href=".." class="icon icon-home" alt="Docs"></a> &raquo;</li>
+      <li>Archived</li>
+    <li class="wy-breadcrumbs-aside">
+    </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+            <div class="section" itemprop="articleBody">
+              
+                <ul>
+<li><a href="#data-types">Candid types of the API</a></li>
+<li><a href="#ledger-api">Ledger API</a></li>
+<li><a href="#get-number-of-aggregators">Get number of aggregators</a></li>
+<li><a href="#get-aggregator-principal">Get aggregator principal</a></li>
+<li><a href="#get-number-of-open-subaccounts">Get number of open subaccounts</a></li>
+<li><a href="#open-new-subaccount">Open new subaccount</a></li>
+<li><a href="#check-balance">Check balance</a></li>
+<li><a href="#process-batch">Process Batch</a></li>
+<li><a href="#aggregator-api">Aggregator API</a></li>
+<li><a href="#initialize-transaction">Initialize transaction</a></li>
+<li><a href="#approve-transaction">Approve transaction</a></li>
+<li><a href="#reject-transaction">Reject transaction</a></li>
+<li><a href="#get-transaction-status">Get transaction status</a></li>
+</ul>
+<h3 id="candid-types-of-the-api">Candid types of the API</h3>
+<p>Id of token, e.g. currency</p>
+<pre><code class="language-motoko">type TokenId = nat;
+</code></pre>
+<p>Id of aggregator</p>
+<pre><code class="language-motoko">type AggregatorId = nat;
+</code></pre>
+<p>Balances are Nats in the smallest unit of the token.</p>
+<pre><code class="language-motoko">type Balance = nat;
+</code></pre>
+<p>Subaccount ids are issued in consecutive order, without gaps, starting with 0. Extending the range of subaccount ids is an infrequent administrative action on the ledger carried out by the owner principal of the subaccounts.</p>
+<pre><code class="language-motoko">type SubaccountId = nat;
+</code></pre>
+<p>Id of transaction, issued by aggregator. The first value specifies the aggregator who issued the transaction id. The second value (nat) is a locally unique value chosen by the aggregator.</p>
+<pre><code class="language-motoko">type TransactionId = record { AggregatorId; nat };
+</code></pre>
+<pre><code class="language-motoko">type Transaction = vec Part;
+</code></pre>
+<pre><code class="language-motoko">type Batch = vec Transaction;
+</code></pre>
+<pre><code class="language-motoko">type Part = record {
+  owner : principal;
+  flows : vec Flow;
+  memo : opt blob
+};
+</code></pre>
+<pre><code class="language-motoko">type Flow = record {
+  token : TokenId;
+  subaccount : nat;
+  amount : int;
+};
+</code></pre>
+<p>A record of type <code>Part</code> is only valid if in the sequence of flows the <code>subaccount</code> field is strictly increasing. In particular, there can be at most one flow per subaccount. </p>
+<h3 id="ledger-api">Ledger API</h3>
+<ul>
+<li>
+<h4 id="get-number-of-aggregators">Get number of aggregators</h4>
+</li>
+</ul>
+<p><strong>Endpoint</strong>: <code>nAggregators: () -&gt; (nat) query;</code></p>
+<p><strong>Authorization</strong>: <code>public</code></p>
+<p><strong>Description</strong>: returns amount of running aggregator canisters</p>
+<p><strong>Flow</strong>:
+  - return <code>aggregators.size()</code></p>
+<ul>
+<li>
+<h4 id="get-aggregator-principal">Get aggregator principal</h4>
+</li>
+</ul>
+<p><strong>Endpoint</strong>: <code>aggregatorPrincipal: (AggregatorId) -&gt; (principal) query;</code></p>
+<p><strong>Authorization</strong>: <code>public</code></p>
+<p><strong>Description</strong>: returns principal of selected aggregator. Provided <code>nat</code> is an index and has to be in range <code>0..{nAggregators()-1}</code></p>
+<p><strong>Flow</strong>:
+  - return <code>aggregators[aggregatorId]</code></p>
+<ul>
+<li>
+<h4 id="get-number-of-open-subaccounts">Get number of open subaccounts</h4>
+</li>
+</ul>
+<p><strong>Endpoint</strong>: <code>nAccounts: () -&gt; (nat) query;</code></p>
+<p><strong>Authorization</strong>: <code>account owner</code></p>
+<p><strong>Description</strong>: returns the number of open subaccounts for the caller</p>
+<p><strong>Flow</strong>:
+  - obtain <code>ownerId</code>: <code>owners.get(msg.caller)</code>. If it's not defined, return error
+  - return <code>balances[ownerId].size()</code></p>
+<ul>
+<li>
+<h4 id="open-new-subaccount">Open new subaccount</h4>
+</li>
+</ul>
+<p><strong>Endpoint</strong>: <code>openNewAccounts: (TokenId, nat) -&gt; (SubaccountId);</code></p>
+<p><strong>Authorization</strong>: <code>account owner</code></p>
+<p><strong>Description</strong>: opens N new subaccounts for the caller and token t. It returns the index of the first new subaccount in the newly created range</p>
+<p><strong>Flow</strong>:
+  - obtain <code>ownerId</code>: <code>owners.get(msg.caller)</code>. If it's not defined:
+    - create it: <code>ownerId = owners.size()</code>
+    - put to the map: <code>owners.put(msg.caller, ownerId)</code>
+    - init balances: <code>balances[ownerId] = []</code>
+  - extract subaccount array <code>var tokenBalances = balances[ownerId]</code>
+  - remember <code>tokenBalances.size()</code>
+  - append N new <code>TokenBalance</code> entries <code>{ unit: tokenId, balance: 0}</code> to <code>tokenBalances</code>
+  - return original array size</p>
+<ul>
+<li>
+<h4 id="check-balance">Check balance</h4>
+</li>
+</ul>
+<p><strong>Endpoint</strong>: <code>balance: (SubaccountId) -&gt; (TokenBalance) query;</code></p>
+<p><strong>Authorization</strong>: <code>account owner</code></p>
+<p><strong>Description</strong>: returns wallet balance for provided subaccount number</p>
+<p><strong>Flow</strong>:
+  - obtain <code>ownerId</code>: <code>owners.get(msg.caller)</code>. If it's not defined, return error
+  - return <code>balances[ownerId][subaccountId]</code></p>
+<ul>
+<li>
+<h4 id="process-batch">Process Batch</h4>
+</li>
+</ul>
+<p><strong>Endpoint</strong>: <code>processBatch: (Batch) -&gt; (vec TransactionId, nat);</code></p>
+<p><strong>Authorization</strong>: <code>cross-canister call from aggregator</code></p>
+<p><strong>Description</strong>: processes a batch of newly created transactions. Returns statuses and/or error codes</p>
+<p><strong>Error codes</strong>:
+  - (1): account not found
+  - (2): subaccount not found
+  - (3): token unit mismatch
+  - (4): non-sufficient funds
+  - (5): token flows do not add up to zero
+  - (6): flows are not properly sorted</p>
+<p><strong>Flow</strong>:
+  - check <code>msg.caller</code> - should be one of registered aggregators
+  - initialize array <code>result</code>: can contain either transactionId or error code
+  - loop over each <code>transaction</code> in <code>batch</code>:
+    - init cache array of owners <code>transactionOwners = []</code> for faster access later
+    - init token amount balance map <code>tokenBalanceMap: Map&lt;TokenId, Int&gt; = ...</code> for checking that the flows for each 
+    token add up to zero
+    - loop over each <code>part</code> in <code>transaction</code> (pass #1: validation):
+      - obtain <code>ownerId</code>: <code>owners.get(part.owner)</code>. If it's not defined, put error code <code>1</code> to <code>result</code> and continue 
+      outer loop. Else push <code>ownerId</code> to <code>transactionOwners</code> cache array
+      - set <code>last_subaccount</code> to -1
+      - loop over each <code>flow</code> in <code>part</code>
+        - assert that the <code>flow.subaccount &gt; last_subaccount</code>. If not set an error code <code>6</code> and continue outer loop.
+        - set <code>last_subaccount</code> to <code>flow.subaccount</code>
+        - get appropriate balance: <code>var tokenBalance = balances[ownerId][flow.subaccount]</code>. If not found, put error 
+        code <code>2</code> to <code>result</code> and continue outer loop
+        - assert <code>tokenBalance.unit == flow.token</code> else put error code <code>3</code> to <code>result</code> and continue outer loop
+        - if <code>tokenBalance.balance + flow.amount &lt; 0</code>, put error code <code>4</code> to <code>result</code> and continue outer loop
+        - add <code>flow.amount</code> to <code>tokenBalanceMap.get(flow.token)</code>, if map does not have this token, add it: <code>tokenBalanceMap.put(flow.token, flow.amount)</code>
+    - loop over <code>tokenBalanceMap</code> - if any element != 0, put error code <code>5</code> to <code>result</code> and continue outer loop
+    - loop over each <code>part</code> in <code>transaction</code>, use <code>i</code> as index (pass #2: applying):
+      - loop over each <code>flow</code> in <code>part</code>
+        - modify balance: <code>balances[transactionOwners[i]][flow.subaccount].balance += flow.amount</code>
+  - return <code>result</code></p>
+<h3 id="aggregator-api">Aggregator API</h3>
+<ul>
+<li>
+<h4 id="initialize-transaction">Initialize transaction</h4>
+</li>
+</ul>
+<p><strong>Endpoint</strong>: <code>submit: (Transaction) -&gt; (variant { Ok: TransactionId ; Err });</code></p>
+<p><strong>Authorization</strong>: <code>account owner</code></p>
+<p><strong>Description</strong>: initializes transaction: saves it to memory and waits when some principal call <code>approve</code> or <code>reject</code> on it</p>
+<p><strong>Flow</strong>:
+  - construct <code>TransactionId</code>: <code>{ selfAggregatorIndex, transactionsCounter++ }</code>
+  - construct <code>TransactionInfo</code> record: <code>{ transaction, submiter: msg.caller, status : { #pending [] } }</code>
+  - put transaction info to pending <code>pendingTransactions.put(transactionId[1], transactionInfo)</code>
+  - return <code>transactionId</code></p>
+<ul>
+<li>
+<h4 id="approve-transaction">Approve transaction</h4>
+</li>
+</ul>
+<p><strong>Endpoint</strong>: <code>approve: (TransactionId) -&gt; (variant { Ok; Err });</code></p>
+<p><strong>Authorization</strong>: <code>account owner</code></p>
+<p><strong>Description</strong>: approves transaction by its id</p>
+<p><strong>Flow</strong>:
+  - assert <code>transactionId[0] == selfAggregatorIndex</code>, else throw error
+  - extract transaction info <code>var transactionInfo = pendingTransactions.get(transactionId[1])</code>
+  - return error if either:
+    - transaction not found 
+    - already queued <code>transactionInfo.status.approved != null</code>
+    - rejected <code>transactionInfo.status.rejected == true</code>
+  - put <code>true</code> to <code>transactionInfo.status.pending</code>
+  - if approveance is enough to proceed:
+    - put to batch queue <code>approvedTransaction.enqueue(transactionId[1])</code>
+    - set <code>approvedTransactions.head_number()</code> to <code>transactionInfo.status.approved</code></p>
+<ul>
+<li>
+<h4 id="reject-transaction">Reject transaction</h4>
+</li>
+</ul>
+<p><strong>Endpoint</strong>: <code>reject: (TransactionId) -&gt; (variant { Ok; Err });</code></p>
+<p><strong>Authorization</strong>: <code>account owner</code></p>
+<p><strong>Description</strong>: rejects transaction by its id</p>
+<p><strong>Flow</strong>:
+  - assert <code>transactionId[0] == selfAggregatorIndex</code>, else throw error
+  - extract transaction info <code>var transactionInfo = pendingTransactions.get(transactionId[1])</code>
+  - if transaction not found or already queued <code>transactionInfo.status.approved != null</code>, return error
+  - put <code>true</code> to <code>transactionInfo.status.rejected</code></p>
+<ul>
+<li>
+<h4 id="get-transaction-status">Get transaction status</h4>
+</li>
+</ul>
+<p><strong>Endpoint</strong>: <code>transactionDetails: (TransactionId) -&gt; (variant { Ok: TransactionInfo; Err }) query;</code></p>
+<p><strong>Authorization</strong>: <code>public</code></p>
+<p><strong>Description</strong>: get status of transaction or error code</p>
+<p><strong>Flow</strong>:
+  - return <code>pendingTransactions.get(transactionId[1])</code></p>
+              
+            </div>
+          </div><footer>
+    <div class="rst-footer-buttons" role="navigation" aria-label="Footer Navigation">
+        <a href=".." class="btn btn-neutral float-left" title="Home"><span class="icon icon-circle-arrow-left"></span> Previous</a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <!-- Copyright etc -->
+  </div>
+
+  Built with <a href="https://www.mkdocs.org/">MkDocs</a> using a <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a> provided by <a href="https://readthedocs.org">Read the Docs</a>.
+</footer>
+          
+        </div>
+      </div>
+
+    </section>
+
+  </div>
+
+  <div class="rst-versions" role="note" aria-label="Versions">
+  <span class="rst-current-version" data-toggle="rst-current-version">
+    
+    
+      <span><a href=".." style="color: #fcfcfc">&laquo; Previous</a></span>
+    
+    
+  </span>
+</div>
+    <script>var base_url = '..';</script>
+    <script src="../js/theme_extra.js" defer></script>
+    <script src="../js/theme.js" defer></script>
+      <script src="../search/main.js" defer></script>
+    <script defer>
+        window.onload = function () {
+            SphinxRtdTheme.Navigation.enable(true);
+        };
+    </script>
+
+</body>
+</html>

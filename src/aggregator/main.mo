@@ -298,7 +298,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       return #err(#Invalid);
     };
     for (contribution in transfer.map.vals()) {
-      if (contribution.inflow.size() > T.max_flows or contribution.outflow.size() > T.max_flows) {
+      if (contribution.inflow.size() + contribution.outflow.size() > T.max_flows) {
         return #err(#Invalid);
       };
       switch (contribution.memo) {
@@ -309,8 +309,9 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
         };
         case (null) {};
       };
-      let asssetBalanceMap: TrieMap.TrieMap<AssetId, Int> = TrieMap.TrieMap<AssetId, Int>(func (a : AssetId, b: AssetId) : Bool { a == b }, func (a : Nat) { Nat32.fromNat(a) });
+      let assetBalanceMap: TrieMap.TrieMap<AssetId, Int> = TrieMap.TrieMap<AssetId, Int>(func (a : AssetId, b: AssetId) : Bool { a == b }, func (a : Nat) { Nat32.fromNat(a) });
       for (flows in [contribution.inflow, contribution.outflow].vals()) {
+        let negate : Bool = flows == contribution.outflow;
         var lastSubaccountId : Nat = 0;
         for ((subaccountId, asset) in flows.vals()) {
           if (lastSubaccountId > 0 and subaccountId <= lastSubaccountId) {
@@ -319,16 +320,29 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
           lastSubaccountId := subaccountId;
           switch asset {
             case (#ft (id, quantity)) {
-              let currentBalance : ?Int = asssetBalanceMap.get(id);
+              let currentBalance : ?Int = assetBalanceMap.get(id);
               switch (currentBalance) {
-                case (?b) { asssetBalanceMap.put(id, b + quantity); };
-                case (null) { asssetBalanceMap.put(id, quantity); };
+                case (?b) { 
+                  if (negate) {
+                    assetBalanceMap.put(id, b - quantity);
+                  } else {
+                    assetBalanceMap.put(id, b + quantity);
+                  };
+                };
+                case (null) { 
+                  // out flows are being processed after in flows, so if we have out flow and did not have in flow, 
+                  // it will never add up to zero
+                  if (negate) {
+                    return #err(#Invalid);
+                  };
+                  assetBalanceMap.put(id, quantity); 
+                };
               };
             };
           };
         };
       };
-      for (balance in asssetBalanceMap.vals()) {
+      for (balance in assetBalanceMap.vals()) {
         if (balance != 0) {
           return #err(#Invalid);
         };

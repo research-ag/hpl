@@ -9,6 +9,7 @@ import Nat32 "mo:base/Nat32";
 // type imports
 // pattern matching is not available for types (work-around required)
 import T "../shared/types";
+import v "../shared/validators";
 import R "mo:base/Result";
 
 // aggregator
@@ -293,62 +294,13 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   // update functions
 
   type SubmitError = { #NoSpace; #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted };
-  public shared(msg) func submit(transfer: Tx): async Result<GlobalId, SubmitError> {
-    if (transfer.map.size() > T.max_contribution) {
-      return #err(#MaxContributionsExceeded);
+  public shared(msg) func submit(transaction: Tx): async Result<GlobalId, SubmitError> {
+    let validationResult = v.validateTransaction(transaction);
+    switch (validationResult) {
+      case (#err error) return #err(error);
+      case (#ok) {};
     };
-    for (contribution in transfer.map.vals()) {
-      if (contribution.inflow.size() + contribution.outflow.size() > T.max_flows) {
-        return #err(#MaxFlowsExceeded);
-      };
-      switch (contribution.memo) {
-        case (?m) {
-          if (m.size() > T.max_memo_size) {
-            return #err(#MaxMemoSizeExceeded);
-          };
-        };
-        case (null) {};
-      };
-      let assetBalanceMap: TrieMap.TrieMap<AssetId, Int> = TrieMap.TrieMap<AssetId, Int>(func (a : AssetId, b: AssetId) : Bool { a == b }, func (a : Nat) { Nat32.fromNat(a) });
-      for (flows in [contribution.inflow, contribution.outflow].vals()) {
-        let negate : Bool = flows == contribution.outflow;
-        var lastSubaccountId : Nat = 0;
-        for ((subaccountId, asset) in flows.vals()) {
-          if (lastSubaccountId > 0 and subaccountId <= lastSubaccountId) {
-            return #err(#FlowsNotSorted);
-          };
-          lastSubaccountId := subaccountId;
-          switch asset {
-            case (#ft (id, quantity)) {
-              let currentBalance : ?Int = assetBalanceMap.get(id);
-              switch (currentBalance) {
-                case (?b) {
-                  if (negate) {
-                    assetBalanceMap.put(id, b - quantity);
-                  } else {
-                    assetBalanceMap.put(id, b + quantity);
-                  };
-                };
-                case (null) {
-                  // out flows are being processed after in flows, so if we have non-zero out flow and did not have in flow,
-                  // it will never add up to zero
-                  if (negate and quantity > 0) {
-                    return #err(#FlowsNotBroughtToZero);
-                  };
-                  assetBalanceMap.put(id, quantity);
-                };
-              };
-            };
-          };
-        };
-      };
-      for (balance in assetBalanceMap.vals()) {
-        if (balance != 0) {
-          return #err(#FlowsNotBroughtToZero);
-        };
-      };
-    };
-    let transactionRequest : TxRequest = {tx = transfer; submitter = msg.caller; lid = lookup.getLocalId(transfer, msg.caller); status = #unapproved([]) };
+    let transactionRequest : TxRequest = {tx = transaction; submitter = msg.caller; lid = lookup.getLocalId(transaction, msg.caller); status = #unapproved([]) };
     let lid = lookup.add(transactionRequest);
     if (lid == null) {
       return #err(#NoSpace);

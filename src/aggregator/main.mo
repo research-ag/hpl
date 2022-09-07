@@ -3,6 +3,8 @@ import Deque "mo:base/Deque";
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Ledger "../ledger/main";
+import TrieMap "mo:base/TrieMap";
+import Nat32 "mo:base/Nat32";
 
 // type imports
 // pattern matching is not available for types (work-around required)
@@ -17,7 +19,7 @@ import R "mo:base/Result";
 //   dfx deploy --argument='(principal "aaaaa-aa")' aggregator 
 // alternatively, the argument can be placed in dfx.json according to this scheme:
 // https://github.com/dfinity/sdk/blob/ca578a30ea27877a7222176baea3a6aa368ca6e8/docs/dfx-json-schema.json#L222-L229
-actor class Aggregator(_ledger : Principal, own_id : Nat) {
+actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
 
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
@@ -25,13 +27,15 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   type LocalId = T.LocalId;
   type GlobalId = T.GlobalId;
   type Batch = T.Batch;
+  type AggregatorId = T.AggregatorId;
+  type AssetId = T.AssetId;
 
   /* store the init arguments: 
        - canister id of the ledger canister
        - own unique identifier of this aggregator
   */
   let ledger : Principal = _ledger; 
-  let selfAggregatorIndex: Nat = own_id;
+  let selfAggregatorIndex: AggregatorId = own_id;
 
   // define the ledger actor
   let Ledger_actor = actor (Principal.toText(ledger)) : Ledger.Ledger;
@@ -143,6 +147,10 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   */
 
   type Lookup = {
+    // calculate local id for provided transaction request
+    // does not affect table itself and does not check if slot available
+    getLocalId : (tx: Tx, caller: Principal) -> (LocalId) ; 
+
     // add an element to the data structure  
     // return null if there is no space, otherwise assign a new local id to the element and return the id
     // the data structure is allowed to overwrite the oldest unmarked element
@@ -214,12 +222,21 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     // see below for explanation of the Chain type  
     let unused : Chain = { var length = 16777216; var head = ?0; var tail = ?16777215 }; // chain of all unused slots 
     let unapproved : Chain = { var length = 0; var head = null; var tail = null }; // chain of all used slots with a unapproved tx request
+
+    // calculate local id for provided transaction request
+    // does not affect table itself and does not check if slot available
+    public func getLocalId(tx: Tx, caller: Principal) : LocalId { 
+      nyi();
+    }; 
  
     // add an element to the table
     // if the table is not full then take an usued slot (the slot will shift to unapproved)
     // if the table is full but there are unapproved slots then overwrite the oldest unapproved slot
     // if the table is full and there are no unapproved slots then abort
-    public func add(txreq : TxRequest) : ?LocalId { nyi() }; 
+    public func add(txreq : TxRequest) : ?LocalId { 
+      let localId = getLocalId(txreq.tx, txreq.submitter);
+      nyi()
+    }; 
 
     // look up an element by id and return it 
     // abort if the id cannot be found 
@@ -276,8 +293,53 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   // update functions
 
   type SubmitError = { #NoSpace; #Invalid; };
-  public func submit(transfer: Tx): async Result<GlobalId, SubmitError> {
-    nyi();
+  public shared(msg) func submit(transfer: Tx): async Result<GlobalId, SubmitError> {
+    if (transfer.map.size() > T.max_contribution) {
+      return #err(#Invalid);
+    };
+    for (contribution in transfer.map.vals()) {
+      if (contribution.inflow.size() > T.max_flows or contribution.outflow.size() > T.max_flows) {
+        return #err(#Invalid);
+      };
+      switch (contribution.memo) {
+        case (?m) {
+          if (m.size() > T.max_memo_size) {
+            return #err(#Invalid);
+          };
+        };
+        case (null) {};
+      };
+      let asssetBalanceMap: TrieMap.TrieMap<AssetId, Int> = TrieMap.TrieMap<AssetId, Int>(func (a : AssetId, b: AssetId) : Bool { a == b }, func (a : Nat) { Nat32.fromNat(a) });
+      for (flows in [contribution.inflow, contribution.outflow].vals()) {
+        var lastSubaccountId : Nat = 0;
+        for ((subaccountId, asset) in flows.vals()) {
+          if (lastSubaccountId > 0 and subaccountId <= lastSubaccountId) {
+            return #err(#Invalid);
+          };
+          lastSubaccountId := subaccountId;
+          switch asset {
+            case (#ft (id, quantity)) {
+              let currentBalance : ?Int = asssetBalanceMap.get(id);
+              switch (currentBalance) {
+                case (?b) { asssetBalanceMap.put(id, b + quantity); };
+                case (null) { asssetBalanceMap.put(id, quantity); };
+              };
+            };
+          };
+        };
+      };
+      for (balance in asssetBalanceMap.vals()) {
+        if (balance != 0) {
+          return #err(#Invalid);
+        };
+      };
+    };
+    let transactionRequest : TxRequest = {tx = transfer; submitter = msg.caller; lid = lookup.getLocalId(transfer, msg.caller); status = #unapproved([]) };
+    let lid = lookup.add(transactionRequest);
+    if (lid == null) {
+      return #err(#NoSpace);
+    };
+    #ok (selfAggregatorIndex, transactionRequest.lid);
   };
 
   type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };

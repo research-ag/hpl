@@ -165,7 +165,7 @@ sequenceDiagram
     Lookup Table->>Lookup Table: add request to "unapproved" chain
     API->>API: check if request fully approved
     API-->>Queue: if fully approved, push(local id)
-    API-->>API: set request status to #approved (with queue number)
+    API-->>API: set request status to `approved` (with queue number)
     API-->>Lookup Table: inform request was approved
     Lookup Table-->>Lookup Table: remove request from "unapproved"
     API->>User: txid (=global id) 

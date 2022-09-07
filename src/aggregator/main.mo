@@ -303,7 +303,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     try {
       await Ledger_actor.processBatch(b);
       // the batch has been processed
-      // the transactions in b can now be deleted from the lookup table
+      // the transactions in b are now explicitly deleted from the lookup table
       // the aggregator has now done its job
       // the user has to query the ledger to see the execution status (executed or failed) and the order relative to other transactions 
     } catch (e) {
@@ -311,6 +311,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
       // we do not retry sending the batch
       // we set the status of all txs to #failed_to_send
       // we leave all txs in the lookup table forever
+      // in the lookup table all of status #approved, #pending, #failed_to_send remain outside any chain, hence they won't be deleted
       // only an upgrade can clean them up 
     };
   };

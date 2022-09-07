@@ -74,8 +74,12 @@ type TxRequest =
 
 type SubmitError = 
  variant {
-   Invalid;
    NoSpace;
+   FlowsNotBroughtToZero;
+   MaxContributionsExceeded;
+   MaxFlowsExceeded;
+   MaxMemoSizeExceeded;
+   FlowsNotSorted;
  };
 
 type Submit_Result = 

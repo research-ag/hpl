@@ -119,12 +119,13 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   When a tx is approved (i.e. queued) then the value `push_ctr` is stored in the #approved field in the status variant.
   */
 
-  type Approvals = [var Bool];
+  type MutableApprovals = [var Bool];
+  type Approvals = [Bool];
   type TxRequest = {
     tx : Tx;
     submitter : Principal;
     lid : LocalId;
-    var status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
+    var status : { #unapproved : MutableApprovals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
 
   /*

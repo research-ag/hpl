@@ -316,8 +316,43 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   };
 
   type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
-  public func approve(transactionId: GlobalId): async Result<(),NotPendingError> {
-    nyi();
+  public shared(msg) func approve(transactionId: GlobalId): async Result<(),NotPendingError> {
+    let (aggregator, local_id) = transactionId;
+    if (aggregator != own_id) {
+      return #err(#NotFound);
+    };
+    let transactionRequest = lookup.get(local_id);
+    switch (transactionRequest) {
+      case (null) return #err(#NotFound);
+      case (?tr) {
+        switch (tr.status) {
+          case (#approved queueNumber)  return #err(#AlreadyApproved);
+          case (#pending)               return #err(#AlreadyApproved);
+          case (#rejected)              return #err(#AlreadyRejected);
+          case (#failed_to_send)        return #err(#AlreadyRejected);
+          case (#unapproved approvals)  {
+            switch (u.arrayFindIndex(tr.tx.map, func (c: T.Contribution) : Bool { c.owner == msg.caller })) {
+              case (#NotFound) return #err(#NoPart);
+              case (#Found index) {
+                approvals[index] := true;
+                var isAllApproved = true;
+                label l for (approval in approvals.vals()) {
+                  if (not approval) {
+                    isAllApproved := false;
+                    break l;
+                  };
+                };
+                if (isAllApproved) {
+                  // TODO add to the queue, put index in queue here instead of stub 333
+                  tr.status := #approved(333);
+                }
+              };
+            };
+          };
+        };
+      };
+    };
+    return #ok;
   };
 
   public shared(msg) func reject(transactionId: GlobalId): async Result<(),NotPendingError> {

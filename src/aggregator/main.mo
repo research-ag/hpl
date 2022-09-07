@@ -10,6 +10,7 @@ import Nat32 "mo:base/Nat32";
 // pattern matching is not available for types (work-around required)
 import T "../shared/types";
 import v "../shared/validators";
+import u "../shared/utils";
 import R "mo:base/Result";
 
 // aggregator
@@ -118,12 +119,12 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   When a tx is approved (i.e. queued) then the value `push_ctr` is stored in the #approved field in the status variant.
   */
 
-  type Approvals = [Bool];
+  type Approvals = [var Bool];
   type TxRequest = {
     tx : Tx;
     submitter : Principal;
     lid : LocalId;
-    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
+    var status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
 
   /*
@@ -300,7 +301,12 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       case (#err error) return #err(error);
       case (#ok) {};
     };
-    let transactionRequest : TxRequest = {tx = transaction; submitter = msg.caller; lid = lookup.getLocalId(transaction, msg.caller); status = #unapproved([]) };
+    let transactionRequest : TxRequest = {
+      tx = transaction;
+      submitter = msg.caller;
+      lid = lookup.getLocalId(transaction, msg.caller);
+      var status = #unapproved(Array.tabulateVar(transaction.map.size(), func (i: Nat): Bool { false }));
+    };
     let lid = lookup.add(transactionRequest);
     if (lid == null) {
       return #err(#NoSpace);
@@ -309,12 +315,37 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   };
 
   type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
-  public func approve(transferId: GlobalId): async Result<(),NotPendingError> {
+  public func approve(transactionId: GlobalId): async Result<(),NotPendingError> {
     nyi();
   };
 
-  public func reject(transferId: GlobalId): async Result<(),NotPendingError> {
-    nyi();
+  public shared(msg) func reject(transactionId: GlobalId): async Result<(),NotPendingError> {
+    let (aggregator, local_id) = transactionId;
+    if (aggregator != own_id) {
+      return #err(#NotFound);
+    };
+    let transactionRequest = lookup.get(local_id);
+    switch (transactionRequest) {
+      case (null) return #err(#NotFound);
+      case (?tr) {
+        switch (tr.status) {
+          case (#approved queueNumber)  return #err(#AlreadyApproved);
+          case (#pending)               return #err(#AlreadyApproved);
+          case (#rejected)              return #err(#AlreadyRejected);
+          case (#failed_to_send)        return #err(#AlreadyRejected);
+          case (#unapproved approvals)  {
+            switch (u.arrayFindIndex(tr.tx.map, func (c: T.Contribution) : Bool { c.owner == msg.caller })) {
+              case (#NotFound) return #err(#NoPart);
+              case (#Found index) {
+                // fully reject transaction
+                tr.status := #rejected;
+              };
+            };
+          };
+        };
+      };
+    };
+    return #ok;
   };
 
   // query functions

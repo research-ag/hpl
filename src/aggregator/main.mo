@@ -317,71 +317,37 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
 
   type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
   public shared(msg) func approve(transactionId: GlobalId): async Result<(),NotPendingError> {
-    let (aggregator, local_id) = transactionId;
-    if (aggregator != own_id) {
-      return #err(#NotFound);
-    };
-    let transactionRequest = lookup.get(local_id);
-    switch (transactionRequest) {
-      case (null) return #err(#NotFound);
-      case (?tr) {
-        switch (tr.status) {
-          case (#approved queueNumber)  return #err(#AlreadyApproved);
-          case (#pending)               return #err(#AlreadyApproved);
-          case (#rejected)              return #err(#AlreadyRejected);
-          case (#failed_to_send)        return #err(#AlreadyRejected);
-          case (#unapproved approvals)  {
-            switch (u.arrayFindIndex(tr.tx.map, func (c: T.Contribution) : Bool { c.owner == msg.caller })) {
-              case (#NotFound) return #err(#NoPart);
-              case (#Found index) {
-                approvals[index] := true;
-                var isAllApproved = true;
-                label l for (approval in approvals.vals()) {
-                  if (not approval) {
-                    isAllApproved := false;
-                    break l;
-                  };
-                };
-                if (isAllApproved) {
-                  // TODO add to the queue, put index in queue here instead of stub 333
-                  tr.status := #approved(333);
-                }
-              };
-            };
+    let pendingRequestInfo = getPendingTxRequest(transactionId, msg.caller);
+    switch (pendingRequestInfo) {
+      case (#err err) return #err(err);
+      case (#ok (tr, approvals, index)) {
+        approvals[index] := true;
+        var isAllApproved = true;
+        label l for (approval in approvals.vals()) {
+          if (not approval) {
+            isAllApproved := false;
+            break l;
           };
         };
+        if (isAllApproved) {
+          // TODO add to the queue, put index in queue here instead of stub 333
+          tr.status := #approved(333);
+        };
+        return #ok;
       };
     };
-    return #ok;
   };
 
   public shared(msg) func reject(transactionId: GlobalId): async Result<(),NotPendingError> {
-    let (aggregator, local_id) = transactionId;
-    if (aggregator != own_id) {
-      return #err(#NotFound);
-    };
-    let transactionRequest = lookup.get(local_id);
-    switch (transactionRequest) {
-      case (null) return #err(#NotFound);
-      case (?tr) {
-        switch (tr.status) {
-          case (#approved queueNumber)  return #err(#AlreadyApproved);
-          case (#pending)               return #err(#AlreadyApproved);
-          case (#rejected)              return #err(#AlreadyRejected);
-          case (#failed_to_send)        return #err(#AlreadyRejected);
-          case (#unapproved approvals)  {
-            switch (u.arrayFindIndex(tr.tx.map, func (c: T.Contribution) : Bool { c.owner == msg.caller })) {
-              case (#NotFound) return #err(#NoPart);
-              case (#Found index) {
-                // fully reject transaction
-                tr.status := #rejected;
-              };
-            };
-          };
-        };
+    let pendingRequestInfo = getPendingTxRequest(transactionId, msg.caller);
+    switch (pendingRequestInfo) {
+      case (#err err) return #err(err);
+      case (#ok (tr, _, _)) {
+        // fully reject transaction
+        tr.status := #rejected;
+        return #ok;
       };
     };
-    return #ok;
   };
 
   // query functions
@@ -400,15 +366,45 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       // the batch has been processed
       // the transactions in b are now explicitly deleted from the lookup table
       // the aggregator has now done its job
-      // the user has to query the ledger to see the execution status (executed or failed) and the order relative to other transactions 
+      // the user has to query the ledger to see the execution status (executed or failed) and the order relative to other transactions
     } catch (e) {
       // batch was not processed
       // we do not retry sending the batch
       // we set the status of all txs to #failed_to_send
       // we leave all txs in the lookup table forever
       // in the lookup table all of status #approved, #pending, #failed_to_send remain outside any chain, hence they won't be deleted
-      // only an upgrade can clean them up 
+      // only an upgrade can clean them up
     };
+  };
+
+  // private functionality
+
+  private func getPendingTxRequest(transactionId: GlobalId, caller: Principal): Result<( txRequest: TxRequest, approvals: MutableApprovals, index: Nat ),NotPendingError> {
+    let (aggregator, local_id) = transactionId;
+    if (aggregator != own_id) {
+      return #err(#NotFound);
+    };
+    let transactionRequest = lookup.get(local_id);
+    switch (transactionRequest) {
+      case (null) return #err(#NotFound);
+      case (?tr) {
+        switch (tr.status) {
+          case (#approved _)            return #err(#AlreadyApproved);
+          case (#pending)               return #err(#AlreadyApproved);
+          case (#rejected)              return #err(#AlreadyRejected);
+          case (#failed_to_send)        return #err(#AlreadyRejected);
+          case (#unapproved approvals)  {
+            switch (u.arrayFindIndex(tr.tx.map, func (c: T.Contribution) : Bool { c.owner == caller })) {
+              case (#NotFound) return #err(#NoPart);
+              case (#Found index) {
+                return #ok( tr, approvals, index );
+              };
+            };
+          };
+        };
+      };
+    };
+    return #err(#NotFound);
   };
 
 };

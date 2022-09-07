@@ -1,0 +1,5 @@
+site_name: HPL Docs
+nav:
+  - Home: index.md
+  - Archived: archived_README.md
+theme: readthedocs

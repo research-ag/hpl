@@ -23,15 +23,22 @@ module {
         };
         case (null) {};
       };
+      // checking flows sorting
       for (flows in [contribution.inflow, contribution.outflow].vals()) {
-        var lastSubaccountId : Nat = 0;
+        var lastSubaccountId : { #empty; #val: Nat } = #empty;
         for ((subaccountId, asset) in flows.vals()) {
-          if (lastSubaccountId > 0 and subaccountId <= lastSubaccountId) {
-            return #err(#FlowsNotSorted);
+          switch (lastSubaccountId) {
+            case (#val lsid) {
+              if (subaccountId <= lsid) {
+                return #err(#FlowsNotSorted);
+              };
+            };
+            case (#empty) {};
           };
-          lastSubaccountId := subaccountId;
+          lastSubaccountId := #val(subaccountId);
         };
       };
+      // checking balances equilibrium
       let assetBalanceMap: TrieMap.TrieMap<T.AssetId, Int> = TrieMap.TrieMap<T.AssetId, Int>(func (a : T.AssetId, b: T.AssetId) : Bool { a == b }, func (a : Nat) { Nat32.fromNat(a) });
       for ((subaccountId, asset) in contribution.inflow.vals()) {
         switch asset {

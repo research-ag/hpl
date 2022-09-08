@@ -297,28 +297,28 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   // update functions
 
   type SubmitError = { #NoSpace; #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted };
-  public shared(msg) func submit(transaction: Tx): async Result<GlobalId, SubmitError> {
-    let validationResult = v.validateTransaction(transaction);
+  public shared(msg) func submit(tx: Tx): async Result<GlobalId, SubmitError> {
+    let validationResult = v.validateTx(tx);
     switch (validationResult) {
       case (#err error) return #err(error);
       case (#ok) {};
     };
-    let transactionRequest : TxRequest = {
-      tx = transaction;
+    let txRequest : TxRequest = {
+      tx = tx;
       submitter = msg.caller;
-      lid = lookup.getLocalId(transaction, msg.caller);
-      var status = #unapproved(Array.init(transaction.map.size(), false));
+      lid = lookup.getLocalId(tx, msg.caller);
+      var status = #unapproved(Array.init(tx.map.size(), false));
     };
-    let lid = lookup.add(transactionRequest);
+    let lid = lookup.add(txRequest);
     if (lid == null) {
       return #err(#NoSpace);
     };
-    #ok (selfAggregatorIndex, transactionRequest.lid);
+    #ok (selfAggregatorIndex, txRequest.lid);
   };
 
   type NotPendingError = { #WrongAggregator; #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
-  public shared(msg) func approve(transactionId: GlobalId): async Result<(),NotPendingError> {
-    let pendingRequestInfo = getPendingTxRequest(transactionId, msg.caller);
+  public shared(msg) func approve(txId: GlobalId): async Result<(),NotPendingError> {
+    let pendingRequestInfo = getPendingTxRequest(txId, msg.caller);
     switch (pendingRequestInfo) {
       case (#err err) return #err(err);
       case (#ok (tr, approvals, index)) {
@@ -332,8 +332,8 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     };
   };
 
-  public shared(msg) func reject(transactionId: GlobalId): async Result<(),NotPendingError> {
-    let pendingRequestInfo = getPendingTxRequest(transactionId, msg.caller);
+  public shared(msg) func reject(txId: GlobalId): async Result<(),NotPendingError> {
+    let pendingRequestInfo = getPendingTxRequest(txId, msg.caller);
     switch (pendingRequestInfo) {
       case (#err err) return #err(err);
       case (#ok (tr, _, _)) {
@@ -373,13 +373,13 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
 
   // private functionality
 
-  private func getPendingTxRequest(transactionId: GlobalId, caller: Principal): Result<( txRequest: TxRequest, approvals: MutableApprovals, index: Nat ),NotPendingError> {
-    let (aggregator, local_id) = transactionId;
+  private func getPendingTxRequest(txId: GlobalId, caller: Principal): Result<( txRequest: TxRequest, approvals: MutableApprovals, index: Nat ),NotPendingError> {
+    let (aggregator, local_id) = txId;
     if (aggregator != own_id) {
       return #err(#WrongAggregator);
     };
-    let transactionRequest = lookup.get(local_id);
-    switch (transactionRequest) {
+    let txRequest = lookup.get(local_id);
+    switch (txRequest) {
       case (null) return #err(#NotFound);
       case (?tr) {
         switch (tr.status) {

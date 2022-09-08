@@ -5,13 +5,13 @@ import Nat32 "mo:base/Nat32";
 
 module {
 
-  type TransactionValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted };
+  type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted };
 
-  public func validateTransaction(transaction: T.Tx): R.Result<(), TransactionValidationError> {
-    if (transaction.map.size() > T.max_contribution) {
+  public func validateTx(tx: T.Tx): R.Result<(), TxValidationError> {
+    if (tx.map.size() > T.max_contribution) {
       return #err(#MaxContributionsExceeded);
     };
-    for (contribution in transaction.map.vals()) {
+    for (contribution in tx.map.vals()) {
       if (contribution.inflow.size() + contribution.outflow.size() > T.max_flows) {
         return #err(#MaxFlowsExceeded);
       };
@@ -67,7 +67,6 @@ module {
           };
         };
       };
-
       for (balance in assetBalanceMap.vals()) {
         if (balance != 0) {
           return #err(#FlowsNotBroughtToZero);

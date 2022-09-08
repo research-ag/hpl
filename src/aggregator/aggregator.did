@@ -90,6 +90,7 @@ type Submit_Result =
 
 type NotPendingError = 
  variant {
+   WrongAggregator;
    NotFound;
    NoPart;
    AlreadyApproved;

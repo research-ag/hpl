@@ -132,7 +132,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     tx : Tx;
     submitter : Principal;
     gid : GlobalId;
-    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending };
+    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
  
   /*
@@ -242,7 +242,7 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
     - for this slot:
       - the new element is stored in the `value` field of the slot
       - the local id to be returned is composed of the index of the slot and the `counter` field of the slot, e.g.:
-          lid := counter*2**16 + slot_index
+          lid := counter*2**24 + slot_index
       - the `counter` field of the slot is incremented
       - the slot is pushed to the `unapproved` chain
 

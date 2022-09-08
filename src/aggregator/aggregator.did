@@ -105,6 +105,7 @@ type TxDetails =
    tx : Tx;
    submitter: principal;
    status: variant {
+             failed_to_send;
              unapproved: Approvals;
              approved: QueueNumber;
              rejected;

@@ -5,6 +5,7 @@ import Principal "mo:base/Principal";
 import Ledger "../ledger/main";
 import TrieMap "mo:base/TrieMap";
 import Nat32 "mo:base/Nat32";
+import Bool "mo:base/Bool";
 
 // type imports
 // pattern matching is not available for types (work-around required)
@@ -306,7 +307,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       tx = transaction;
       submitter = msg.caller;
       lid = lookup.getLocalId(transaction, msg.caller);
-      var status = #unapproved(Array.tabulateVar(transaction.map.size(), func (i: Nat): Bool { false }));
+      var status = #unapproved(Array.init(transaction.map.size(), false));
     };
     let lid = lookup.add(transactionRequest);
     if (lid == null) {
@@ -315,21 +316,14 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     #ok (selfAggregatorIndex, transactionRequest.lid);
   };
 
-  type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
+  type NotPendingError = { #WrongAggregator; #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
   public shared(msg) func approve(transactionId: GlobalId): async Result<(),NotPendingError> {
     let pendingRequestInfo = getPendingTxRequest(transactionId, msg.caller);
     switch (pendingRequestInfo) {
       case (#err err) return #err(err);
       case (#ok (tr, approvals, index)) {
         approvals[index] := true;
-        var isAllApproved = true;
-        label l for (approval in approvals.vals()) {
-          if (not approval) {
-            isAllApproved := false;
-            break l;
-          };
-        };
-        if (isAllApproved) {
+        if (Array.foldRight(Array.freeze(approvals), true, Bool.logand)) {
           // TODO add to the queue, put index in queue here instead of stub 333
           tr.status := #approved(333);
         };
@@ -382,7 +376,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   private func getPendingTxRequest(transactionId: GlobalId, caller: Principal): Result<( txRequest: TxRequest, approvals: MutableApprovals, index: Nat ),NotPendingError> {
     let (aggregator, local_id) = transactionId;
     if (aggregator != own_id) {
-      return #err(#NotFound);
+      return #err(#WrongAggregator);
     };
     let transactionRequest = lookup.get(local_id);
     switch (transactionRequest) {
@@ -391,8 +385,8 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
         switch (tr.status) {
           case (#approved _)            return #err(#AlreadyApproved);
           case (#pending)               return #err(#AlreadyApproved);
+          case (#failed_to_send)        return #err(#AlreadyApproved);
           case (#rejected)              return #err(#AlreadyRejected);
-          case (#failed_to_send)        return #err(#AlreadyRejected);
           case (#unapproved approvals)  {
             switch (u.arrayFindIndex(tr.tx.map, func (c: T.Contribution) : Bool { c.owner == caller })) {
               case (#NotFound) return #err(#NoPart);

@@ -10,7 +10,7 @@ import Array "mo:base/Array";
 
 module DoublyLinkedList {
 
-  type Cell<T> = { var value: T; var prev: ?Cell<T>; var next: ?Cell<T>};
+  public type Cell<T> = { var value: T; var prev: ?Cell<T>; var next: ?Cell<T>};
 
   public class DoublyLinkedList<T>() {
 
@@ -24,7 +24,7 @@ module DoublyLinkedList {
     };
 
     /** append element to the ending of the list */
-    public func push(val: T): () {
+    public func push(val: T): Cell<T> {
       var cell: Cell<T> = { var value = val; var prev = null; var next = null; };
       switch (tail) {
         case (?t) {
@@ -39,6 +39,7 @@ module DoublyLinkedList {
           length := 1;
         };
       };
+      cell;
     };
 
     /** remove and return last value */
@@ -53,7 +54,7 @@ module DoublyLinkedList {
     };
 
     /** append element to the beginning of the list */
-    public func unshift(val: T): () {
+    public func unshift(val: T): Cell<T> {
       var cell: Cell<T> = { var value = val; var prev = null; var next = null; };
       switch (head) {
         case (?h) {
@@ -68,6 +69,7 @@ module DoublyLinkedList {
           length := 1;
         };
       };
+      cell;
     };
 
     /** remove and return first value */
@@ -88,7 +90,7 @@ module DoublyLinkedList {
       };
       if (length > 0 and index + 1 == length) {
         return pop();
-      }
+      };
       var cell = head;
       switch (cell) {
         case (null) return null;
@@ -122,7 +124,7 @@ module DoublyLinkedList {
         case (null) tail := cell.prev;
       };
       length := length - 1;
-    }
+    };
 
     public func toIterCells() : Iter.Iter<Cell<T>> {
       var cell = head;

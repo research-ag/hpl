@@ -6,13 +6,14 @@ import Ledger "../ledger/main";
 import TrieMap "mo:base/TrieMap";
 import Nat32 "mo:base/Nat32";
 import Bool "mo:base/Bool";
+import R "mo:base/Result";
 
 // type imports
 // pattern matching is not available for types (work-around required)
 import T "../shared/types";
 import v "../shared/validators";
 import u "../shared/utils";
-import R "mo:base/Result";
+import SlotTable "../shared/slot_table";
 
 // aggregator
 // the constructor arguments are:
@@ -125,7 +126,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   type TxRequest = {
     tx : Tx;
     submitter : Principal;
-    lid : LocalId;
+    var lid : ?LocalId;
     var status : { #unapproved : MutableApprovals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
 
@@ -143,156 +144,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
 
-  /*
-  Our lookup data structure has the following interface.
-
-  The function `mark` will be called when a tx becomes fully approved. The reason is that we want to be able to overwrite old unapproved
-  transactions like in a circular buffer, but we never want to overwrite transactions that are already queued.
-  */
-
-  type Lookup = {
-    // calculate local id for provided transaction request
-    // does not affect table itself and does not check if slot available
-    getLocalId : (tx: Tx, caller: Principal) -> (LocalId) ;
-
-    // add an element to the data structure
-    // return null if there is no space, otherwise assign a new local id to the element and return the id
-    // the data structure is allowed to overwrite the oldest unmarked element
-    add : (txreq : TxRequest) -> (?LocalId) ;
-
-    // look up an element by id and return it
-    // return null if the id cannot be found
-    get : (lid : LocalId) -> (?TxRequest) ;
-
-    // look up an element by id and mark it so it cannot be overwritten
-    // return null if the id cannot be found
-    mark : (lid : LocalId) -> (?TxRequest) ;
-
-    // look up an element by id and delete it
-    // ignore if the id cannot be found
-    remove : (lid : LocalId) -> () ;
-  };
-
-  /*
-  We implement our lookup data structure as a lookup table (array) with a fixed number of slots.
-  The slots are numbered 0,..,N-1.
-
-  If 256 new transactions are submitted per second and never approved then, in a table with N=2**24 slots, they stay for ~18h before their slot gets overwritten.
-
-  Each slot is an element of the following type:
-    value : stored the tx request if the slot is currently used
-    counter : counts how many times the slot has already been used (a trick to generate a unique local id)
-    next/prev_index : used to track the order in which slots are to be used
-  */
-
-  type Slot = {
-    var value : ?TxRequest; // value `none` means the slot is empty
-    var counter : Nat; // must be initialized to 0
-    var next_index : ?Nat; // this must be initialized dynamically to i+1 for slot i and null for slot capacity-1
-    var prev_index : ?Nat; // this must be initialized dynamically to i-1 for slot i and null for slot 0
-  };
-
-  /*
-  Given a first index into the table and following recursively the `next_index` one gets a chain of slots inside the table.
-  The chain ends when the `next_index` value is `none`.
-
-  The following type captures such a chain.
-
-  Chains are used like queues, i.e. elements are removed from the head (first element) and added at the tail (last element),
-  but we can also remove elements from somewhere in the middle.
-  */
-
-  type Chain = { var length : Nat; var head : ?Nat; var tail : ?Nat };
-
-  /*
-  Our lookup table is the following object.
-  The `unused` chain contains all unused slot indices and defines the order in which they are filled with new tx requests.
-  The `unapproved` chain contains all used slot indices that contain a unapproved tx request and defines the order in which they are to be overwritten.
-
-  We currently utilize only one unapproved chain. In the future there can be multiple chains. A principal can buy its own chain of a certain capacity for a fee.
-  Then the principal's own requests cannot be overwritten by others. But there is an recurring fee to reserve the chain capacity.
-  */
-
-  let lookup : Lookup = object {
-    let capacity = 16777216; // number of slots available in the table
-
-    // see below for explanation of the Slot type
-    let slots : [Slot] = Array.tabulate<Slot>(16777216, func(n : Nat) { switch (n) {
-      case (0) { let s : Slot = { var value = null; var counter = 0; var next_index = ?(n+1); var prev_index = null} };
-      case (16777215) { let s : Slot = { var value = null; var counter = 0; var next_index = null; var prev_index = ?(n-1)} };
-      case (_) { let s : Slot = { var value = null; var counter = 0; var next_index = ?(n+1); var prev_index = ?(n-1)} };
-    }});
-
-    // see below for explanation of the Chain type
-    let unused : Chain = { var length = 16777216; var head = ?0; var tail = ?16777215 }; // chain of all unused slots
-    let unapproved : Chain = { var length = 0; var head = null; var tail = null }; // chain of all used slots with a unapproved tx request
-
-    // calculate local id for provided transaction request
-    // does not affect table itself and does not check if slot available
-    public func getLocalId(tx: Tx, submitter: Principal) : LocalId {
-      nyi();
-    };
-
-    // add an element to the table
-    // if the table is not full then take an usued slot (the slot will shift to unapproved)
-    // if the table is full but there are unapproved slots then overwrite the oldest unapproved slot
-    // if the table is full and there are no unapproved slots then abort
-    public func add(txreq : TxRequest) : ?LocalId {
-      let localId = getLocalId(txreq.tx, txreq.submitter);
-      nyi()
-    };
-
-    // look up an element by id and return it
-    // abort if the id cannot be found
-    public func get(lid : LocalId) : ?TxRequest { nyi() };
-
-    // look up an element by id and mark its slot
-    // abort if the id cannot be found
-    public func mark(lid : LocalId) : ?TxRequest { nyi() };
-
-    // look up an element by id and empty its slot
-    // ignore if the id cannot be found
-    public func remove(lid : LocalId) : () { nyi() };
-  };
-
-  /*
-  Further details about the implementation of the functions:
-
-  If a new element is added and the unused chain is non-empty then:
-    - the first slot is popped from the `unused` chain
-    - for this slot:
-      - the new element is stored in the `value` field of the slot
-      - the local id to be returned is composed of the index of the slot and the `counter` field of the slot, e.g.:
-          lid := counter*2**24 + slot_index
-      - the `counter` field of the slot is incremented
-      - the slot is pushed to the `unapproved` chain
-
-  If a new element is added, the unused chain is empty and the unapproved chain is non-empty then:
-    - the first slot is popped from the `unapproved` chain and used as above to
-      - store the element
-      - build local id
-      - increment `counter` value
-
-  When a lookup happens then the local id is first decomposed to obtain the slot id, e.g.
-    slot_index := lid % 2**24;
-    counter_value := lid / 2**24;
-  If the `counter` value in slot `slot_index` does not equal `counter_value` then it means the local id entry is no longer stored (has been overwritten) and the lookup failed.
-  If it equals and the `value` field in the slot is `none` then it means the local id entry is no longer stored (removed) and the lookup failed.
-  Otherwise the lookup was successful.
-
-  If a used slot gets marked (happens when the tx request gets approved) then it is removed from the `unapproved` chain.
-
-  If the element in a used slot is removed then:
-    - the value in the slot is set to `none`
-    - the slot is pushed to the `unused` chain.
-
-  So the theoretical transitions of a slot are:
-    unused ->(add) unapproved ->(remove) unused
-    unused ->(add) unapproved ->(mark) not in any chain ->(remove) unused
-
-  In practice what happens is:
-    unused_chain ->(tx is added) unapproved ->(tx gets fully approved) not in any chain ->(tx gets batched) unused
-  */
+  var lookup : SlotTable.SlotTable<TxRequest> = SlotTable.SlotTable<TxRequest>();
 
   // update functions
 
@@ -306,14 +158,14 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     let txRequest : TxRequest = {
       tx = tx;
       submitter = msg.caller;
-      lid = lookup.getLocalId(tx, msg.caller);
+      var lid = null;
       var status = #unapproved(Array.init(tx.map.size(), false));
     };
-    let lid = lookup.add(txRequest);
-    if (lid == null) {
-      return #err(#NoSpace);
+    txRequest.lid := lookup.add(txRequest);
+    switch (txRequest.lid) {
+      case (null) #err(#NoSpace);
+      case (?lid) #ok(selfAggregatorIndex, lid);
     };
-    #ok (selfAggregatorIndex, txRequest.lid);
   };
 
   type NotPendingError = { #WrongAggregator; #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };

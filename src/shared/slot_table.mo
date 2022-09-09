@@ -49,12 +49,8 @@ module SlotTable {
 
     // see below for explanation of the Slot type
     let slots : [Slot<X>] = Array.tabulate<Slot<X>>(16777216, func(n : Nat) {
-      { var value = null; var counter = 0; var chainAppearance = null };
+      { var value = null; var counter = 0; var chainAppearance = ?(unused, unused.push(n), false) };
     });
-    // fill unused chain and set cell references
-    for (i in Iter.range(0, 16777215)) {
-        slots[i].chainAppearance := ?(unused, unused.push(i), false);
-    };
 
     // add an element to the table
     // if the table is not full then take an usued slot (the slot will shift to unapproved)

@@ -1,9 +1,6 @@
-import { nyi; xxx } "mo:base/Prelude";
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Ledger "../ledger/main";
-import TrieMap "mo:base/TrieMap";
-import Nat32 "mo:base/Nat32";
 import Bool "mo:base/Bool";
 import R "mo:base/Result";
 
@@ -190,7 +187,24 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
 
   type TxError = { #NotFound; };
   public query func txDetails(gid: GlobalId): async Result<TxDetails, TxError> {
-    nyi();
+    let txRequest = lookup.get(gid.1);
+    switch (txRequest) {
+      case (null) #err(#NotFound);
+      case (?txr) {
+        return #ok({
+          tx = txr.tx;
+          submitter = txr.submitter;
+          gid = gid;
+          status = switch (txr.status) {
+            case (#unapproved list) #unapproved(Array.freeze(list));
+            case (#approved x) #approved(x);
+            case (#rejected) #rejected();
+            case (#pending) #pending();
+            case (#failed_to_send) #failed_to_send();
+          };
+        });
+      };
+    };
   };
 
   // heartbeat function

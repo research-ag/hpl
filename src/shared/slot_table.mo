@@ -22,9 +22,12 @@ module SlotTable {
   */
 
   type Slot<X> = {
-      var value : ?X; // value `none` means the slot is empty
-      var counter : Nat; // must be initialized to 0
-      var chainAppearance : ?(DLL.DoublyLinkedList<Nat>, DLL.Cell<Nat>); // a direct reference to the chain containing this slot index and cell in it for fast access
+    // value `none` means the slot is empty
+    var value : ?X;
+    // must be initialized to 0
+    var counter : Nat;
+    // a direct reference to the chain containing this slot index and cell in it for fast access. Boolean field indicates whether this is an "unapproved" chain
+    var chainAppearance : ?(DLL.DoublyLinkedList<Nat>, DLL.Cell<Nat>, Bool);
   };
 
   /*
@@ -50,7 +53,7 @@ module SlotTable {
     });
     // fill unused chain and set cell references
     for (i in Iter.range(0, 16777215)) {
-        slots[i].chainAppearance := ?(unused, unused.push(i));
+        slots[i].chainAppearance := ?(unused, unused.push(i), false);
     };
 
     // add an element to the table
@@ -94,11 +97,10 @@ module SlotTable {
         case (?(slot, slotIndex)) {
           switch (slot.chainAppearance) {
             case (null) null;
-            case (?(chain, cell)) {
-              // TODO check that it is really in unapproved chain
-              // if (chain != unapproved) {
-              //   return null;
-              // };
+            case (?(chain, cell, isUnapproved)) {
+              if (not isUnapproved) {
+                return null;
+              };
               chain.removeCell(cell);
               slot.chainAppearance := null;
               slot.value;
@@ -117,12 +119,12 @@ module SlotTable {
         case (?(slot, slotIndex)) {
           switch (slot.chainAppearance) {
             case (null) {};
-            case (?(chain, cell)) {
+            case (?(chain, cell, isUnapproved)) {
               chain.removeCell(cell);
               slot.chainAppearance := null;
             };
           };
-          slot.chainAppearance := ?(unused, unused.push(slotIndex));
+          slot.chainAppearance := ?(unused, unused.push(slotIndex), false);
           slot.value := null;
         };
       };
@@ -135,7 +137,7 @@ module SlotTable {
       };
       let lid : LocalId = slot.counter*2**24 + slotIndex;
       slot.value := ?element;
-      slot.chainAppearance := ?(unapproved, unapproved.push(slotIndex));
+      slot.chainAppearance := ?(unapproved, unapproved.push(slotIndex), true);
       return ?lid;
     };
 

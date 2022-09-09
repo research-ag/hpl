@@ -46,7 +46,7 @@ module SlotTable {
 
     // see below for explanation of the Slot type
     let slots : [Slot<X>] = Array.tabulate<Slot<X>>(16777216, func(n : Nat) {
-      { var value = null; var counter = 0; var chainCell = null; var chainAppearance = null };
+      { var value = null; var counter = 0; var chainAppearance = null };
     });
     // fill unused chain and set cell references
     for (i in Iter.range(0, 16777215)) {

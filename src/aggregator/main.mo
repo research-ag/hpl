@@ -1,5 +1,4 @@
 import { nyi; xxx } "mo:base/Prelude";
-import Deque "mo:base/Deque";
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Ledger "../ledger/main";
@@ -14,6 +13,7 @@ import T "../shared/types";
 import v "../shared/validators";
 import u "../shared/utils";
 import SlotTable "../shared/slot_table";
+import HPLQueue "../shared/queue"
 
 // aggregator
 // the constructor arguments are:
@@ -92,21 +92,9 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
 
   In a future iteration we can send more than one batch per heartbeat. But such an approach requires a mechanism to slow down when
   delivery failures occur. We currently do not implement it.
-
-  The queue is of type Deque<LocalId>. We don't need a double-ended queue but this is the only type of queue available in motoko-base.
-  Deque is a functional data structure, hence it is a mutable variable.
   */
 
-  var approvedTxs = Deque.empty<LocalId>();
-
-  /*
-  global counters
-  push_ctr = number of txs that were ever pushed to the queue
-  pop_ctr = number txs that were ever popped from the queue
-  the difference between the two equals the current length of the queue
-  */
-  var push_ctr : Nat = 0;
-  var pop_ctr : Nat = 0;
+  var approvedTxs = HPLQueue.HPLQueue<LocalId>();
 
   /*
   debug counter
@@ -176,8 +164,10 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       case (#ok (tr, approvals, index)) {
         approvals[index] := true;
         if (Array.foldRight(Array.freeze(approvals), true, Bool.logand)) {
-          // TODO add to the queue, put index in queue here instead of stub 333
-          tr.status := #approved(333);
+          let lid = txId.1;
+          let pendingRequestInfo = lookup.mark(lid);
+          approvedTxs.enqueue(lid);
+          tr.status := #approved(approvedTxs.pushesAmount());
         };
         return #ok;
       };
@@ -189,8 +179,8 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     switch (pendingRequestInfo) {
       case (#err err) return #err(err);
       case (#ok (tr, _, _)) {
-        // fully reject transaction
         tr.status := #rejected;
+        lookup.remove(txId.1);
         return #ok;
       };
     };

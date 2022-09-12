@@ -6,19 +6,6 @@ module SlotTable {
 
   type Tx = T.Tx;
   type LocalId = T.LocalId;
-
-  /*
-  We implement our lookup data structure as a lookup table (array) with a fixed number of slots.
-  The slots are numbered 0,..,N-1.
-
-  If 256 new transactions are submitted per second and never approved then, in a table with N=2**24 slots, they stay for ~18h before their slot gets overwritten.
-
-  Each slot is an element of the following type:
-    value : stored the tx request if the slot is currently used
-    counter : counts how many times the slot has already been used (a trick to generate a unique local id)
-    next/prev_index : used to track the order in which slots are to be used
-  */
-
   type Slot<X> = {
     // value `none` means the slot is empty
     var value : ?X;
@@ -26,31 +13,34 @@ module SlotTable {
     var counter : Nat;
   };
 
-  /*
+  /** We implement our lookup data structure as a lookup table (array) with a fixed number of slots.
+  The slots are numbered 0,..,N-1.
+
+  Each slot is an element of the following type:
+    value : stored the tx request if the slot is currently used
+    counter : counts how many times the slot has already been used (a trick to generate a unique local id)
+
   Our lookup table is the following object.
-  The `unused` chain contains all unused slot indices and defines the order in which they are filled with new tx requests.
-  The `unapproved` chain contains all used slot indices that contain a unapproved tx request and defines the order in which they are to be overwritten.
-
-  We currently utilize only one unapproved chain. In the future there can be multiple chains. A principal can buy its own chain of a certain capacity for a fee.
-  Then the principal's own requests cannot be overwritten by others. But there is an recurring fee to reserve the chain capacity.
+  The `unused` queue contains all unused slot indices and defines the order in which they are filled with new tx requests.
+  When adding element, we use the first slot index from the `unused` queue. If it's empty we abort operation: slot table is full
+  When removing element, we put freed slot index to the `unused` queue, so it will be reused later
   */
-
   public class SlotTable<X>() {
-
-    let capacity = 16777216; // number of slots available in the table
-
+    // number of slots available in the table
+    let capacity = 16777216;
     // chain of all unused slots
     let unused : HPLQueue.HPLQueue<Nat> = HPLQueue.HPLQueue<Nat>();
-
-    // see below for explanation of the Slot type
+    // slots array
     let slots : [Slot<X>] = Array.tabulate<Slot<X>>(16777216, func(n : Nat) {
+      // during initialization, fill the queue with 0...<capacity> indexes
       unused.enqueue(n);
       { var value = null; var counter = 0; };
     });
 
-    // add an element to the table
-    // if the table is not full then take an usued slot (the slot will shift to unapproved)
-    // if the table is full then abort
+    /** adds an element to the table.
+    * If the table is not full then take an usued slot, write value and return unique local id;
+    * if the table is full then return null
+    */
     public func add(element : X) : ?LocalId {
       var slotIndex = unused.dequeue();
       switch (slotIndex) {
@@ -59,8 +49,9 @@ module SlotTable {
       };
     };
 
-    // look up an element by id and return it
-    // abort if the id cannot be found
+    /** look up an element by id and return it
+    * abort if the id cannot be found or was overwritten (counter != slot.counter)
+    */
     public func get(lid : LocalId) : ?X {
       let slotInfo = getSlotInfoByLid(lid);
       switch (slotInfo) {
@@ -69,8 +60,9 @@ module SlotTable {
       };
     };
 
-    // look up an element by id and empty its slot
-    // ignore if the id cannot be found
+    /** look up an element by id and empty its slot
+    * ignore if the id cannot be found
+    */
     public func remove(lid : LocalId) : () {
       let slotInfo = getSlotInfoByLid(lid);
       switch (slotInfo) {
@@ -82,16 +74,7 @@ module SlotTable {
       };
     };
 
-    private func insertValue(element: X, slotIndex: Nat, incrementIfZero : Bool) : LocalId {
-      let slot = slots[slotIndex];
-      if (slot.counter > 0 or incrementIfZero) {
-        slot.counter := slot.counter + 1;
-      };
-      let lid : LocalId = slot.counter*2**24 + slotIndex;
-      slot.value := ?element;
-      return lid;
-    };
-
+    /** returns slot and it's index for provided local id. Returns null if slot was overwritten */
     private func getSlotInfoByLid(lid : LocalId) : ?(Slot<X>, Nat) {
       let slotIndex = lid % 2**24;
       let counterValue = lid / 2**24;
@@ -102,44 +85,15 @@ module SlotTable {
       return ?(slot, slotIndex);
     };
 
+    /** inserts value to slot with provided index, updates counter if needed; fgenerates and returns local id  */
+    private func insertValue(element: X, slotIndex: Nat, incrementIfZero : Bool) : LocalId {
+      let slot = slots[slotIndex];
+      if (slot.counter > 0 or incrementIfZero) {
+        slot.counter := slot.counter + 1;
+      };
+      let lid : LocalId = slot.counter*2**24 + slotIndex;
+      slot.value := ?element;
+      return lid;
+    };
   };
 };
-
-/*
-Further details about the implementation of the functions:
-
-If a new element is added and the unused chain is non-empty then:
-  - the first slot is popped from the `unused` chain
-  - for this slot:
-    - the new element is stored in the `value` field of the slot
-    - the local id to be returned is composed of the index of the slot and the `counter` field of the slot, e.g.:
-        lid := counter*2**24 + slot_index
-    - the `counter` field of the slot is incremented
-    - the slot is pushed to the `unapproved` chain
-
-If a new element is added, the unused chain is empty and the unapproved chain is non-empty then:
-  - the first slot is popped from the `unapproved` chain and used as above to
-    - store the element
-    - build local id
-    - increment `counter` value
-
-When a lookup happens then the local id is first decomposed to obtain the slot id, e.g.
-  slot_index := lid % 2**24;
-  counter_value := lid / 2**24;
-If the `counter` value in slot `slot_index` does not equal `counter_value` then it means the local id entry is no longer stored (has been overwritten) and the lookup failed.
-If it equals and the `value` field in the slot is `none` then it means the local id entry is no longer stored (removed) and the lookup failed.
-Otherwise the lookup was successful.
-
-If a used slot gets marked (happens when the tx request gets approved) then it is removed from the `unapproved` chain.
-
-If the element in a used slot is removed then:
-  - the value in the slot is set to `none`
-  - the slot is pushed to the `unused` chain.
-
-So the theoretical transitions of a slot are:
-  unused ->(add) unapproved ->(remove) unused
-  unused ->(add) unapproved ->(mark) not in any chain ->(remove) unused
-
-In practice what happens is:
-  unused_chain ->(tx is added) unapproved ->(tx gets fully approved) not in any chain ->(tx gets batched) unused
-*/

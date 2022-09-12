@@ -1,5 +1,5 @@
 /**
-* A simple implementation of doubly linked list pattern
+* A simple implementation of doubly linked list pattern, designed for fast removing item in the middle of it
 * It is a very optimistic: we can expose references to cell, assuming that no other
 * part of code will modify prev/next links and break list integrity
 * it does not have additional checks for preserving list integrity for the sake of performance
@@ -141,6 +141,7 @@ module DoublyLinkedList {
       length := length - 1;
     };
 
+    /** get cells iterator */
     public func toIterCells() : Iter.Iter<Cell<T>> {
       var cell = head;
       object {
@@ -155,6 +156,7 @@ module DoublyLinkedList {
       };
     };
 
+    /** get values iterator */
     public func toIter() : Iter.Iter<T> {
       var cells = toIterCells();
       object {

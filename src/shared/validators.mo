@@ -7,6 +7,7 @@ module {
 
   type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted };
 
+  /** transaction request validation function */
   public func validateTx(tx: T.Tx): R.Result<(), TxValidationError> {
     if (tx.map.size() > T.max_contribution) {
       return #err(#MaxContributionsExceeded);

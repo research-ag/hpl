@@ -1,8 +1,6 @@
 import T "types";
 import Array "mo:base/Array";
-import { nyi; xxx } "mo:base/Prelude";
-import Iter "mo:base/Iter";
-import DLL "dll";
+import HPLQueue "queue";
 
 module SlotTable {
 
@@ -26,8 +24,6 @@ module SlotTable {
     var value : ?X;
     // must be initialized to 0
     var counter : Nat;
-    // a direct reference to the chain containing this slot index and cell in it for fast access. Boolean field indicates whether this is an "unapproved" chain
-    var chainAppearance : ?(DLL.DoublyLinkedList<Nat>, DLL.Cell<Nat>, Bool);
   };
 
   /*
@@ -44,33 +40,22 @@ module SlotTable {
     let capacity = 16777216; // number of slots available in the table
 
     // chain of all unused slots
-    let unused : DLL.DoublyLinkedList<Nat> = DLL.DoublyLinkedList<Nat>();
-    let unapproved : DLL.DoublyLinkedList<Nat> = DLL.DoublyLinkedList<Nat>(); // chain of all used slots with a unapproved tx request
+    let unused : HPLQueue.HPLQueue<Nat> = HPLQueue.HPLQueue<Nat>();
 
     // see below for explanation of the Slot type
     let slots : [Slot<X>] = Array.tabulate<Slot<X>>(16777216, func(n : Nat) {
-      { var value = null; var counter = 0; var chainAppearance = ?(unused, unused.push(n), false) };
+      unused.enqueue(n);
+      { var value = null; var counter = 0; };
     });
 
     // add an element to the table
     // if the table is not full then take an usued slot (the slot will shift to unapproved)
-    // if the table is full but there are unapproved slots then overwrite the oldest unapproved slot
-    // if the table is full and there are no unapproved slots then abort
+    // if the table is full then abort
     public func add(element : X) : ?LocalId {
-      var slotIndex = unused.shift();
+      var slotIndex = unused.dequeue();
       switch (slotIndex) {
-        case (?si) {
-          insertValue(element, si, false);
-        };
-        case (null) {
-          slotIndex := unapproved.shift();
-          switch (slotIndex) {
-            case (?si) {
-              insertValue(element, si, true);
-            };
-            case (null) null;
-          };
-        };
+        case (?si) ?insertValue(element, si, false);
+        case (null) null;
       };
     };
 
@@ -84,28 +69,6 @@ module SlotTable {
       };
     };
 
-    // look up an element by id and mark its slot
-    // abort if the id cannot be found
-    public func mark(lid : LocalId) : ?X {
-      let slotInfo = getSlotInfoByLid(lid);
-      switch (slotInfo) {
-        case (null) null;
-        case (?(slot, slotIndex)) {
-          switch (slot.chainAppearance) {
-            case (null) null;
-            case (?(chain, cell, isUnapproved)) {
-              if (not isUnapproved) {
-                return null;
-              };
-              chain.removeCell(cell);
-              slot.chainAppearance := null;
-              slot.value;
-            };
-          };
-        };
-      };
-    };
-
     // look up an element by id and empty its slot
     // ignore if the id cannot be found
     public func remove(lid : LocalId) : () {
@@ -113,28 +76,20 @@ module SlotTable {
       switch (slotInfo) {
         case (null) {};
         case (?(slot, slotIndex)) {
-          switch (slot.chainAppearance) {
-            case (null) {};
-            case (?(chain, cell, isUnapproved)) {
-              chain.removeCell(cell);
-              slot.chainAppearance := null;
-            };
-          };
-          slot.chainAppearance := ?(unused, unused.push(slotIndex), false);
+          unused.enqueue(slotIndex);
           slot.value := null;
         };
       };
     };
 
-    private func insertValue(element: X, slotIndex: Nat, incrementIfZero : Bool) : ?LocalId {
+    private func insertValue(element: X, slotIndex: Nat, incrementIfZero : Bool) : LocalId {
       let slot = slots[slotIndex];
       if (slot.counter > 0 or incrementIfZero) {
         slot.counter := slot.counter + 1;
       };
       let lid : LocalId = slot.counter*2**24 + slotIndex;
       slot.value := ?element;
-      slot.chainAppearance := ?(unapproved, unapproved.push(slotIndex), true);
-      return ?lid;
+      return lid;
     };
 
     private func getSlotInfoByLid(lid : LocalId) : ?(Slot<X>, Nat) {

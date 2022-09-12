@@ -9,10 +9,25 @@ import Iter "mo:base/Iter";
 import Array "mo:base/Array";
 
 module DoublyLinkedList {
+  public class Cell<T>(list: DoublyLinkedList<T>, val: T) = _self {
+    private func self() : Cell<T> {
+      _self;
+    };
 
-  public type Cell<T> = { var value: T; var prev: ?Cell<T>; var next: ?Cell<T>};
+    public var value = val;
+    public var prev: ?Cell<T> = null;
+    public var next: ?Cell<T> = null;
+    let dll: DoublyLinkedList<T> = list;
 
-  public class DoublyLinkedList<T>() {
+    public func removeFromList() {
+      dll.removeCell(self());
+    };
+  };
+
+  public class DoublyLinkedList<T>() = _self {
+    private func self() : DoublyLinkedList<T> {
+      _self;
+    };
 
     private var head: ?Cell<T> = null;
     private var tail: ?Cell<T> = null;
@@ -25,7 +40,7 @@ module DoublyLinkedList {
 
     /** append element to the ending of the list */
     public func push(val: T): Cell<T> {
-      var cell: Cell<T> = { var value = val; var prev = null; var next = null; };
+      var cell: Cell<T> = Cell<T>(self(), val);
       switch (tail) {
         case (?t) {
           t.next := ?cell;
@@ -47,7 +62,7 @@ module DoublyLinkedList {
       switch (tail) {
         case (null) return null;
         case (?c) {
-          removeCell(c);
+          c.removeFromList();
           return ?c.value;
         };
       };
@@ -55,7 +70,7 @@ module DoublyLinkedList {
 
     /** append element to the beginning of the list */
     public func unshift(val: T): Cell<T> {
-      var cell: Cell<T> = { var value = val; var prev = null; var next = null; };
+      var cell: Cell<T> = Cell<T>(self(), val);
       switch (head) {
         case (?h) {
           h.prev := ?cell;
@@ -77,7 +92,7 @@ module DoublyLinkedList {
       switch (head) {
         case (null) return null;
         case (?c) {
-          removeCell(c);
+          c.removeFromList();
           return ?c.value;
         };
       };
@@ -103,7 +118,7 @@ module DoublyLinkedList {
           switch (curCell) {
             case (null) null;
             case (?cc) {
-              removeCell(cc);
+              cc.removeFromList();
               return ?cc.value;
             };
           };
@@ -150,7 +165,5 @@ module DoublyLinkedList {
           };
       };
     };
-
   };
-
 };

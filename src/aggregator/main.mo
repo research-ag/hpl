@@ -10,7 +10,8 @@ import T "../shared/types";
 import v "../shared/validators";
 import u "../shared/utils";
 import SlotTable "../shared/slot_table";
-import HPLQueue "../shared/queue"
+import HPLQueue "../shared/queue";
+import DLL "../shared/dll";
 
 // aggregator
 // the constructor arguments are:
@@ -129,7 +130,8 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
 
-  var lookup : SlotTable.SlotTable<TxRequest> = SlotTable.SlotTable<TxRequest>();
+  var lookup : SlotTable.SlotTable<DLL.Cell<TxRequest>> = SlotTable.SlotTable<DLL.Cell<TxRequest>>();
+  var unapproved : DLL.DoublyLinkedList<TxRequest> = DLL.DoublyLinkedList<TxRequest>(); // chain of all used slots with a unapproved tx request
 
   // update functions
 
@@ -146,10 +148,51 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       var lid = null;
       var status = #unapproved(Array.init(tx.map.size(), false));
     };
-    txRequest.lid := lookup.add(txRequest);
+    let cell = unapproved.push(txRequest);
+    txRequest.lid := lookup.add(cell);
     switch (txRequest.lid) {
-      case (null) #err(#NoSpace);
       case (?lid) #ok(selfAggregatorIndex, lid);
+      case (null) {
+        // try to reuse oldest unapproved
+        if (unapproved.size() < 2) { // 1 means that chain contains only just added cell
+          cell.removeFromList();
+          return #err(#NoSpace);
+        };
+        let memoryFreed = cleanupOldest(unapproved);
+        switch (memoryFreed) {
+          case (false) {
+            cell.removeFromList();
+            #err(#NoSpace);
+          };
+          case (true) {
+            txRequest.lid := lookup.add(cell);
+            switch (txRequest.lid) {
+              case (?lid) #ok(selfAggregatorIndex, lid);
+              case (null) {
+                cell.removeFromList();
+                #err(#NoSpace);
+              }
+            };
+          };
+        };
+      };
+    };
+  };
+
+  private func cleanupOldest(chain: DLL.DoublyLinkedList<TxRequest>) : Bool {
+    let oldestTrRequest = chain.shift();
+    switch (oldestTrRequest) {
+      case (null) false;
+      case (?req) {
+        switch (req.lid) {
+          case (?lid) {
+            lookup.remove(lid);
+            true;
+          };
+          // chain contained request without lid. Should never happen, but to be on the safe side let's try to cleanup further
+          case (null) cleanupOldest(chain);
+        };
+      };
     };
   };
 
@@ -162,7 +205,12 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
         approvals[index] := true;
         if (Array.foldRight(Array.freeze(approvals), true, Bool.logand)) {
           let lid = txId.1;
-          let pendingRequestInfo = lookup.mark(lid);
+          let cell = lookup.get(lid);
+          // remove from unapproved list
+          switch (cell) {
+            case (?c) c.removeFromList();
+            case (null) {};
+          };
           approvedTxs.enqueue(lid);
           tr.status := #approved(approvedTxs.pushesAmount());
         };
@@ -177,7 +225,6 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       case (#err err) return #err(err);
       case (#ok (tr, _, _)) {
         tr.status := #rejected;
-        lookup.remove(txId.1);
         return #ok;
       };
     };
@@ -190,7 +237,8 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     let txRequest = lookup.get(gid.1);
     switch (txRequest) {
       case (null) #err(#NotFound);
-      case (?txr) {
+      case (?cell) {
+        let txr = cell.value;
         return #ok({
           tx = txr.tx;
           submitter = txr.submitter;
@@ -234,10 +282,11 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     if (aggregator != own_id) {
       return #err(#WrongAggregator);
     };
-    let txRequest = lookup.get(local_id);
-    switch (txRequest) {
+    let cell = lookup.get(local_id);
+    switch (cell) {
       case (null) return #err(#NotFound);
-      case (?tr) {
+      case (?c) {
+        let tr = c.value;
         switch (tr.status) {
           case (#approved _)            return #err(#AlreadyApproved);
           case (#pending)               return #err(#AlreadyApproved);

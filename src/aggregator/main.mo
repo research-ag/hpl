@@ -148,7 +148,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       var lid = null;
       var status = #unapproved(Array.init(tx.map.size(), false));
     };
-    let cell = unapproved.push(txRequest);
+    let cell = unapproved.pushBack(txRequest);
     txRequest.lid := lookup.add(cell);
     switch (txRequest.lid) {
       case (?lid) #ok(selfAggregatorIndex, lid);
@@ -180,7 +180,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   };
 
   private func cleanupOldest(chain: DLL.DoublyLinkedList<TxRequest>) : Bool {
-    let oldestTrRequest = chain.shift();
+    let oldestTrRequest = chain.popFront();
     switch (oldestTrRequest) {
       case (null) false;
       case (?req) {

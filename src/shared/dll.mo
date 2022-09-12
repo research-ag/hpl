@@ -39,7 +39,7 @@ module DoublyLinkedList {
     };
 
     /** append element to the ending of the list */
-    public func push(val: T): Cell<T> {
+    public func pushBack(val: T): Cell<T> {
       var cell: Cell<T> = Cell<T>(self(), val);
       switch (tail) {
         case (?t) {
@@ -58,7 +58,7 @@ module DoublyLinkedList {
     };
 
     /** remove and return last value */
-    public func pop(): ?T {
+    public func popBack(): ?T {
       switch (tail) {
         case (null) return null;
         case (?c) {
@@ -69,7 +69,7 @@ module DoublyLinkedList {
     };
 
     /** append element to the beginning of the list */
-    public func unshift(val: T): Cell<T> {
+    public func pushFront(val: T): Cell<T> {
       var cell: Cell<T> = Cell<T>(self(), val);
       switch (head) {
         case (?h) {
@@ -88,7 +88,7 @@ module DoublyLinkedList {
     };
 
     /** remove and return first value */
-    public func shift(): ?T {
+    public func popFront(): ?T {
       switch (head) {
         case (null) return null;
         case (?c) {
@@ -101,10 +101,10 @@ module DoublyLinkedList {
     /** remove value by index. Returns this value */
     public func removeByIndex(index: Nat): ?T {
       if (index == 0) {
-        return shift();
+        return popFront();
       };
       if (length > 0 and index + 1 == length) {
-        return pop();
+        return popBack();
       };
       var cell = head;
       switch (cell) {

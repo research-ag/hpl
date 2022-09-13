@@ -14,10 +14,13 @@ module DoublyLinkedList {
     public var value = val;
     public var prev: ?Cell<T> = null;
     public var next: ?Cell<T> = null;
-    let dll: DoublyLinkedList<T> = list;
+    public var dll: ?DoublyLinkedList<T> = ?list;
 
     public func removeFromList() {
-      dll.removeCell(self);
+      switch (dll) {
+        case (?l) l.removeCell(self);
+        case (null) ();
+      };
     };
   };
 
@@ -103,6 +106,10 @@ module DoublyLinkedList {
         case (null) tail := cell.prev;
       };
       length -= 1;
+      // cleanup cell data: should dissociate cell from the list
+      cell.prev := null;
+      cell.next := null;
+      cell.dll := null;
     };
 
     /** get cells iterator */

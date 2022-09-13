@@ -31,6 +31,9 @@ module {
 
   public type Batch = [Tx];
 
+  // the amount of transactions in one batch
+  public let batchSize = 256;
+
   // maximal memo size is 256 bytes
   public let max_memo_size = 256;
 

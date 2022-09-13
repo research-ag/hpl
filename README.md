@@ -183,7 +183,6 @@ sequenceDiagram
     API->>Ledger canister: submit batch
     API->>API: set request status to `pending`
     Ledger canister-->>API: return
-    API-->>API: remove request from "unapproved" list
     API-->>Lookup Table: delete record
     Lookup Table-->>Lookup Table: set slot value to null, add index to `unused`
     

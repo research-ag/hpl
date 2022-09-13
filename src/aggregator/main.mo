@@ -3,6 +3,7 @@ import Principal "mo:base/Principal";
 import Ledger "../ledger/main";
 import Bool "mo:base/Bool";
 import R "mo:base/Result";
+import Iter "mo:base/Iter";
 
 // type imports
 // pattern matching is not available for types (work-around required)
@@ -237,13 +238,48 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
 
   /** heartbeat function */
   system func heartbeat() : async () {
-    let b : Batch = []; // pop from queue here
+    let requestsToSend: [TxRequest] = Iter.toArray(object {
+      var counter = 0;
+      public func next() : ?TxRequest {
+        if (counter > T.batchSize) {
+          return null; // already added `batchSize` request to the batch: stop iteration;
+        };
+        while true {
+          let lid = approvedTxs.dequeue();
+          switch (lid) {
+            case (null) return null; // queue ended: stop iteration;
+            case (?l) {
+              let cell = lookup.get(l);
+              switch (cell) {
+                case (null) {}; // request was overwritten in lookup table, proceed to the next local id in queue (should never happen)
+                case (?c) {
+                  counter += 1;
+                  return ?c.value;
+                };
+              };
+            };
+          };
+        };
+        return null;
+      };
+    });
+    let batch: Batch = Array.tabulate<Tx>(requestsToSend.size(), func(n : Nat) {
+      let req = requestsToSend[n];
+      req.status := #pending;
+      req.tx;
+    });
     try {
-      await Ledger_actor.processBatch(b);
+      await Ledger_actor.processBatch(batch);
       // the batch has been processed
       // the transactions in b are now explicitly deleted from the lookup table
       // the aggregator has now done its job
       // the user has to query the ledger to see the execution status (executed or failed) and the order relative to other transactions
+      for (req in requestsToSend.vals()) {
+        switch (req.lid) {
+          case (?l) lookup.remove(l);
+          case (null) {}; // should never happen
+        };
+      };
     } catch (e) {
       // batch was not processed
       // we do not retry sending the batch
@@ -251,6 +287,9 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       // we leave all txs in the lookup table forever
       // in the lookup table all of status #approved, #pending, #failed_to_send remain outside any chain, hence they won't be deleted
       // only an upgrade can clean them up
+      for (req in requestsToSend.vals()) {
+        req.status := #failed_to_send;
+      };
     };
   };
 

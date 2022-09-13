@@ -2,11 +2,11 @@ import { nyi } "mo:base/Prelude";
 import RBTree "mo:base/RBTree";
 import Array "mo:base/Array";
 import { compare } "mo:base/Principal";
+import R "mo:base/Result";
 
 // type imports
 // pattern matching is not available for types during import (work-around required)
 import T "../shared/types";
-import R "mo:base/Result";
 
 // ledger
 // the constructor arguments are:

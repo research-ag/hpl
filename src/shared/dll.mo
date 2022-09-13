@@ -16,11 +16,9 @@ module DoublyLinkedList {
     public var next: ?Cell<T> = null;
     public var dll: ?DoublyLinkedList<T> = ?list;
 
-    public func removeFromList() {
-      switch (dll) {
-        case (?l) l.removeCell(self);
-        case (null) ();
-      };
+    public func removeFromList() = switch (dll) {
+      case (?l) l.removeCell(self);
+      case (null) ();
     };
   };
 
@@ -111,14 +109,12 @@ module DoublyLinkedList {
       };
     };
 
-    private func popCell(cell : ?Cell<T>) : ?T {
-      switch (cell) {
-        case (?c) {
-          removeCell(c);
-          ?c.value
-        };
-        case (null) null
+    private func popCell(cell : ?Cell<T>) : ?T = switch (cell) {
+      case (?c) {
+        removeCell(c);
+        ?c.value
       };
+      case (null) null;
     };
   };
 };

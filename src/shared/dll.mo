@@ -18,7 +18,7 @@ module DoublyLinkedList {
 
     public func removeFromList() = switch (dll) {
       case (?l) l.removeCell(self);
-      case (null) ();
+      case (null) assert false;
     };
   };
 

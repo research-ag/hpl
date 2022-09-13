@@ -246,11 +246,11 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
         };
         let lid = approvedTxs.dequeue();
         switch (lid) {
-          case (null) null; // queue ended: stop iteration;
+          case (null) {}; // queue ended: stop iteration;
           case (?l) {
             let cell = lookup.get(l);
             switch (cell) {
-              case (null) null; // should never happen: request was overwritten in lookup table
+              case (null) assert false; // should never happen: request was overwritten in lookup table
               case (?c) {
                 counter += 1;
                 c.value.status := #pending;
@@ -259,6 +259,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
             };
           };
         };
+        return null;
       };
     });
     let batch: Batch = Array.map(requestsToSend, func (req: TxRequest): Tx = req.tx);
@@ -271,7 +272,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       for (req in requestsToSend.vals()) {
         switch (req.lid) {
           case (?l) lookup.remove(l);
-          case (null) {}; // should never happen
+          case (null) assert false; // should never happen
         };
       };
     } catch (e) {

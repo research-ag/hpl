@@ -37,61 +37,33 @@ module DoublyLinkedList {
     public func pushBack(val: T): Cell<T> {
       let cell: Cell<T> = Cell<T>(self, val);
       switch (tail) {
-        case (?t) {
-          t.next := ?cell;
-          cell.prev := ?t;
-          tail := ?cell;
-          length += 1;
-        };
-        case (null) {
-          tail := ?cell;
-          head := ?cell;
-          length := 1;
-        };
+        case (?t) t.next := ?cell;
+        case (null) head := ?cell;
       };
+      cell.prev := tail;
+      tail := ?cell;
+      length += 1;
       cell;
     };
 
     /** remove and return last value */
-    public func popBack(): ?T {
-      switch (tail) {
-        case (null) return null;
-        case (?c) {
-          removeCell(c);
-          return ?c.value;
-        };
-      };
-    };
+    public func popBack(): ?T = popCell(tail);
 
     /** append element to the beginning of the list */
     public func pushFront(val: T): Cell<T> {
       let cell: Cell<T> = Cell<T>(self, val);
       switch (head) {
-        case (?h) {
-          h.prev := ?cell;
-          cell.next := ?h;
-          head := ?cell;
-          length += 1;
-        };
-        case (null) {
-          tail := ?cell;
-          head := ?cell;
-          length := 1;
-        };
+        case (?h) h.prev := ?cell;
+        case (null) tail := ?cell;
       };
+      cell.next := head;
+      head := ?cell;
+      length += 1;
       cell;
     };
 
     /** remove and return first value */
-    public func popFront(): ?T {
-      switch (head) {
-        case (null) return null;
-        case (?c) {
-          removeCell(c);
-          return ?c.value;
-        };
-      };
-    };
+    public func popFront(): ?T = popCell(head);
 
     /** removes cell. Has much better performance than deleting by index.
     * Dangerous if receive cell not from this list
@@ -136,6 +108,16 @@ module DoublyLinkedList {
             case (?c) ?c.value;
             case _ null;
           };
+      };
+    };
+
+    private func popCell(cell : ?Cell<T>) : ?T {
+      switch (cell) {
+        case (?c) {
+          removeCell(c);
+          ?c.value
+        };
+        case (null) null
       };
     };
   };

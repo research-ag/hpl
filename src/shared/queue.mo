@@ -32,9 +32,9 @@ module HPLQueue {
     public func dequeue(): ?T {
       let popResult = Deque.popBack(deque);
       switch (popResult) {
-        case (?(updatedDec, item)) {
+        case (?(updatedDeq, item)) {
           popCtr += 1;
-          deque := updatedDec;
+          deque := updatedDeq;
           return ?item;
         };
         case (null) null;

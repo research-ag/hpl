@@ -241,33 +241,27 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     let requestsToSend: [TxRequest] = Iter.toArray(object {
       var counter = 0;
       public func next() : ?TxRequest {
-        if (counter > T.batchSize) {
-          return null; // already added `batchSize` request to the batch: stop iteration;
+        if (counter >= T.batchSize) {
+          return null; // already added `batchSize` requests to the batch: stop iteration;
         };
-        while true {
-          let lid = approvedTxs.dequeue();
-          switch (lid) {
-            case (null) return null; // queue ended: stop iteration;
-            case (?l) {
-              let cell = lookup.get(l);
-              switch (cell) {
-                case (null) {}; // request was overwritten in lookup table, proceed to the next local id in queue (should never happen)
-                case (?c) {
-                  counter += 1;
-                  return ?c.value;
-                };
+        let lid = approvedTxs.dequeue();
+        switch (lid) {
+          case (null) null; // queue ended: stop iteration;
+          case (?l) {
+            let cell = lookup.get(l);
+            switch (cell) {
+              case (null) null; // should never happen: request was overwritten in lookup table
+              case (?c) {
+                counter += 1;
+                c.value.status := #pending;
+                return ?c.value;
               };
             };
           };
         };
-        return null;
       };
     });
-    let batch: Batch = Array.tabulate<Tx>(requestsToSend.size(), func(n : Nat) {
-      let req = requestsToSend[n];
-      req.status := #pending;
-      req.tx;
-    });
+    let batch: Batch = Array.map(requestsToSend, func (req: TxRequest): Tx = req.tx);
     try {
       await Ledger_actor.processBatch(batch);
       // the batch has been processed

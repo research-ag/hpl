@@ -159,35 +159,33 @@ sequenceDiagram
     Note left of User: submit
     User->>API: submit(tx)
     API->>API: pre-validate tx 
-    API->>Lookup Table: request next local id
+    API->>API: build TxRequest record. Status `unapproved`
+    API->>API: append TxRequest to `unapproved` list
+    API->>Lookup Table: insert list cell to any unused slot
+    Lookup Table-->>Lookup Table: pick slot from `unused` query and write value
     Lookup Table->>API: local id or error if no space
-    API->>API: build TxRequest record (with local id)
-    API->>API: set request status to `unapproved`
-    API->>Lookup Table: store request
-    Lookup Table->>Lookup Table: add request to "unapproved" chain
-    API->>API: check if request fully approved
-    API-->>Queue: if fully approved, push(local id)
-    API-->>API: set request status to `approved` (with queue number)
-    API-->>Lookup Table: inform request was approved
-    Lookup Table-->>Lookup Table: remove request from "unapproved"
+    API->>API: if error, pick the oldest `unapproved` tx and try again
+    API->>API: update TxRequest record (set local id)
     API->>User: txid (=global id) 
+    
     Note left of User: approve
     User->>API: approve(txid)
     API->>Lookup Table: get tx request (local id) 
     API->>API: set approve bit in status `unapproved`
     API->>API: check if request fully approved
-    API-->>Queue: if fully approved, push(local id)
+    API-->>API: if fully approved, remove request from "unapproved" list
     API-->>API: set request status to `approved` (with queue number)
-    API-->>Lookup Table: inform request was approved
-    Lookup Table-->>Lookup Table: remove request from "unapproved" chain
+    API-->>Queue: if fully approved, push(local id)
+    
     Note left of User: batch tick
     API->>Queue: dequeue N local ids
     API->>Lookup Table: fetch txs for local ids
     API->>Ledger canister: submit batch
     API->>API: set request status to `pending`
     Ledger canister-->>API: return
-    API-->>Lookup Table: inform requests were processed
-    Lookup Table-->>Lookup Table: delete requests
+    API-->>Lookup Table: delete record
+    Lookup Table-->>Lookup Table: set slot value to null, add index to `unused`
+    
     Note left of User: txDetails(txid)
     User->API: txDetails(txid)
     API->>Lookup Table: get data
@@ -213,4 +211,4 @@ TBD
 
 ## License
 
-TBD
+[Apache License](LICENSE)

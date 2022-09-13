@@ -42,9 +42,9 @@ module SlotTable {
     * if the table is full then return null
     */
     public func add(element : X) : ?LocalId {
-      var slotIndex = unused.dequeue();
+      let slotIndex = unused.dequeue();
       switch (slotIndex) {
-        case (?si) ?insertValue(element, si, false);
+        case (?si) ?insertValue(element, si);
         case (null) null;
       };
     };
@@ -85,15 +85,12 @@ module SlotTable {
       return ?(slot, slotIndex);
     };
 
-    /** inserts value to slot with provided index, updates counter if needed; fgenerates and returns local id  */
-    private func insertValue(element: X, slotIndex: Nat, incrementIfZero : Bool) : LocalId {
+    /** inserts value to slot with provided index, updates counter; generates and returns local id  */
+    private func insertValue(element: X, slotIndex: Nat) : LocalId {
       let slot = slots[slotIndex];
-      if (slot.counter > 0 or incrementIfZero) {
-        slot.counter := slot.counter + 1;
-      };
-      let lid : LocalId = slot.counter*2**24 + slotIndex;
+      slot.counter += 1;
       slot.value := ?element;
-      return lid;
+      slot.counter*2**24 + slotIndex;
     };
   };
 };

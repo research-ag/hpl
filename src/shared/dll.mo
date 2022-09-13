@@ -9,10 +9,7 @@ import Iter "mo:base/Iter";
 import Array "mo:base/Array";
 
 module DoublyLinkedList {
-  public class Cell<T>(list: DoublyLinkedList<T>, val: T) = _self {
-    private func self() : Cell<T> {
-      _self;
-    };
+  public class Cell<T>(list: DoublyLinkedList<T>, val: T) = self {
 
     public var value = val;
     public var prev: ?Cell<T> = null;
@@ -20,33 +17,28 @@ module DoublyLinkedList {
     let dll: DoublyLinkedList<T> = list;
 
     public func removeFromList() {
-      dll.removeCell(self());
+      dll.removeCell(self);
     };
   };
 
-  public class DoublyLinkedList<T>() = _self {
-    private func self() : DoublyLinkedList<T> {
-      _self;
-    };
+  public class DoublyLinkedList<T>() = self {
 
     private var head: ?Cell<T> = null;
     private var tail: ?Cell<T> = null;
     private var length: Nat = 0;
 
     /** get amount of elements */
-    public func size(): Nat {
-      return length;
-    };
+    public func size(): Nat = length;
 
     /** append element to the ending of the list */
     public func pushBack(val: T): Cell<T> {
-      var cell: Cell<T> = Cell<T>(self(), val);
+      let cell: Cell<T> = Cell<T>(self, val);
       switch (tail) {
         case (?t) {
           t.next := ?cell;
           cell.prev := ?t;
           tail := ?cell;
-          length := length + 1;
+          length += 1;
         };
         case (null) {
           tail := ?cell;
@@ -62,7 +54,7 @@ module DoublyLinkedList {
       switch (tail) {
         case (null) return null;
         case (?c) {
-          c.removeFromList();
+          removeCell(c);
           return ?c.value;
         };
       };
@@ -70,13 +62,13 @@ module DoublyLinkedList {
 
     /** append element to the beginning of the list */
     public func pushFront(val: T): Cell<T> {
-      var cell: Cell<T> = Cell<T>(self(), val);
+      let cell: Cell<T> = Cell<T>(self, val);
       switch (head) {
         case (?h) {
           h.prev := ?cell;
           cell.next := ?h;
           head := ?cell;
-          length := length + 1;
+          length += 1;
         };
         case (null) {
           tail := ?cell;
@@ -92,36 +84,8 @@ module DoublyLinkedList {
       switch (head) {
         case (null) return null;
         case (?c) {
-          c.removeFromList();
+          removeCell(c);
           return ?c.value;
-        };
-      };
-    };
-
-    /** remove value by index. Returns this value */
-    public func removeByIndex(index: Nat): ?T {
-      if (index == 0) {
-        return popFront();
-      };
-      if (length > 0 and index + 1 == length) {
-        return popBack();
-      };
-      var cell = head;
-      switch (cell) {
-        case (null) return null;
-        case (?c) {
-          let iter = toIterCells();
-          var curCell : ?Cell<T> = null;
-          for (i in Iter.range(0, index)) {
-            curCell := iter.next();
-          };
-          switch (curCell) {
-            case (null) null;
-            case (?cc) {
-              cc.removeFromList();
-              return ?cc.value;
-            };
-          };
         };
       };
     };
@@ -138,7 +102,7 @@ module DoublyLinkedList {
         case (?n) n.prev := cell.prev;
         case (null) tail := cell.prev;
       };
-      length := length - 1;
+      length -= 1;
     };
 
     /** get cells iterator */
@@ -158,7 +122,7 @@ module DoublyLinkedList {
 
     /** get values iterator */
     public func toIter() : Iter.Iter<T> {
-      var cells = toIterCells();
+      let cells = toIterCells();
       object {
         public func next() : ?T =
           switch (cells.next()) {

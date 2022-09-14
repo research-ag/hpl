@@ -5,7 +5,7 @@ import Nat32 "mo:base/Nat32";
 
 module {
 
-  type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted };
+  type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #WrongAssetType };
 
   /** transaction request validation function */
   public func validateTx(tx: T.Tx): R.Result<(), TxValidationError> {
@@ -50,6 +50,7 @@ module {
               case (null) assetBalanceMap.put(id, quantity);
             };
           };
+          case (#none) return #err(#WrongAssetType);
         };
       };
       for ((subaccountId, asset) in contribution.outflow.vals()) {
@@ -73,6 +74,7 @@ module {
               };
             };
           };
+          case (#none) assert false; // should never happen
         };
       };
       for (balance in assetBalanceMap.vals()) {

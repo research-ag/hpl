@@ -7,10 +7,13 @@ type AssetId = nat;
 // Non-fungible tokens can be introduced later as a variant.
 // A fungible token asset is a pair consisting of the token id (AssetId)
 // and a quantity (nat).
-type Asset = variant {ft: record {
-                            AssetId;
-                            nat;
-                          };};
+type Asset = variant {
+  ft: record {
+    AssetId;
+    nat;
+  };
+  none;
+};
 
 // A transaction has contributions from multiple parties, each of which is of the following type.
 // A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.
@@ -115,11 +118,11 @@ service : (vec principal) -> {
 
   // admin interface
 
-  add_aggregator: (principal) -> (variant { ok; err });
+  addAggregator: (principal) -> (variant { ok : nat ; err });
 
   // debug interface
 
   // return all assets (i.e. all subaccounts) of the given owner
   // NotFound if the given owner is not registered
-  all_assets: (principal) -> (Assets_Result) query;
+  allAssets: (principal) -> (Assets_Result) query;
 }

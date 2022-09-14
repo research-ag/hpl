@@ -11,7 +11,7 @@ import T "../shared/types";
 // ledger
 // the constructor arguments are:
 //   initial list of the canister ids of the aggregators
-// more can be added later with add_aggregator()
+// more can be added later with addAggregator()
 // the constructor arguments are passed like this:
 //   dfx deploy --argument='(vec { principal "aaaaa-aa"; ... })' ledger
 actor class Ledger(initialAggregators : [Principal]) {

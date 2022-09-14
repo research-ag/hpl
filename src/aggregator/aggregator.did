@@ -9,10 +9,13 @@ type Approvals = vec bool;
 // Non-fungible tokens can be introduced later as a variant.
 // A fungible token asset is a pair consisting of the token id (AssetId)
 // and the quantity (nat).
-type Asset = variant {ft: record {
-                            AssetId;
-                            nat;
-                          };};
+type Asset = variant {
+  ft: record {
+    AssetId;
+    nat;
+  };
+  none;
+};
 
 // A transaction has contributions from multiple parties, each of which is of the following type.
 // A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.

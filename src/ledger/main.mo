@@ -6,7 +6,8 @@ import R "mo:base/Result";
 
 // type imports
 // pattern matching is not available for types during import (work-around required)
-import T "../shared/types";
+import T "types";
+import C "constants";
 
 // ledger
 // the constructor arguments are:
@@ -55,7 +56,7 @@ actor class Ledger(initialAggregators : [Principal]) {
   Since this isn't happening in a loop and happens only once during the canister call it is fine.
   */
 
-  let accounts : [var [var Asset]] = Array.init(16777216, [var] : [var Asset]);
+  let accounts : [var [var Asset]] = Array.init(C.maxPrincipals, [var] : [var Asset]);
 
   // updates
 
@@ -71,7 +72,7 @@ actor class Ledger(initialAggregators : [Principal]) {
   If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
   That will set the Asset value in the subaccount to the wanted token id.
   */
-
+  // FIXME auto_approve is not being saved anywhere
   public shared({caller}) func openNewAccounts(n: Nat, auto_approve : Bool): async Result<SubaccountId, { #NoSpace; }> {
     var ownerId: ?OwnerId = null;
     // get or register owner ID
@@ -91,7 +92,7 @@ actor class Ledger(initialAggregators : [Principal]) {
       case (null) #err(#NoSpace);
       case (?oid) {
         let oldSize = accounts[oid].size();
-        if (oldSize + n > 16777216) {
+        if (oldSize + n > C.maxSubaccounts) {
           return #err(#NoSpace);
         };
         // array.append seems to not work with var type
@@ -188,7 +189,7 @@ actor class Ledger(initialAggregators : [Principal]) {
 
   private func registerAccount(principal: Principal) : Result<(OwnerId, [var Asset]), { #NoSpace }> {
     let ownerId = ownersAmount;
-    if (ownerId >= 16777216) {
+    if (ownerId >= C.maxPrincipals) {
       return #err(#NoSpace);
     };
     owners.put(principal, ownerId);

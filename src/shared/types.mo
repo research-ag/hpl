@@ -31,22 +31,4 @@ module {
   };
 
   public type Batch = [Tx];
-
-  // the amount of transactions in one batch
-  public let batchSize = 256;
-
-  // maximal memo size is 256 bytes
-  public let max_memo_size = 256;
-
-  // maximum number of inflows and outflows per contribution
-  public let max_flows = 256;
-
-  // maximum number of contributions per transaction
-  public let max_contribution = 256;
-
-  // maximum number of subaccounts per principal in ledger
-  public let max_subaccounts = 65536; 
-
-  // maximum number of subaccounts total in ledger
-  public let max_principals = 65536;
 }

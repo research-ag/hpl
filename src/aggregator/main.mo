@@ -8,6 +8,7 @@ import Iter "mo:base/Iter";
 // type imports
 // pattern matching is not available for types (work-around required)
 import T "../shared/types";
+import C "../shared/constants";
 import v "../shared/validators";
 import u "../shared/utils";
 import SlotTable "../shared/slot_table";
@@ -116,7 +117,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   var submitted : Nat = 0;
 
   // lookup table
-  var lookup : SlotTable.SlotTable<DLL.Cell<TxRequest>> = SlotTable.SlotTable<DLL.Cell<TxRequest>>();
+  var lookup : SlotTable.SlotTable<DLL.Cell<TxRequest>> = SlotTable.SlotTable<DLL.Cell<TxRequest>>(C.lookupCapacity);
   // chain of all used slots with a unapproved tx request
   var unapproved : DLL.DoublyLinkedList<TxRequest> = DLL.DoublyLinkedList<TxRequest>();
   // the queue of approved requests for batching
@@ -241,7 +242,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     let requestsToSend: [TxRequest] = Iter.toArray(object {
       var counter = 0;
       public func next() : ?TxRequest {
-        if (counter >= T.batchSize) {
+        if (counter >= C.batchSize) {
           return null; // already added `batchSize` requests to the batch: stop iteration;
         };
         let lid = approvedTxs.dequeue();

@@ -1,4 +1,5 @@
 import T "types";
+import C "constants";
 import R "mo:base/Result";
 import TrieMap "mo:base/TrieMap";
 import Nat32 "mo:base/Nat32";
@@ -9,16 +10,16 @@ module {
 
   /** transaction request validation function */
   public func validateTx(tx: T.Tx): R.Result<(), TxValidationError> {
-    if (tx.map.size() > T.max_contribution) {
+    if (tx.map.size() > C.maxContribution) {
       return #err(#MaxContributionsExceeded);
     };
     for (contribution in tx.map.vals()) {
-      if (contribution.inflow.size() + contribution.outflow.size() > T.max_flows) {
+      if (contribution.inflow.size() + contribution.outflow.size() > C.maxFlows) {
         return #err(#MaxFlowsExceeded);
       };
       switch (contribution.memo) {
         case (?m) {
-          if (m.size() > T.max_memo_size) {
+          if (m.size() > C.maxMemoSize) {
             return #err(#MaxMemoSizeExceeded);
           };
         };

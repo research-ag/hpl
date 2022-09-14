@@ -1,13 +1,20 @@
-import { nyi } "mo:base/Prelude";
 import RBTree "mo:base/RBTree";
+import TrieMap "mo:base/TrieMap";
+import Nat "mo:base/Nat";
+import Int "mo:base/Int";
+import Nat32 "mo:base/Nat32";
 import Array "mo:base/Array";
 import { compare } "mo:base/Principal";
+import Iter "mo:base/Iter";
 import R "mo:base/Result";
 
 // type imports
 // pattern matching is not available for types during import (work-around required)
-import T "types";
-import C "constants";
+import T "../shared/types";
+import C "../shared/constants";
+import v "../shared/validators";
+import u "../shared/utils";
+import DLL "../shared/dll";
 
 // ledger
 // the constructor arguments are:
@@ -117,9 +124,95 @@ actor class Ledger(initialAggregators : [Principal]) {
   If the call returns (i.e. no system-level failure) the aggregator knows that the batch has been processed.
   If the aggregator catches a system-level failure then it knows that the batch has not been processed.
   */
-
-  public func processBatch(batch: Batch): async () {
-    nyi();
+  // FIXME type ProcessingError = v.TxValidationError and { #WrongOwnerId; #InsufficientFunds; };
+  type ProcessingError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #WrongAssetType; #WrongOwnerId; #InsufficientFunds; };
+  public shared({caller}) func processBatch(batch: Batch): async () {
+    let aggId = u.arrayFindIndex(aggregators, func (agg: Principal): Bool = agg == caller);
+    switch (aggId) {
+      case (#Found index) {};
+      case (#NotFound) assert false; // TODO throw error?
+    };
+    let results: [var Result<(), ProcessingError>] = Array.tabulateVar<Result<(), ProcessingError>>(batch.size(), func (n: Nat) = #ok());
+    label mainLoop
+    for (i in batch.keys()) {
+      let tx = batch[i];
+      let validationResult = v.validateTx(tx, true);
+      switch (validationResult) {
+        case (#err err) {
+          results[i] := #err(err);
+          continue mainLoop;
+        };
+        case (#ok balanceDeltas) {
+          switch (balanceDeltas) {
+            case (null) assert false; // should never happen
+            case (?deltas) {
+              let deltaEntries = Iter.toArray(deltas.entries());
+              let ownersCache: [var ?OwnerId] = Array.init(deltaEntries.size(), null);
+              // pass #1: additional validation
+              for (i in deltaEntries.keys()) {
+                let (ownerPrincipal, subaccountDeltas) = deltaEntries[i];
+                let ownerId = owners.get(ownerPrincipal);
+                ownersCache[i] := ownerId;
+                switch (ownerId) {
+                  case (null) {
+                    results[i] := #err(#WrongOwnerId);
+                    continue mainLoop;
+                  };
+                  case (?oid) {
+                    for ((subaccountId, (assetId, delta)) in subaccountDeltas.entries()) {
+                      switch (accounts[oid][subaccountId]) {
+                        case (#ft asset) {
+                          // subaccount has some tokens: check balance and asset type
+                          if (assetId != asset.0) {
+                            results[i] := #err(#WrongAssetType);
+                            continue mainLoop;
+                          };
+                          if (delta < 0 and asset.1 < -delta) {
+                            results[i] := #err(#InsufficientFunds);
+                            continue mainLoop;
+                          };
+                        };
+                        case (#none) {
+                          // subaccount not initialized: transaction valid if positive delta
+                          if (delta < 0) {
+                            results[i] := #err(#InsufficientFunds);
+                            continue mainLoop;
+                          };
+                        };
+                      };
+                    };
+                  };
+                };
+              };
+              // pass #2: applying
+              for (i in deltaEntries.keys()) {
+                let (ownerPrincipal, subaccountDeltas) = deltaEntries[i];
+                let ownerId = ownersCache[i];
+                switch (ownerId) {
+                  case (null) assert false; // should never happen
+                  case (?oid) {
+                    for ((subaccountId, (assetId, delta)) in subaccountDeltas.entries()) {
+                      var currentBalance: Nat = 0;
+                      switch (accounts[oid][subaccountId]) {
+                        case (#ft asset) {
+                          currentBalance := asset.1;
+                        };
+                        case (_) {};
+                      };
+                      if (delta > 0) {
+                        accounts[oid][subaccountId] := #ft(assetId, currentBalance + Int.abs(delta));
+                      } else {
+                        accounts[oid][subaccountId] := #ft(assetId, currentBalance - Int.abs(delta));
+                      };
+                    };
+                  };
+                };
+              };
+            };
+          };
+        };
+      };
+    };
   };
 
   // queries

@@ -1,19 +1,29 @@
-import T "types";
-import C "constants";
 import R "mo:base/Result";
 import TrieMap "mo:base/TrieMap";
 import Nat32 "mo:base/Nat32";
+import Nat "mo:base/Nat";
+import Principal "mo:base/Principal";
+
+import T "types";
+import C "constants";
+import u "utils";
 
 module {
 
-  type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #WrongAssetType };
+  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #WrongAssetType; };
 
-  /** transaction request validation function */
-  public func validateTx(tx: T.Tx): R.Result<(), TxValidationError> {
+  /** transaction request validation function. Optionally returns list of balances delta if success */
+  public func validateTx(tx: T.Tx, returnBalanceDeltas: Bool): R.Result<?TrieMap.TrieMap<Principal, TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>>, TxValidationError> {
     if (tx.map.size() > C.maxContribution) {
       return #err(#MaxContributionsExceeded);
     };
+    let balanceDeltas = TrieMap.TrieMap<Principal, TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>>(Principal.equal, Principal.hash);
     for (contribution in tx.map.vals()) {
+      let balanceDeltaOwner: TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)> = u.trieMapGetOrCreate<Principal, TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>>(
+        balanceDeltas,
+        contribution.owner,
+        func () = TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) }),
+      );
       if (contribution.inflow.size() + contribution.outflow.size() > C.maxFlows) {
         return #err(#MaxFlowsExceeded);
       };
@@ -41,7 +51,7 @@ module {
         };
       };
       // checking balances equilibrium
-      let assetBalanceMap: TrieMap.TrieMap<T.AssetId, Int> = TrieMap.TrieMap<T.AssetId, Int>(func (a : T.AssetId, b: T.AssetId) : Bool { a == b }, func (a : Nat) { Nat32.fromNat(a) });
+      let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) });
       for ((subaccountId, asset) in contribution.inflow.vals()) {
         switch asset {
           case (#ft (id, quantity)) {
@@ -49,6 +59,13 @@ module {
             switch (currentBalance) {
               case (?b) assetBalanceMap.put(id, b + quantity);
               case (null) assetBalanceMap.put(id, quantity);
+            };
+            if (returnBalanceDeltas) {
+              let currentDelta = u.trieMapGetOrCreate<T.SubaccountId, (T.AssetId, Int)>(balanceDeltaOwner, subaccountId, func () = (id, 0));
+              if (id != currentDelta.1) {
+                return #err(#WrongAssetType);
+              };
+              balanceDeltaOwner.put(subaccountId, (id, currentDelta.1 + quantity));
             };
           };
           case (#none) return #err(#WrongAssetType);
@@ -74,6 +91,13 @@ module {
                 };
               };
             };
+            if (returnBalanceDeltas) {
+              let currentDelta = u.trieMapGetOrCreate<T.SubaccountId, (T.AssetId, Int)>(balanceDeltaOwner, subaccountId, func () = (id, 0));
+              if (id != currentDelta.1) {
+                return #err(#WrongAssetType);
+              };
+              balanceDeltaOwner.put(subaccountId, (id, currentDelta.1 - quantity));
+            };
           };
           case (#none) assert false; // should never happen
         };
@@ -84,6 +108,9 @@ module {
         };
       };
     };
-    return #ok;
+    if (returnBalanceDeltas) {
+      return #ok(?balanceDeltas);
+    };
+    return #ok(null);
   }
 }

@@ -2,6 +2,7 @@ module {
   public type AggregatorId = Nat;
   public type SubaccountId = Nat;
   public type AssetId = Nat;
+  public type TokenId = Nat;
 
   // transaction ids
   public type LocalId = Nat;

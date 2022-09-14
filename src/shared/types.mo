@@ -8,7 +8,8 @@ module {
   public type GlobalId = ( aggregator: AggregatorId, local_id: LocalId );
 
   public type Asset = { 
-    #ft : (id : AssetId, quantity : Nat); 
+    #ft : (id : AssetId, quantity : Nat);
+    #none;
   };
 
   public type Contribution = {

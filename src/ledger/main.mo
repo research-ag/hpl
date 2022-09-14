@@ -7,6 +7,7 @@ import Array "mo:base/Array";
 import { compare } "mo:base/Principal";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
+import Error "mo:base/Error";
 
 // type imports
 // pattern matching is not available for types during import (work-around required)
@@ -124,13 +125,12 @@ actor class Ledger(initialAggregators : [Principal]) {
   If the call returns (i.e. no system-level failure) the aggregator knows that the batch has been processed.
   If the aggregator catches a system-level failure then it knows that the batch has not been processed.
   */
-  // FIXME type ProcessingError = v.TxValidationError and { #WrongOwnerId; #InsufficientFunds; };
-  type ProcessingError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #WrongAssetType; #WrongOwnerId; #InsufficientFunds; };
+  type ProcessingError = v.TxValidationError or { #WrongOwnerId; #InsufficientFunds; };
   public shared({caller}) func processBatch(batch: Batch): async () {
     let aggId = u.arrayFindIndex(aggregators, func (agg: Principal): Bool = agg == caller);
     switch (aggId) {
       case (#Found index) {};
-      case (#NotFound) assert false; // TODO throw error?
+      case (#NotFound) throw Error.reject("Not a registered aggregator");
     };
     let results: [var Result<(), ProcessingError>] = Array.tabulateVar<Result<(), ProcessingError>>(batch.size(), func (n: Nat) = #ok());
     label mainLoop

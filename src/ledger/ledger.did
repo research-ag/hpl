@@ -15,6 +15,11 @@ type Asset = variant {
   none;
 };
 
+type Subaccount = record {
+  asset: Asset;
+  autoApprove: bool;
+};
+
 // A transaction has contributions from multiple parties, each of which is of the following type.
 // A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.
 // The memo is limited to 256 bytes.
@@ -68,19 +73,19 @@ type Nat_Result =
    ok: nat;
    err: variant {NotFound;};
  };
-type Asset_Result = 
+type Subaccount_Result =
  variant {
-   ok: Asset;
+   ok: Subaccount;
    err: variant {
-          NotFound;
-          SubaccountNotFound;
-        };
+     NotFound;
+     SubaccountNotFound;
+   };
  };
-type Assets_Result = 
- variant {
-   ok: vec Asset;
-   err: variant {NotFound;};
- };
+type Subaccounts_Result =
+  variant {
+    ok: vec Subaccount;
+    err: variant {NotFound;};
+  };
 
 service : (vec principal) -> {
   // updates
@@ -114,7 +119,7 @@ service : (vec principal) -> {
   // return the asset in the n-th subaccount of the caller
   // NotFound if the caller isn't registered
   // SubaccountNotFound if the caller is registered but does not have n accounts
-  asset: (SubaccountId) -> (Asset_Result) query;
+  asset: (SubaccountId) -> (Subaccount_Result) query;
 
   // admin interface
 
@@ -124,5 +129,5 @@ service : (vec principal) -> {
 
   // return all assets (i.e. all subaccounts) of the given owner
   // NotFound if the given owner is not registered
-  allAssets: (principal) -> (Assets_Result) query;
+  allAssets: (principal) -> (Subaccounts_Result) query;
 }

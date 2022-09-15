@@ -83,6 +83,7 @@ type SubmitError =
    MaxFlowsExceeded;
    MaxMemoSizeExceeded;
    FlowsNotSorted;
+   OwnersNotSorted;
    WrongAssetType;
  };
 

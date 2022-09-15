@@ -25,7 +25,7 @@ module {
 
   // Tx = Transaction
   // map is seen as a map from a principal to its contribution
-  // TODO the principals must be strictly increasing throughout the list to rule out duplicate keys in map
+  // the owner principals in each contribution must be strictly increasing throughout the list to rule out duplicate keys
   public type Tx = {
     map : [Contribution];
     committer : ?Principal

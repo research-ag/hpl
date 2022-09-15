@@ -10,7 +10,7 @@ import u "utils";
 
 module {
 
-  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #WrongAssetType; };
+  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotSorted; #WrongAssetType; };
 
   /** transaction request validation function. Optionally returns list of balances delta if success */
   public func validateTx(tx: T.Tx, returnBalanceDeltas: Bool): R.Result<?TrieMap.TrieMap<Principal, TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>>, TxValidationError> {
@@ -18,7 +18,17 @@ module {
       return #err(#MaxContributionsExceeded);
     };
     let balanceDeltas = TrieMap.TrieMap<Principal, TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>>(Principal.equal, Principal.hash);
+    var lastOwnerPrincipal : { #empty; #val: Principal } = #empty;
     for (contribution in tx.map.vals()) {
+      switch (lastOwnerPrincipal) {
+        case (#val oid) {
+          if (contribution.owner <= oid) {
+            return #err(#OwnersNotSorted);
+          };
+        };
+        case (#empty) {};
+      };
+      lastOwnerPrincipal := #val(contribution.owner);
       let balanceDeltaOwner: TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)> = u.trieMapGetOrCreate<Principal, TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>>(
         balanceDeltas,
         contribution.owner,

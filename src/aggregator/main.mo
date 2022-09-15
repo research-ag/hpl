@@ -127,7 +127,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   * Here we init it and put to the lookup table.
   * If the lookup table is full, we try to reuse the slot with oldest unapproved request
   */
-  type SubmitError = { #NoSpace; #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #WrongAssetType };
+  type SubmitError = v.TxValidationError or { #NoSpace; };
   public shared(msg) func submit(tx: Tx): async Result<GlobalId, SubmitError> {
     let validationResult = v.validateTx(tx, false);
     switch (validationResult) {

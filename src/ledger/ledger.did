@@ -18,8 +18,8 @@ type Asset = variant {
 // A transaction has contributions from multiple parties, each of which is of the following type.
 // A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.
 // The memo is limited to 256 bytes.
-// auto_approve = false indicates that the aggregator waits for approveance of the owner.
-// auto_approve = true indicates that the owner is expected to have auto-approve configured in the ledger (if not the transaction will fail).
+// autoApprove = false indicates that the aggregator waits for approveance of the owner.
+// autoApprove = true indicates that the owner is expected to have auto-approve configured in the ledger (if not the transaction will fail).
 type Contribution = 
  record {
    owner : principal;
@@ -32,7 +32,7 @@ type Contribution =
                   Asset;
                 };
    memo: opt blob;
-   auto_approve: bool;
+   autoApprove: bool;
  };
 
 // A transaction is a map from owner to the owner's contribution.
@@ -87,7 +87,7 @@ service : (vec principal) -> {
 
   /* 
   open n new subaccounts for owner = caller
-  set the new subaccounts to auto_approve if the second argument (bool) is true
+  set the new subaccounts to autoApprove if the second argument (bool) is true
   if the owner isn't known then the owner is newly registered
   return value is the id of the first newly created subaccount
   the remaining ones are consecutively numbered

@@ -64,12 +64,14 @@ actor class Ledger(initialAggregators : [Principal]) {
   Since this isn't happening in a loop and happens only once during the canister call it is fine.
   */
 
-  let accounts : [var [var Asset]] = Array.init(C.maxPrincipals, [var] : [var Asset]);
+  type Subaccount = { var asset: Asset; autoApprove: Bool };
+
+  let accounts : [var [var Subaccount]] = Array.init(C.maxPrincipals, [var] : [var Subaccount]);
 
   // updates
 
   /*
-  Open n new subaccounts. When `auto_approve` is true then all subaccounts will be set to be "auto approving".
+  Open n new subaccounts. When `autoApprove` is true then all subaccounts will be set to be "auto approving".
   This setting cannot be changed anymore afterwards with the current API.
 
   Note that the owner does not specify a token id. The new subaccounts hold the Asset value none.
@@ -80,8 +82,7 @@ actor class Ledger(initialAggregators : [Principal]) {
   If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
   That will set the Asset value in the subaccount to the wanted token id.
   */
-  // FIXME auto_approve is not being saved anywhere
-  public shared({caller}) func openNewAccounts(n: Nat, auto_approve : Bool): async Result<SubaccountId, { #NoSpace; }> {
+  public shared({caller}) func openNewAccounts(n: Nat, autoApprove : Bool): async Result<SubaccountId, { #NoSpace; }> {
     var ownerId: ?OwnerId = null;
     // get or register owner ID
     let accountsResult = getPrincipalAccounts(caller);
@@ -104,11 +105,11 @@ actor class Ledger(initialAggregators : [Principal]) {
           return #err(#NoSpace);
         };
         // array.append seems to not work with var type
-        accounts[oid] := Array.tabulateVar<Asset>(oldSize + n, func (n: Nat) {
+        accounts[oid] := Array.tabulateVar<{ var asset: Asset; autoApprove: Bool }>(oldSize + n, func (n: Nat) {
           if (n < oldSize) {
             return accounts[oid][n];
           };
-          return #none;
+          return { var asset = #none; autoApprove = autoApprove };
         });
         #ok(oldSize);
       };
@@ -117,7 +118,7 @@ actor class Ledger(initialAggregators : [Principal]) {
 
   /*
   Process a batch of transactions. Each transaction only executes if the following conditions are met:
-  - all subaccounts that are marked `auto_approve` in the transactions are also auto_approve in the ledger
+  - all subaccounts that are marked `autoApprove` in the transactions are also autoApprove in the ledger
   - all outflow subaccounts have matching token id and sufficient balance
   - all inflow subaccounts have matching token id (or Asset value `none`)
   - on a per-token id basis the sum of all outflows matches all inflows
@@ -147,34 +148,37 @@ actor class Ledger(initialAggregators : [Principal]) {
             case (null) assert false; // should never happen
             case (?deltas) {
               let deltaEntries = Iter.toArray(deltas.entries());
-              let ownersCache: [var ?OwnerId] = Array.init(deltaEntries.size(), null);
+              let ownersCache: [?OwnerId] = Array.tabulate(deltaEntries.size(), func (i: Nat) : ?OwnerId = owners.get(deltaEntries[i].0));
               // pass #1: additional validation
               for (i in deltaEntries.keys()) {
                 let (ownerPrincipal, subaccountDeltas) = deltaEntries[i];
-                let ownerId = owners.get(ownerPrincipal);
-                ownersCache[i] := ownerId;
-                switch (ownerId) {
+                switch (ownersCache[i]) {
                   case (null) {
                     results[i] := #err(#WrongOwnerId);
                     continue mainLoop;
                   };
                   case (?oid) {
-                    for ((subaccountId, (assetId, delta)) in subaccountDeltas.entries()) {
-                      switch (accounts[oid][subaccountId]) {
+                    for ((subaccountId, delta) in subaccountDeltas.entries()) {
+                      let subaccount = accounts[oid][subaccountId];
+                      if (delta.hasAutoApprovedInflow and not subaccount.autoApprove) {
+                        results[i] := #err(#AutoApproveNotAllowed);
+                        continue mainLoop;
+                      };
+                      switch (subaccount.asset) {
                         case (#ft asset) {
                           // subaccount has some tokens: check balance and asset type
-                          if (assetId != asset.0) {
+                          if (delta.assetId != asset.0) {
                             results[i] := #err(#WrongAssetType);
                             continue mainLoop;
                           };
-                          if (delta < 0 and asset.1 < -delta) {
+                          if (delta.d < 0 and asset.1 < -delta.d) {
                             results[i] := #err(#InsufficientFunds);
                             continue mainLoop;
                           };
                         };
                         case (#none) {
                           // subaccount not initialized: transaction valid if positive delta
-                          if (delta < 0) {
+                          if (delta.d < 0) {
                             results[i] := #err(#InsufficientFunds);
                             continue mainLoop;
                           };
@@ -187,22 +191,22 @@ actor class Ledger(initialAggregators : [Principal]) {
               // pass #2: applying
               for (i in deltaEntries.keys()) {
                 let (ownerPrincipal, subaccountDeltas) = deltaEntries[i];
-                let ownerId = ownersCache[i];
-                switch (ownerId) {
+                switch (ownersCache[i]) {
                   case (null) assert false; // should never happen
                   case (?oid) {
-                    for ((subaccountId, (assetId, delta)) in subaccountDeltas.entries()) {
+                    for ((subaccountId, delta) in subaccountDeltas.entries()) {
                       var currentBalance: Nat = 0;
-                      switch (accounts[oid][subaccountId]) {
+                      let subaccount = accounts[oid][subaccountId];
+                      switch (subaccount.asset) {
                         case (#ft asset) {
                           currentBalance := asset.1;
                         };
                         case (_) {};
                       };
-                      if (delta > 0) {
-                        accounts[oid][subaccountId] := #ft(assetId, currentBalance + Int.abs(delta));
+                      if (delta.d > 0) {
+                        accounts[oid][subaccountId].asset := #ft(delta.assetId, currentBalance + Int.abs(delta.d));
                       } else {
-                        accounts[oid][subaccountId] := #ft(assetId, currentBalance - Int.abs(delta));
+                        accounts[oid][subaccountId].asset := #ft(delta.assetId, currentBalance - Int.abs(delta.d));
                       };
                     };
                   };
@@ -234,7 +238,7 @@ actor class Ledger(initialAggregators : [Principal]) {
     };
   };
 
-  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Asset, { #NotFound; #SubaccountNotFound; }> {
+  public shared query ({caller}) func asset(sid: SubaccountId): async Result<{ asset: Asset; autoApprove: Bool }, { #NotFound; #SubaccountNotFound; }> {
     let accounts = getPrincipalAccounts(caller);
     switch (accounts) {
       case (#err err) #err(err);
@@ -242,15 +246,15 @@ actor class Ledger(initialAggregators : [Principal]) {
         if (sid >= acc.size()) {
           return #err(#SubaccountNotFound);
         };
-        #ok(acc[sid]);
+        #ok({ asset = acc[sid].asset; autoApprove = acc[sid].autoApprove; });
       };
     };
   };
 
   // admin interface
+  // TODO admin-only authorization
 
   // add one aggregator principal
-  // TODO authorization is admin-only
   public func addAggregator(p : Principal) : async Result<AggregatorId,()> {
     // AG: Array.append is deprecated due to bad performance, however in this case it appears more optimal than converting to buffer
     aggregators := Array.append(aggregators, [p]);
@@ -261,18 +265,21 @@ actor class Ledger(initialAggregators : [Principal]) {
   };
 
   // debug interface
-  // TODO authorization is admin-only
-  public query func allAssets(owner : Principal) : async Result<[Asset], { #NotFound; }> {
+  public query func allAssets(owner : Principal) : async Result<[{ asset: Asset; autoApprove: Bool }], { #NotFound; }> {
     let account = getPrincipalAccounts(owner);
     switch (account) {
-      case (#ok acc) #ok(Array.freeze(acc.1));
+      case (#ok acc) #ok(
+        Array.tabulate<{ asset: Asset; autoApprove: Bool }>(acc.1.size(), func (i : Nat) : { asset: Asset; autoApprove: Bool } {
+          { asset = acc.1[i].asset; autoApprove = acc.1[i].autoApprove; };
+        })
+      );
       case (#err err) #err(err);
     };
   };
 
   // private functionality
 
-  private func getPrincipalAccounts(principal: Principal) : Result<(OwnerId, [var Asset]), { #NotFound }> {
+  private func getPrincipalAccounts(principal: Principal) : Result<(OwnerId, [var Subaccount]), { #NotFound }> {
     let ownerId = owners.get(principal);
     switch (ownerId) {
       case (null) #err(#NotFound);
@@ -280,14 +287,14 @@ actor class Ledger(initialAggregators : [Principal]) {
     };
   };
 
-  private func registerAccount(principal: Principal) : Result<(OwnerId, [var Asset]), { #NoSpace }> {
+  private func registerAccount(principal: Principal) : Result<(OwnerId, [var Subaccount]), { #NoSpace }> {
     let ownerId = ownersAmount;
     if (ownerId >= C.maxPrincipals) {
       return #err(#NoSpace);
     };
     owners.put(principal, ownerId);
     ownersAmount += 1;
-    accounts[ownerId] := Array.init<Asset>(0, #none);
+    accounts[ownerId] := Array.init<Subaccount>(0, { var asset = #none; autoApprove = false; });
     #ok(ownerId, accounts[ownerId]);
   };
 };

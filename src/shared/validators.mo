@@ -10,14 +10,16 @@ import u "utils";
 
 module {
 
-  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotSorted; #WrongAssetType; };
+  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotSorted; #WrongAssetType; #AutoApproveNotAllowed };
+
+  public type Delta = { assetId: T.AssetId; d: Int; hasAutoApprovedInflow: Bool };
 
   /** transaction request validation function. Optionally returns list of balances delta if success */
-  public func validateTx(tx: T.Tx, returnBalanceDeltas: Bool): R.Result<?TrieMap.TrieMap<Principal, TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>>, TxValidationError> {
+  public func validateTx(tx: T.Tx, returnBalanceDeltas: Bool): R.Result<?TrieMap.TrieMap<Principal, TrieMap.TrieMap<T.SubaccountId, Delta>>, TxValidationError> {
     if (tx.map.size() > C.maxContribution) {
       return #err(#MaxContributionsExceeded);
     };
-    let balanceDeltas = TrieMap.TrieMap<Principal, TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>>(Principal.equal, Principal.hash);
+    let balanceDeltas = TrieMap.TrieMap<Principal, TrieMap.TrieMap<T.SubaccountId, Delta>>(Principal.equal, Principal.hash);
     var lastOwnerPrincipal : { #empty; #val: Principal } = #empty;
     for (contribution in tx.map.vals()) {
       switch (lastOwnerPrincipal) {
@@ -29,10 +31,13 @@ module {
         case (#empty) {};
       };
       lastOwnerPrincipal := #val(contribution.owner);
-      let balanceDeltaOwner: TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)> = u.trieMapGetOrCreate<Principal, TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>>(
+      if (contribution.autoApprove and contribution.outflow.size() > 0) {
+        return #err(#AutoApproveNotAllowed);
+      };
+      let balanceDeltaOwner: TrieMap.TrieMap<T.SubaccountId, Delta> = u.trieMapGetOrCreate<Principal, TrieMap.TrieMap<T.SubaccountId, Delta>>(
         balanceDeltas,
         contribution.owner,
-        func () = TrieMap.TrieMap<T.SubaccountId, (T.AssetId, Int)>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) }),
+        func () = TrieMap.TrieMap<T.SubaccountId, Delta>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) }),
       );
       if (contribution.inflow.size() + contribution.outflow.size() > C.maxFlows) {
         return #err(#MaxFlowsExceeded);
@@ -71,14 +76,22 @@ module {
               case (null) assetBalanceMap.put(id, quantity);
             };
             if (returnBalanceDeltas) {
-              let currentDelta = u.trieMapGetOrCreate<T.SubaccountId, (T.AssetId, Int)>(balanceDeltaOwner, subaccountId, func () = (id, 0));
-              if (id != currentDelta.1) {
+              let currentDelta = u.trieMapGetOrCreate<T.SubaccountId, Delta>(
+                balanceDeltaOwner,
+                subaccountId,
+                func () = { assetId = id; d = 0; hasAutoApprovedInflow = false },
+              );
+              if (id != currentDelta.assetId) {
                 return #err(#WrongAssetType);
               };
-              balanceDeltaOwner.put(subaccountId, (id, currentDelta.1 + quantity));
+              balanceDeltaOwner.put(subaccountId, {
+                assetId = id;
+                d = currentDelta.d + quantity;
+                hasAutoApprovedInflow = currentDelta.hasAutoApprovedInflow or contribution.autoApprove;
+              });
             };
           };
-          case (#none) return #err(#WrongAssetType);
+          case (#none _) return #err(#WrongAssetType);
         };
       };
       for ((subaccountId, asset) in contribution.outflow.vals()) {
@@ -102,14 +115,22 @@ module {
               };
             };
             if (returnBalanceDeltas) {
-              let currentDelta = u.trieMapGetOrCreate<T.SubaccountId, (T.AssetId, Int)>(balanceDeltaOwner, subaccountId, func () = (id, 0));
-              if (id != currentDelta.1) {
+              let currentDelta = u.trieMapGetOrCreate<T.SubaccountId, Delta>(
+                balanceDeltaOwner,
+                subaccountId,
+                func () = { assetId = id; d = 0; hasAutoApprovedInflow = false },
+              );
+              if (id != currentDelta.assetId) {
                 return #err(#WrongAssetType);
               };
-              balanceDeltaOwner.put(subaccountId, (id, currentDelta.1 - quantity));
+              balanceDeltaOwner.put(subaccountId, {
+                assetId = id;
+                d = currentDelta.d - quantity;
+                hasAutoApprovedInflow = currentDelta.hasAutoApprovedInflow;
+              });
             };
           };
-          case (#none) assert false; // should never happen
+          case (#none _) assert false; // should never happen
         };
       };
       for (balance in assetBalanceMap.vals()) {

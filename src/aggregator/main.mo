@@ -82,7 +82,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
 
   global tx id (short: global id): The local id plus aggregator id makes a globally unique id.
 
-  fully approved: A tx request that is approved by all contributors that are not marked as auto_approve by the tx. A fully approved tx is queued.
+  fully approved: A tx request that is approved by all contributors that are not marked as autoApprove by the tx. A fully approved tx is queued.
 
   unapproved: A tx request that is not yet fully approved.
   */
@@ -138,7 +138,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       tx = tx;
       submitter = msg.caller;
       var lid = null;
-      var status = #unapproved(Array.init(tx.map.size(), false));
+      var status = #unapproved(Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].autoApprove));
     };
     let cell = unapproved.pushBack(txRequest);
     txRequest.lid := lookup.add(cell);

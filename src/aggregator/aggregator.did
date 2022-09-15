@@ -85,6 +85,7 @@ type SubmitError =
    FlowsNotSorted;
    OwnersNotSorted;
    WrongAssetType;
+   AutoApproveNotAllowed;
  };
 
 type Submit_Result = 

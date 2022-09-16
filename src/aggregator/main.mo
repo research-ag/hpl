@@ -129,10 +129,10 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   */
   type SubmitError = v.TxValidationError or { #NoSpace; };
   public shared(msg) func submit(tx: Tx): async Result<GlobalId, SubmitError> {
-    let validationResult = v.validateTx(tx, false);
+    let validationResult = v.validateTx(tx);
     switch (validationResult) {
       case (#err error) return #err(error);
-      case (#ok _) {};
+      case (#ok) {};
     };
     let txRequest : TxRequest = {
       tx = tx;

@@ -25,13 +25,12 @@ module SlotTable {
   When adding element, we use the first slot index from the `unused` queue. If it's empty we abort operation: slot table is full
   When removing element, we put freed slot index to the `unused` queue, so it will be reused later
   */
-  public class SlotTable<X>(_capacity: Nat) {
-    // number of slots available in the table
-    let capacity = _capacity;
+  // `capacity` is a number of slots available in the table
+  public class SlotTable<X>(capacity: Nat) {
     // chain of all unused slots
     let unused : HPLQueue.HPLQueue<Nat> = HPLQueue.HPLQueue<Nat>();
     // slots array
-    let slots : [Slot<X>] = Array.tabulate<Slot<X>>(_capacity, func(n : Nat) {
+    let slots : [Slot<X>] = Array.tabulate<Slot<X>>(capacity, func(n : Nat) {
       // during initialization, fill the queue with 0...<capacity> indexes
       unused.enqueue(n);
       { var value = null; var counter = 0; };
@@ -76,8 +75,8 @@ module SlotTable {
 
     /** returns slot and it's index for provided local id. Returns null if slot was overwritten */
     private func getSlotInfoByLid(lid : LocalId) : ?(Slot<X>, Nat) {
-      let slotIndex = lid % _capacity;
-      let counterValue = lid / _capacity;
+      let slotIndex = lid % capacity;
+      let counterValue = lid / capacity;
       let slot = slots[slotIndex];
       if (slot.counter != counterValue) {
         return null;  // slot was overwritten
@@ -90,7 +89,7 @@ module SlotTable {
       let slot = slots[slotIndex];
       slot.counter += 1;
       slot.value := ?element;
-      slot.counter*_capacity + slotIndex;
+      slot.counter*capacity + slotIndex;
     };
   };
 };

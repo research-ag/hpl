@@ -134,16 +134,20 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       case (#err error) return #err(error);
       case (#ok) {};
     };
+    let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].autoApprove or tx.map[i].owner == msg.caller);
     let txRequest : TxRequest = {
       tx = tx;
       submitter = msg.caller;
       var lid = null;
-      var status = #unapproved(Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].autoApprove));
+      var status = #unapproved(approvals);
     };
     let cell = unapproved.pushBack(txRequest);
     txRequest.lid := lookup.add(cell);
     switch (txRequest.lid) {
-      case (?lid) #ok(selfAggregatorIndex, lid);
+      case (?lid) {
+        checkIsApprovedAndEnqueue(txRequest, lid, approvals);
+        #ok(selfAggregatorIndex, lid);
+      };
       case (null) {
         // try to reuse oldest unapproved
         if (unapproved.size() < 2) { // 1 means that chain contains only just added cell
@@ -159,7 +163,10 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
           case (true) {
             txRequest.lid := lookup.add(cell);
             switch (txRequest.lid) {
-              case (?lid) #ok(selfAggregatorIndex, lid);
+              case (?lid) {
+                checkIsApprovedAndEnqueue(txRequest, lid, approvals);
+                #ok(selfAggregatorIndex, lid);
+              };
               case (null) {
                 cell.removeFromList();
                 #err(#NoSpace);
@@ -183,17 +190,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       case (#err err) return #err(err);
       case (#ok (tr, approvals, index)) {
         approvals[index] := true;
-        if (Array.foldRight(Array.freeze(approvals), true, Bool.logand)) {
-          let lid = txId.1;
-          let cell = lookup.get(lid);
-          // remove from unapproved list
-          switch (cell) {
-            case (?c) c.removeFromList();
-            case (null) {};
-          };
-          approvedTxs.enqueue(lid);
-          tr.status := #approved(approvedTxs.pushesAmount());
-        };
+        checkIsApprovedAndEnqueue(tr, txId.1, approvals);
         return #ok;
       };
     };
@@ -335,6 +332,20 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
           case (null) cleanupOldest(chain);
         };
       };
+    };
+  };
+
+  /** check if transaction is fully approved and enqueue it to the batch */
+  private func checkIsApprovedAndEnqueue(tr: TxRequest, lid: LocalId, approvals: MutableApprovals) {
+    if (Array.foldRight(Array.freeze(approvals), true, Bool.logand)) {
+      let cell = lookup.get(lid);
+      // remove from unapproved list
+      switch (cell) {
+        case (?c) c.removeFromList();
+        case (null) {};
+      };
+      approvedTxs.enqueue(lid);
+      tr.status := #approved(approvedTxs.pushesAmount());
     };
   };
 

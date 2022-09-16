@@ -57,6 +57,15 @@ module {
           lastSubaccountId := #val(subaccountId);
         };
       };
+      // check that subaccounts are unique in inflow + outflow
+      // this algorithm works only if subaccounts are unique and sorted in both arrays, which is true here
+      if (not u.isSortedArraysUnique<(T.SubaccountId, T.Asset)>(
+        contribution.inflow,
+        contribution.outflow,
+        func (flowA, flowB) : {#equal; #greater; #less} = Nat.compare(flowA.0, flowB.0),
+      )) {
+        return #err(#OwnersNotSorted);
+      };
       // checking balances equilibrium
       let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) });
       for ((subaccountId, asset) in contribution.inflow.vals()) {

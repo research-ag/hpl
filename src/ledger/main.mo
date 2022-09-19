@@ -161,70 +161,16 @@ actor class Ledger(initialAggregators : [Principal]) {
           oid,
           func () = TrieMap.TrieMap<T.SubaccountId, SubaccountState>(Nat.equal, func (a : T.SubaccountId) { Nat32.fromNat(a) }),
         );
-        // check subaccount existence, auto approve, assetId for inflows
-        for ((subaccountId, inflowAsset) in contribution.inflow.vals()) {
-          if (subaccountId >= accounts[oid].size()) {
-            results[i] := #err(#WrongSubaccountId);
-            continue mainLoop;
-          };
-          let subaccount = accounts[oid][subaccountId];
-          if (contribution.autoApprove and not subaccount.autoApprove) {
-            results[i] := #err(#AutoApproveNotAllowed);
-            continue mainLoop;
-          };
-          var currentBalance: Nat = 0;
-          switch (subaccount.asset) {
-            case (#ft asset) currentBalance := asset.1;
-            case (#none) {};
-          };
-          switch (inflowAsset) {
-            case (#none) assert false; // should never happen. filtered out in validation function
-            case (#ft inflowAssetData) {
-              switch (subaccount.asset) {
-                case (#ft asset) {
-                  // subaccount has some tokens: check asset type
-                  if (inflowAssetData.0 != asset.0) {
-                    results[i] := #err(#WrongAssetType);
-                    continue mainLoop;
-                  };
-                };
-                case (#none) {}; // subaccount not initialized: inflow always valid
-              };
-              newUserSubaccounts.put(subaccountId, { asset = #ft(inflowAssetData.0, currentBalance + inflowAssetData.1); autoApprove = subaccount.autoApprove });
-            };
-          };
-        };
-        // check subaccount existence, assetId, balance for outflows
-        for ((subaccountId, outflowAsset) in contribution.outflow.vals()) {
-          if (subaccountId >= accounts[oid].size()) {
-            results[i] := #err(#WrongSubaccountId);
-            continue mainLoop;
-          };
-          let subaccount = accounts[oid][subaccountId];
-          switch (subaccount.asset) {
-            case (#none) {
-              // subaccount not initialized: outflow cannot be applied
-              results[i] := #err(#InsufficientFunds);
+        for ((subaccountId, inflowAsset, isInflow) in u.iterConcat(
+          Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
+          Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
+        )) {
+          switch (processFlow(oid, subaccountId, contribution.autoApprove, inflowAsset, isInflow)) {
+            case (#err err) {
+              results[i] := #err(err);
               continue mainLoop;
             };
-            case (#ft asset) {
-              switch (outflowAsset) {
-                case (#none) assert false; // should never happen. filtered out in validation function
-                case (#ft outflowAssetData) {
-                  // subaccount has some tokens: check asset type
-                  if (outflowAssetData.0 != asset.0) {
-                    results[i] := #err(#WrongAssetType);
-                    continue mainLoop;
-                  };
-                  // check is enough balance
-                  if (asset.1 < outflowAssetData.1) {
-                    results[i] := #err(#InsufficientFunds);
-                    continue mainLoop;
-                  };
-                  newUserSubaccounts.put(subaccountId, { asset = #ft(outflowAssetData.0, asset.1 - outflowAssetData.1); autoApprove = subaccount.autoApprove });
-                };
-              };
-            };
+            case (#ok newState) newUserSubaccounts.put(subaccountId, newState);
           };
         };
       };
@@ -299,5 +245,43 @@ actor class Ledger(initialAggregators : [Principal]) {
     ownersAmount += 1;
     accounts[ownerId] := Array.init<SubaccountState>(0, { asset = #none; autoApprove = false; });
     #ok(ownerId, accounts[ownerId]);
+  };
+
+  private func processFlow(ownerId: OwnerId, subaccountId: T.SubaccountId, autoApprove: Bool, flowAsset: T.Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
+    if (subaccountId >= accounts[ownerId].size()) {
+      return #err(#WrongSubaccountId);
+    };
+    let subaccount = accounts[ownerId][subaccountId];
+    if (isInflow and autoApprove and not subaccount.autoApprove) {
+      return #err(#AutoApproveNotAllowed);
+    };
+    switch (flowAsset) {
+      case (#none) return #err(#WrongAssetType);
+      case (#ft flowAssetData) {
+        switch (subaccount.asset) {
+          case (#ft userAssetData) {
+            // subaccount has some tokens: check asset type
+            if (flowAssetData.0 != userAssetData.0) {
+              return #err(#WrongAssetType);
+            };
+            if (isInflow) {
+              return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1); autoApprove = subaccount.autoApprove });
+            };
+            // check is enough balance
+            if (userAssetData.1 < flowAssetData.1) {
+              return #err(#InsufficientFunds);
+            };
+            return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 - flowAssetData.1); autoApprove = subaccount.autoApprove });
+          };
+          case (#none) {
+            // subaccount not initialized: inflow always valid, outflow cannot be applied
+            if (isInflow) {
+              return #ok({ asset = #ft(flowAssetData.0, flowAssetData.1); autoApprove = subaccount.autoApprove });
+            };
+            return #err(#InsufficientFunds);
+          };
+        };
+      };
+    };
   };
 };

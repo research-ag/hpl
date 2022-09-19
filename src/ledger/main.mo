@@ -142,20 +142,20 @@ actor class Ledger(initialAggregators : [Principal]) {
       };
       // cache owner ids per contribution. If some owner ID is wrong - return error
       let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
-      for (i in ownersCache.keys()) {
-        switch (owners.get(tx.map[i].owner)) {
+      for (j in ownersCache.keys()) {
+        switch (owners.get(tx.map[j].owner)) {
           case (null) {
-            results[i] := #err(#WrongOwnerId);
+            results[j] := #err(#WrongOwnerId);
             continue mainLoop;
           };
-          case (?oid) ownersCache[i] := oid;
+          case (?oid) ownersCache[j] := oid;
         };
       };
       // map of new subaccounts to be written after full validation
       let newSubaccounts = TrieMap.TrieMap<OwnerId, TrieMap.TrieMap<T.SubaccountId, SubaccountState>>(Nat.equal, func (a : OwnerId) { Nat32.fromNat(a) });
       // pass #1: validation
-      for (i in tx.map.keys()) {
-        let (contribution, oid) = (tx.map[i], ownersCache[i]);
+      for (j in tx.map.keys()) {
+        let (contribution, oid) = (tx.map[j], ownersCache[j]);
         let (newUserSubaccounts, _) = u.trieMapGetOrCreate<T.SubaccountId, TrieMap.TrieMap<T.SubaccountId, SubaccountState>>(
           newSubaccounts,
           oid,

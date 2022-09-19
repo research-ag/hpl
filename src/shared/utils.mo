@@ -14,9 +14,6 @@ module {
   public func isSortedArraysUnique<T>(a: [T], b: [T], cmp: (a: T, b: T) -> { #less; #equal; #greater }): Bool {
     var aPtr = 0;
     var bPtr = 0;
-    if (a.size() == 0 or b.size() == 0) {
-      return true;
-    };
     while (aPtr < a.size() and bPtr < b.size()) {
       switch (cmp(a[aPtr], b[bPtr])) {
         case (#equal) return false;

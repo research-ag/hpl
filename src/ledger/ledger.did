@@ -15,7 +15,7 @@ type Asset = variant {
   none;
 };
 
-type Subaccount = record {
+type SubaccountState = record {
   asset: Asset;
   autoApprove: bool;
 };
@@ -75,7 +75,7 @@ type Nat_Result =
  };
 type Subaccount_Result =
  variant {
-   ok: Subaccount;
+   ok: SubaccountState;
    err: variant {
      NotFound;
      SubaccountNotFound;
@@ -83,7 +83,7 @@ type Subaccount_Result =
  };
 type Subaccounts_Result =
   variant {
-    ok: vec Subaccount;
+    ok: vec SubaccountState;
     err: variant {NotFound;};
   };
 

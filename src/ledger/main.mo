@@ -7,6 +7,8 @@ import Array "mo:base/Array";
 import { compare } "mo:base/Principal";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
+import Option "mo:base/Option";
+import Principal "mo:base/Principal";
 import Error "mo:base/Error";
 
 // type imports
@@ -64,9 +66,9 @@ actor class Ledger(initialAggregators : [Principal]) {
   Since this isn't happening in a loop and happens only once during the canister call it is fine.
   */
 
-  type Subaccount = { var asset: Asset; autoApprove: Bool };
+  type SubaccountState = { asset: Asset; autoApprove: Bool };
 
-  let accounts : [var [var Subaccount]] = Array.init(C.maxPrincipals, [var] : [var Subaccount]);
+  let accounts : [var [var SubaccountState]] = Array.init(C.maxPrincipals, [var] : [var SubaccountState]);
 
   // updates
 
@@ -85,14 +87,13 @@ actor class Ledger(initialAggregators : [Principal]) {
   public shared({caller}) func openNewAccounts(n: Nat, autoApprove : Bool): async Result<SubaccountId, { #NoSpace; }> {
     var ownerId: ?OwnerId = null;
     // get or register owner ID
-    let accountsResult = getPrincipalAccounts(caller);
-    switch (accountsResult) {
-      case (#ok (oid, acc)) ownerId := ?oid;
-      case (#err err) {
+    switch (owners.get(caller)) {
+      case (?oid) ownerId := ?oid;
+      case (null) {
         let regResult = registerAccount(caller);
         switch (regResult) {
-          case (#err err) {};
-          case (#ok (oid, acc)) ownerId := ?oid;
+          case (#err _) {};
+          case (#ok (oid, _)) ownerId := ?oid;
         };
       };
     };
@@ -105,11 +106,11 @@ actor class Ledger(initialAggregators : [Principal]) {
           return #err(#NoSpace);
         };
         // array.append seems to not work with var type
-        accounts[oid] := Array.tabulateVar<{ var asset: Asset; autoApprove: Bool }>(oldSize + n, func (n: Nat) {
+        accounts[oid] := Array.tabulateVar<SubaccountState>(oldSize + n, func (n: Nat) {
           if (n < oldSize) {
             return accounts[oid][n];
           };
-          return { var asset = #none; autoApprove = autoApprove };
+          return { asset = #none; autoApprove = autoApprove };
         });
         #ok(oldSize);
       };
@@ -128,133 +129,126 @@ actor class Ledger(initialAggregators : [Principal]) {
   */
   type ProcessingError = v.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public shared({caller}) func processBatch(batch: Batch): async () {
-    let aggId = u.arrayFindIndex(aggregators, func (agg: Principal): Bool = agg == caller);
-    switch (aggId) {
-      case (#Found index) {};
-      case (#NotFound) throw Error.reject("Not a registered aggregator");
+    if (Option.isNull(Array.find(aggregators, func (agg: Principal): Bool = Principal.equal(agg, caller)))) {
+      throw Error.reject("Not a registered aggregator");
     };
-    let results: [var Result<(), ProcessingError>] = Array.tabulateVar<Result<(), ProcessingError>>(batch.size(), func (n: Nat) = #ok());
+    let results: [var Result<(), ProcessingError>] = Array.init<Result<(), ProcessingError>>(batch.size(), #ok());
     label mainLoop
     for (i in batch.keys()) {
       let tx = batch[i];
       let validationResult = v.validateTx(tx);
-      switch (validationResult) {
-        case (#err err) {
-          results[i] := #err(err);
+      if (R.isErr(validationResult)) {
+          results[i] := validationResult;
           continue mainLoop;
+      };
+      // cache owner ids per contribution. If some owner ID is wrong - return error
+      let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
+      for (i in ownersCache.keys()) {
+        switch (owners.get(tx.map[i].owner)) {
+          case (null) {
+            results[i] := #err(#WrongOwnerId);
+            continue mainLoop;
+          };
+          case (?oid) ownersCache[i] := oid;
         };
-        case (#ok) {
-          // cache owner ids per contribution. If some owner ID is wrong - return error
-          let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
-          for (i in ownersCache.keys()) {
-            let ownerId = owners.get(tx.map[i].owner);
-            switch (ownerId) {
-              case (null) {
-                results[i] := #err(#WrongOwnerId);
-                continue mainLoop;
-              };
-              case (?oid) ownersCache[i] := oid;
-            };
+      };
+      // pass #1: validation
+      for (i in tx.map.keys()) {
+        let (contribution, oid) = (tx.map[i], ownersCache[i]);
+        // check subaccount existence, auto approve, assetId for inflows
+        for ((subaccountId, inflowAsset) in contribution.inflow.vals()) {
+          if (subaccountId >= accounts[oid].size()) {
+            results[i] := #err(#WrongSubaccountId);
+            continue mainLoop;
           };
-          // pass #1: validation
-          for (i in tx.map.keys()) {
-            let contribution = tx.map[i];
-            // check subaccount existence, auto approve, assetId for inflows
-            for ((subaccountId, inflowAsset) in contribution.inflow.vals()) {
-              if (subaccountId >= accounts[ownersCache[i]].size()) {
-                results[i] := #err(#WrongSubaccountId);
-                continue mainLoop;
-              };
-              let subaccount = accounts[ownersCache[i]][subaccountId];
-              if (contribution.autoApprove and not subaccount.autoApprove) {
-                results[i] := #err(#AutoApproveNotAllowed);
-                continue mainLoop;
-              };
-              switch (subaccount.asset) {
-                case (#ft asset) {
-                  switch (inflowAsset) {
-                    case (#none) assert false; // should never happen. filtered out in validation function
-                    case (#ft inflowAssetData) {
-                      // subaccount has some tokens: check asset type
-                      if (inflowAssetData.0 != asset.0) {
-                        results[i] := #err(#WrongAssetType);
-                        continue mainLoop;
-                      };
-                    };
-                  };
-                };
-                case (#none) {}; // subaccount not initialized: inflow always valid
-              };
-            };
-            // check subaccount existence, assetId, balance for outflows
-            for ((subaccountId, outflowAsset) in contribution.outflow.vals()) {
-              if (subaccountId >= accounts[ownersCache[i]].size()) {
-                results[i] := #err(#WrongSubaccountId);
-                continue mainLoop;
-              };
-              let subaccount = accounts[ownersCache[i]][subaccountId];
-              switch (subaccount.asset) {
-                case (#ft asset) {
-                  switch (outflowAsset) {
-                    case (#none) assert false; // should never happen. filtered out in validation function
-                    case (#ft outflowAssetData) {
-                      // subaccount has some tokens: check asset type
-                      if (outflowAssetData.0 != asset.0) {
-                        results[i] := #err(#WrongAssetType);
-                        continue mainLoop;
-                      };
-                      // check is enough balance
-                      if (asset.1 < outflowAssetData.1) {
-                        results[i] := #err(#InsufficientFunds);
-                        continue mainLoop;
-                      };
-                    };
-                  };
-                };
-                case (#none) {
-                  // subaccount not initialized: outflow cannot be applied
-                  results[i] := #err(#InsufficientFunds);
-                  continue mainLoop;
-                };
-              };
-            };
+          let subaccount = accounts[oid][subaccountId];
+          if (contribution.autoApprove and not subaccount.autoApprove) {
+            results[i] := #err(#AutoApproveNotAllowed);
+            continue mainLoop;
           };
-          // pass #2: applying
-          for (i in tx.map.keys()) {
-            let contribution = tx.map[i];
-            // apply inflows
-            for ((subaccountId, inflowAsset) in contribution.inflow.vals()) {
-              var currentBalance: Nat = 0;
-              let subaccount = accounts[ownersCache[i]][subaccountId];
-              switch (subaccount.asset) {
-                case (#ft asset) {
-                  currentBalance := asset.1;
-                };
-                case (_) {};
-              };
+          switch (subaccount.asset) {
+            case (#ft asset) {
               switch (inflowAsset) {
                 case (#none) assert false; // should never happen. filtered out in validation function
                 case (#ft inflowAssetData) {
-                  accounts[ownersCache[i]][subaccountId].asset := #ft(inflowAssetData.0, currentBalance + inflowAssetData.1);
+                  // subaccount has some tokens: check asset type
+                  if (inflowAssetData.0 != asset.0) {
+                    results[i] := #err(#WrongAssetType);
+                    continue mainLoop;
+                  };
                 };
               };
             };
-            // apply outflows
-            for ((subaccountId, outflowAsset) in contribution.outflow.vals()) {
-              var currentBalance: Nat = 0;
-              let subaccount = accounts[ownersCache[i]][subaccountId];
-              switch (subaccount.asset) {
-                case (#ft asset) {
-                  currentBalance := asset.1;
-                };
-                case (_) assert false; // should never happen. Filtered out on validation pass
-              };
+            case (#none) {}; // subaccount not initialized: inflow always valid
+          };
+        };
+        // check subaccount existence, assetId, balance for outflows
+        for ((subaccountId, outflowAsset) in contribution.outflow.vals()) {
+          if (subaccountId >= accounts[oid].size()) {
+            results[i] := #err(#WrongSubaccountId);
+            continue mainLoop;
+          };
+          let subaccount = accounts[oid][subaccountId];
+          switch (subaccount.asset) {
+            case (#ft asset) {
               switch (outflowAsset) {
                 case (#none) assert false; // should never happen. filtered out in validation function
                 case (#ft outflowAssetData) {
-                  accounts[ownersCache[i]][subaccountId].asset := #ft(outflowAssetData.0, currentBalance - outflowAssetData.1);
+                  // subaccount has some tokens: check asset type
+                  if (outflowAssetData.0 != asset.0) {
+                    results[i] := #err(#WrongAssetType);
+                    continue mainLoop;
+                  };
+                  // check is enough balance
+                  if (asset.1 < outflowAssetData.1) {
+                    results[i] := #err(#InsufficientFunds);
+                    continue mainLoop;
+                  };
                 };
               };
+            };
+            case (#none) {
+              // subaccount not initialized: outflow cannot be applied
+              results[i] := #err(#InsufficientFunds);
+              continue mainLoop;
+            };
+          };
+        };
+      };
+      // pass #2: applying
+      for (i in tx.map.keys()) {
+        let (contribution, oid) = (tx.map[i], ownersCache[i]);
+        // apply inflows
+        for ((subaccountId, inflowAsset) in contribution.inflow.vals()) {
+          var currentBalance: Nat = 0;
+          let subaccount = accounts[oid][subaccountId];
+          switch (subaccount.asset) {
+            case (#ft asset) {
+              currentBalance := asset.1;
+            };
+            case (_) {};
+          };
+          switch (inflowAsset) {
+            case (#none) assert false; // should never happen. filtered out in validation function
+            case (#ft inflowAssetData) {
+              accounts[oid][subaccountId] := { asset = #ft(inflowAssetData.0, currentBalance + inflowAssetData.1); autoApprove = subaccount.autoApprove };
+            };
+          };
+        };
+        // apply outflows
+        for ((subaccountId, outflowAsset) in contribution.outflow.vals()) {
+          var currentBalance: Nat = 0;
+          let subaccount = accounts[ownersCache[i]][subaccountId];
+          switch (subaccount.asset) {
+            case (#ft asset) {
+              currentBalance := asset.1;
+            };
+            case (_) assert false; // should never happen. Filtered out on validation pass
+          };
+          switch (outflowAsset) {
+            case (#none) assert false; // should never happen. filtered out in validation function
+            case (#ft outflowAssetData) {
+              accounts[ownersCache[i]][subaccountId] := { asset = #ft(outflowAssetData.0, currentBalance - outflowAssetData.1); autoApprove = subaccount.autoApprove };
             };
           };
         };
@@ -274,22 +268,20 @@ actor class Ledger(initialAggregators : [Principal]) {
   };
 
   public shared query ({caller}) func nAccounts(): async Result<Nat, { #NotFound; }> {
-    let accounts = getPrincipalAccounts(caller);
-    switch (accounts) {
-      case (#err err) #err(err);
-      case (#ok (oid, acc)) #ok(acc.size());
+    switch (owners.get(caller)) {
+      case (null) #err(#NotFound);
+      case (?oid) #ok(accounts[oid].size());
     };
   };
 
-  public shared query ({caller}) func asset(sid: SubaccountId): async Result<{ asset: Asset; autoApprove: Bool }, { #NotFound; #SubaccountNotFound; }> {
-    let accounts = getPrincipalAccounts(caller);
-    switch (accounts) {
-      case (#err err) #err(err);
-      case (#ok (oid, acc)) {
-        if (sid >= acc.size()) {
+  public shared query ({caller}) func asset(sid: SubaccountId): async Result<SubaccountState, { #NotFound; #SubaccountNotFound; }> {
+    switch (owners.get(caller)) {
+      case (null) #err(#NotFound);
+      case (?oid) {
+        if (sid >= accounts[oid].size()) {
           return #err(#SubaccountNotFound);
         };
-        #ok({ asset = acc[sid].asset; autoApprove = acc[sid].autoApprove; });
+        #ok(accounts[oid][sid]);
       };
     };
   };
@@ -308,36 +300,23 @@ actor class Ledger(initialAggregators : [Principal]) {
   };
 
   // debug interface
-  public query func allAssets(owner : Principal) : async Result<[{ asset: Asset; autoApprove: Bool }], { #NotFound; }> {
-    let account = getPrincipalAccounts(owner);
-    switch (account) {
-      case (#ok acc) #ok(
-        Array.tabulate<{ asset: Asset; autoApprove: Bool }>(acc.1.size(), func (i : Nat) : { asset: Asset; autoApprove: Bool } {
-          { asset = acc.1[i].asset; autoApprove = acc.1[i].autoApprove; };
-        })
-      );
-      case (#err err) #err(err);
+  public query func allAssets(owner : Principal) : async Result<[SubaccountState], { #NotFound; }> {
+    switch (owners.get(owner)) {
+      case (null) #err(#NotFound);
+      case (?oid) #ok(Array.freeze(accounts[oid]));
     };
   };
 
   // private functionality
 
-  private func getPrincipalAccounts(principal: Principal) : Result<(OwnerId, [var Subaccount]), { #NotFound }> {
-    let ownerId = owners.get(principal);
-    switch (ownerId) {
-      case (null) #err(#NotFound);
-      case (?oid) #ok(oid, accounts[oid]);
-    };
-  };
-
-  private func registerAccount(principal: Principal) : Result<(OwnerId, [var Subaccount]), { #NoSpace }> {
+  private func registerAccount(principal: Principal) : Result<(OwnerId, [var SubaccountState]), { #NoSpace }> {
     let ownerId = ownersAmount;
     if (ownerId >= C.maxPrincipals) {
       return #err(#NoSpace);
     };
     owners.put(principal, ownerId);
     ownersAmount += 1;
-    accounts[ownerId] := Array.init<Subaccount>(0, { var asset = #none; autoApprove = false; });
+    accounts[ownerId] := Array.init<SubaccountState>(0, { asset = #none; autoApprove = false; });
     #ok(ownerId, accounts[ownerId]);
   };
 };

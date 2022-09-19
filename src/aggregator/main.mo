@@ -145,7 +145,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     txRequest.lid := lookup.add(cell);
     switch (txRequest.lid) {
       case (?lid) {
-        checkIsApprovedAndEnqueue(txRequest, lid, approvals);
+        checkIsApprovedAndEnqueue(txRequest, lid, Array.freeze(approvals));
         #ok(selfAggregatorIndex, lid);
       };
       case (null) {
@@ -164,7 +164,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
             txRequest.lid := lookup.add(cell);
             switch (txRequest.lid) {
               case (?lid) {
-                checkIsApprovedAndEnqueue(txRequest, lid, approvals);
+                checkIsApprovedAndEnqueue(txRequest, lid, Array.freeze(approvals));
                 #ok(selfAggregatorIndex, lid);
               };
               case (null) {
@@ -190,7 +190,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       case (#err err) return #err(err);
       case (#ok (tr, approvals, index)) {
         approvals[index] := true;
-        checkIsApprovedAndEnqueue(tr, txId.1, approvals);
+        checkIsApprovedAndEnqueue(tr, txId.1, Array.freeze(approvals));
         return #ok;
       };
     };
@@ -336,8 +336,8 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   };
 
   /** check if transaction is fully approved and enqueue it to the batch */
-  private func checkIsApprovedAndEnqueue(tr: TxRequest, lid: LocalId, approvals: MutableApprovals) {
-    if (Array.foldRight(Array.freeze(approvals), true, Bool.logand)) {
+  private func checkIsApprovedAndEnqueue(tr: TxRequest, lid: LocalId, approvals: Approvals) {
+    if (Array.foldRight(approvals, true, Bool.logand)) {
       let cell = lookup.get(lid);
       // remove from unapproved list
       switch (cell) {

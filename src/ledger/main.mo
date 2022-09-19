@@ -156,11 +156,8 @@ actor class Ledger(initialAggregators : [Principal]) {
       // pass #1: validation
       for (j in tx.map.keys()) {
         let (contribution, oid) = (tx.map[j], ownersCache[j]);
-        let (newUserSubaccounts, _) = u.trieMapGetOrCreate<T.SubaccountId, TrieMap.TrieMap<T.SubaccountId, SubaccountState>>(
-          newSubaccounts,
-          oid,
-          func () = TrieMap.TrieMap<T.SubaccountId, SubaccountState>(Nat.equal, func (a : T.SubaccountId) { Nat32.fromNat(a) }),
-        );
+        let newUserSubaccounts = TrieMap.TrieMap<T.SubaccountId, SubaccountState>(Nat.equal, func (a : T.SubaccountId) { Nat32.fromNat(a) });
+        newSubaccounts.put(oid, newUserSubaccounts);
         for ((subaccountId, inflowAsset, isInflow) in u.iterConcat(
           Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
           Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
@@ -175,8 +172,8 @@ actor class Ledger(initialAggregators : [Principal]) {
         };
       };
       // pass #2: applying
-      for ((oid, newSubaccounts) in newSubaccounts.entries()) {
-        for ((subaccountId, newSubaccount) in newSubaccounts.entries()) {
+      for ((oid, newUserSubaccounts) in newSubaccounts.entries()) {
+        for ((subaccountId, newSubaccount) in newUserSubaccounts.entries()) {
            accounts[oid][subaccountId] := newSubaccount;
         };
       };

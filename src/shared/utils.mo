@@ -26,17 +26,6 @@ module {
     };
     return true;
   };
-  /** get value from trie map, if it's exists. If it doesn't, put default value to the map and return it. Returns tuple (value, isCreated) */
-  public func trieMapGetOrCreate<K, V>(map: TrieMap.TrieMap<K, V>, key: K, createFunc : () -> V): (V, Bool) {
-    switch (map.get(key)) {
-      case (?entry) (entry, false);
-      case (null) {
-        let entry = createFunc();
-        map.put(key, entry);
-        (entry, true);
-      };
-    };
-  };
   /** concat two iterables into one */
   public func iterConcat<T>(a: Iter.Iter<T>, b: Iter.Iter<T>): Iter.Iter<T> {
     var aEnded: Bool = false;

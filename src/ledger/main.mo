@@ -158,11 +158,11 @@ actor class Ledger(initialAggregators : [Principal]) {
         let (contribution, oid) = (tx.map[j], ownersCache[j]);
         let newUserSubaccounts = TrieMap.TrieMap<T.SubaccountId, SubaccountState>(Nat.equal, func (a : T.SubaccountId) { Nat32.fromNat(a) });
         newSubaccounts.put(oid, newUserSubaccounts);
-        for ((subaccountId, inflowAsset, isInflow) in u.iterConcat(
+        for ((subaccountId, flowAsset, isInflow) in u.iterConcat(
           Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
           Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
         )) {
-          switch (processFlow(oid, subaccountId, contribution.autoApprove, inflowAsset, isInflow)) {
+          switch (processFlow(oid, subaccountId, contribution.autoApprove, flowAsset, isInflow)) {
             case (#err err) {
               results[i] := #err(err);
               continue mainLoop;

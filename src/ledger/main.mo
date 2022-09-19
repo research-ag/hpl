@@ -145,7 +145,7 @@ actor class Ledger(initialAggregators : [Principal]) {
       for (j in ownersCache.keys()) {
         switch (owners.get(tx.map[j].owner)) {
           case (null) {
-            results[j] := #err(#WrongOwnerId);
+            results[i] := #err(#WrongOwnerId);
             continue mainLoop;
           };
           case (?oid) ownersCache[j] := oid;

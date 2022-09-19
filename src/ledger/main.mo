@@ -8,7 +8,6 @@ import { compare } "mo:base/Principal";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
 import Option "mo:base/Option";
-import Principal "mo:base/Principal";
 import Error "mo:base/Error";
 
 // type imports
@@ -129,7 +128,7 @@ actor class Ledger(initialAggregators : [Principal]) {
   */
   type ProcessingError = v.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public shared({caller}) func processBatch(batch: Batch): async () {
-    if (Option.isNull(Array.find(aggregators, func (agg: Principal): Bool = Principal.equal(agg, caller)))) {
+    if (Option.isNull(Array.find(aggregators, func (agg: Principal): Bool = agg == caller))) {
       throw Error.reject("Not a registered aggregator");
     };
     let results: [var Result<(), ProcessingError>] = Array.init<Result<(), ProcessingError>>(batch.size(), #ok());

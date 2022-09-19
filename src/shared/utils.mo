@@ -1,3 +1,5 @@
+import TrieMap "mo:base/TrieMap";
+
 module {
   public func arrayFindIndex<A>(xs: [A], f : A -> Bool): { #Found: Nat; #NotFound } {
     for (i in xs.keys()) {
@@ -22,5 +24,16 @@ module {
       };
     };
     return true;
+  };
+  /** get value from trie map, if it's exists. If it doesn't, put default value to the map and return it. Returns tuple (value, isCreated) */
+  public func trieMapGetOrCreate<K, V>(map: TrieMap.TrieMap<K, V>, key: K, createFunc : () -> V): (V, Bool) {
+    switch (map.get(key)) {
+      case (?entry) (entry, false);
+      case (null) {
+        let entry = createFunc();
+        map.put(key, entry);
+        (entry, true);
+      };
+    };
   };
 };

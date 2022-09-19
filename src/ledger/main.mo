@@ -151,9 +151,16 @@ actor class Ledger(initialAggregators : [Principal]) {
           case (?oid) ownersCache[i] := oid;
         };
       };
+      // map of new subaccounts to be written after full validation
+      let newSubaccounts = TrieMap.TrieMap<OwnerId, TrieMap.TrieMap<T.SubaccountId, SubaccountState>>(Nat.equal, func (a : OwnerId) { Nat32.fromNat(a) });
       // pass #1: validation
       for (i in tx.map.keys()) {
         let (contribution, oid) = (tx.map[i], ownersCache[i]);
+        let (newUserSubaccounts, _) = u.trieMapGetOrCreate<T.SubaccountId, TrieMap.TrieMap<T.SubaccountId, SubaccountState>>(
+          newSubaccounts,
+          oid,
+          func () = TrieMap.TrieMap<T.SubaccountId, SubaccountState>(Nat.equal, func (a : T.SubaccountId) { Nat32.fromNat(a) }),
+        );
         // check subaccount existence, auto approve, assetId for inflows
         for ((subaccountId, inflowAsset) in contribution.inflow.vals()) {
           if (subaccountId >= accounts[oid].size()) {
@@ -165,20 +172,26 @@ actor class Ledger(initialAggregators : [Principal]) {
             results[i] := #err(#AutoApproveNotAllowed);
             continue mainLoop;
           };
+          var currentBalance: Nat = 0;
           switch (subaccount.asset) {
-            case (#ft asset) {
-              switch (inflowAsset) {
-                case (#none) assert false; // should never happen. filtered out in validation function
-                case (#ft inflowAssetData) {
+            case (#ft asset) currentBalance := asset.1;
+            case (#none) {};
+          };
+          switch (inflowAsset) {
+            case (#none) assert false; // should never happen. filtered out in validation function
+            case (#ft inflowAssetData) {
+              switch (subaccount.asset) {
+                case (#ft asset) {
                   // subaccount has some tokens: check asset type
                   if (inflowAssetData.0 != asset.0) {
                     results[i] := #err(#WrongAssetType);
                     continue mainLoop;
                   };
                 };
+                case (#none) {}; // subaccount not initialized: inflow always valid
               };
+              newUserSubaccounts.put(subaccountId, { asset = #ft(inflowAssetData.0, currentBalance + inflowAssetData.1); autoApprove = subaccount.autoApprove });
             };
-            case (#none) {}; // subaccount not initialized: inflow always valid
           };
         };
         // check subaccount existence, assetId, balance for outflows
@@ -189,6 +202,11 @@ actor class Ledger(initialAggregators : [Principal]) {
           };
           let subaccount = accounts[oid][subaccountId];
           switch (subaccount.asset) {
+            case (#none) {
+              // subaccount not initialized: outflow cannot be applied
+              results[i] := #err(#InsufficientFunds);
+              continue mainLoop;
+            };
             case (#ft asset) {
               switch (outflowAsset) {
                 case (#none) assert false; // should never happen. filtered out in validation function
@@ -203,53 +221,17 @@ actor class Ledger(initialAggregators : [Principal]) {
                     results[i] := #err(#InsufficientFunds);
                     continue mainLoop;
                   };
+                  newUserSubaccounts.put(subaccountId, { asset = #ft(outflowAssetData.0, asset.1 - outflowAssetData.1); autoApprove = subaccount.autoApprove });
                 };
               };
-            };
-            case (#none) {
-              // subaccount not initialized: outflow cannot be applied
-              results[i] := #err(#InsufficientFunds);
-              continue mainLoop;
             };
           };
         };
       };
       // pass #2: applying
-      for (i in tx.map.keys()) {
-        let (contribution, oid) = (tx.map[i], ownersCache[i]);
-        // apply inflows
-        for ((subaccountId, inflowAsset) in contribution.inflow.vals()) {
-          var currentBalance: Nat = 0;
-          let subaccount = accounts[oid][subaccountId];
-          switch (subaccount.asset) {
-            case (#ft asset) {
-              currentBalance := asset.1;
-            };
-            case (_) {};
-          };
-          switch (inflowAsset) {
-            case (#none) assert false; // should never happen. filtered out in validation function
-            case (#ft inflowAssetData) {
-              accounts[oid][subaccountId] := { asset = #ft(inflowAssetData.0, currentBalance + inflowAssetData.1); autoApprove = subaccount.autoApprove };
-            };
-          };
-        };
-        // apply outflows
-        for ((subaccountId, outflowAsset) in contribution.outflow.vals()) {
-          var currentBalance: Nat = 0;
-          let subaccount = accounts[ownersCache[i]][subaccountId];
-          switch (subaccount.asset) {
-            case (#ft asset) {
-              currentBalance := asset.1;
-            };
-            case (_) assert false; // should never happen. Filtered out on validation pass
-          };
-          switch (outflowAsset) {
-            case (#none) assert false; // should never happen. filtered out in validation function
-            case (#ft outflowAssetData) {
-              accounts[ownersCache[i]][subaccountId] := { asset = #ft(outflowAssetData.0, currentBalance - outflowAssetData.1); autoApprove = subaccount.autoApprove };
-            };
-          };
+      for ((oid, newSubaccounts) in newSubaccounts.entries()) {
+        for ((subaccountId, newSubaccount) in newSubaccounts.entries()) {
+           accounts[oid][subaccountId] := newSubaccount;
         };
       };
     };

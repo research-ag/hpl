@@ -132,13 +132,13 @@ actor class Ledger(initialAggregators : [Principal]) {
       throw Error.reject("Not a registered aggregator");
     };
     let results: [var Result<(), ProcessingError>] = Array.init<Result<(), ProcessingError>>(batch.size(), #ok());
-    label mainLoop
+    label nextTx
     for (i in batch.keys()) {
       let tx = batch[i];
       let validationResult = v.validateTx(tx);
       if (R.isErr(validationResult)) {
           results[i] := validationResult;
-          continue mainLoop;
+          continue nextTx;
       };
       // cache owner ids per contribution. If some owner ID is wrong - return error
       let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
@@ -146,7 +146,7 @@ actor class Ledger(initialAggregators : [Principal]) {
         switch (owners.get(tx.map[j].owner)) {
           case (null) {
             results[i] := #err(#WrongOwnerId);
-            continue mainLoop;
+            continue nextTx;
           };
           case (?oid) ownersCache[j] := oid;
         };
@@ -163,7 +163,7 @@ actor class Ledger(initialAggregators : [Principal]) {
           switch (processFlow(oid, subaccountId, contribution.autoApprove, flowAsset, isInflow)) {
             case (#err err) {
               results[i] := #err(err);
-              continue mainLoop;
+              continue nextTx;
             };
             case (#ok newState) newSubaccounts := List.push((oid, subaccountId, newState), newSubaccounts);
           };

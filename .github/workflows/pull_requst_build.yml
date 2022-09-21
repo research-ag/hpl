@@ -51,3 +51,6 @@ jobs:
         run: |
           wget --output-document /home/runner/bin/vessel https://github.com/kritzcreek/vessel/releases/download/${{ env.vessel_version }}/vessel-linux64
           chmod +x /home/runner/bin/vessel
+
+      - name: "test"
+        run: make -C test

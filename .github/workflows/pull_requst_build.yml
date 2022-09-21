@@ -22,7 +22,7 @@ jobs:
 
       - name: Install wasmtime
         run: |
-          curl https://wasmtime.dev/install.sh -sSf | bash
+          sh -ci "$(curl -fsSL https://wasmtime.dev/install.sh)"
           echo "/home/runner/.wasmtime/bin" >> $GITHUB_PATH
 
       - name: "install Motoko binaries"

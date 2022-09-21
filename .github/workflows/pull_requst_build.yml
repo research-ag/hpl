@@ -3,6 +3,10 @@ on:
   pull_request:
     types: [synchronize, opened, reopened, ready_for_review, unlabeled]
 
+env:
+  vessel_version: "v0.6.4"
+  moc_version: "0.7.0"
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,3 +34,7 @@ jobs:
         run: |
           ~/bin/didc check .dfx/local/canisters/ledger/ledger.did src/ledger/ledger.did   
           ~/bin/didc check .dfx/local/canisters/aggregator/aggregator.did src/aggregator/aggregator.did   
+
+      - name: Install wasmtime
+        run: curl https://wasmtime.dev/install.sh -sSf | bash
+

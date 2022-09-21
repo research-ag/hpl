@@ -1,5 +1,5 @@
 import RBTree "mo:base/RBTree";
-import TrieMap "mo:base/TrieMap";
+import List "mo:base/List";
 import Nat "mo:base/Nat";
 import Int "mo:base/Int";
 import Nat32 "mo:base/Nat32";
@@ -151,13 +151,11 @@ actor class Ledger(initialAggregators : [Principal]) {
           case (?oid) ownersCache[j] := oid;
         };
       };
-      // map of new subaccounts to be written after full validation
-      let newSubaccounts = TrieMap.TrieMap<OwnerId, TrieMap.TrieMap<T.SubaccountId, SubaccountState>>(Nat.equal, func (a : OwnerId) { Nat32.fromNat(a) });
+      // list of new subaccounts to be written after full validation
+      var newSubaccounts = List.nil<(OwnerId, T.SubaccountId, SubaccountState)>();
       // pass #1: validation
       for (j in tx.map.keys()) {
         let (contribution, oid) = (tx.map[j], ownersCache[j]);
-        let newUserSubaccounts = TrieMap.TrieMap<T.SubaccountId, SubaccountState>(Nat.equal, func (a : T.SubaccountId) { Nat32.fromNat(a) });
-        newSubaccounts.put(oid, newUserSubaccounts);
         for ((subaccountId, flowAsset, isInflow) in u.iterConcat(
           Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
           Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
@@ -167,15 +165,13 @@ actor class Ledger(initialAggregators : [Principal]) {
               results[i] := #err(err);
               continue mainLoop;
             };
-            case (#ok newState) newUserSubaccounts.put(subaccountId, newState);
+            case (#ok newState) newSubaccounts := List.push((oid, subaccountId, newState), newSubaccounts);
           };
         };
       };
       // pass #2: applying
-      for ((oid, newUserSubaccounts) in newSubaccounts.entries()) {
-        for ((subaccountId, newSubaccount) in newUserSubaccounts.entries()) {
-           accounts[oid][subaccountId] := newSubaccount;
-        };
+      for ((oid, subaccountId, newSubaccount) in List.toIter(newSubaccounts)) {
+        accounts[oid][subaccountId] := newSubaccount;
       };
     };
   };

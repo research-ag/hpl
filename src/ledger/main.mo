@@ -7,7 +7,6 @@ import Array "mo:base/Array";
 import { compare } "mo:base/Principal";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
-import Option "mo:base/Option";
 import Error "mo:base/Error";
 
 // type imports
@@ -17,6 +16,7 @@ import C "../shared/constants";
 import v "../shared/validators";
 import u "../shared/utils";
 import DLL "../shared/dll";
+import CircularBuffer "../shared/circular_buffer";
 
 // ledger
 // the constructor arguments are:
@@ -68,6 +68,19 @@ actor class Ledger(initialAggregators : [Principal]) {
   type SubaccountState = { asset: Asset; autoApprove: Bool };
 
   let accounts : [var [var SubaccountState]] = Array.init(C.maxPrincipals, [var] : [var SubaccountState]);
+
+  /* history of last processed transactions */
+  type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [var Result<(), ProcessingError>] };
+  let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(C.batchHistoryLength);
+
+  // ============================== DEBUG COUNTERS ==============================
+  var __totalBatchesProcessed: Nat = 0;
+  var __batchesProcessedPerAggregator: [var Nat] = Array.init(initialAggregators.size(), 0);
+
+  var __txsSucceeded: Nat = 0;
+  var __txsFailed: Nat = 0;
+  var __txsTotal: Nat = 0;
+
 
   // updates
 
@@ -128,16 +141,20 @@ actor class Ledger(initialAggregators : [Principal]) {
   */
   type ProcessingError = v.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public shared({caller}) func processBatch(batch: Batch): async () {
-    if (Option.isNull(Array.find(aggregators, func (agg: Principal): Bool = agg == caller))) {
-      throw Error.reject("Not a registered aggregator");
+    let aggId = u.arrayFindIndex(aggregators, func (agg: Principal): Bool = agg == caller);
+    switch (aggId) {
+      case (#Found index) __batchesProcessedPerAggregator[index] += 1;
+      case (#NotFound) throw Error.reject("Not a registered aggregator");
     };
     let results: [var Result<(), ProcessingError>] = Array.init<Result<(), ProcessingError>>(batch.size(), #ok());
     label nextTx
     for (i in batch.keys()) {
+      __txsTotal += 1;
       let tx = batch[i];
       let validationResult = v.validateTx(tx);
       if (R.isErr(validationResult)) {
           results[i] := validationResult;
+          __txsFailed += 1;
           continue nextTx;
       };
       // cache owner ids per contribution. If some owner ID is wrong - return error
@@ -146,6 +163,7 @@ actor class Ledger(initialAggregators : [Principal]) {
         switch (owners.get(tx.map[j].owner)) {
           case (null) {
             results[i] := #err(#WrongOwnerId);
+            __txsFailed += 1;
             continue nextTx;
           };
           case (?oid) ownersCache[j] := oid;
@@ -163,6 +181,7 @@ actor class Ledger(initialAggregators : [Principal]) {
           switch (processFlow(oid, subaccountId, contribution.autoApprove, flowAsset, isInflow)) {
             case (#err err) {
               results[i] := #err(err);
+              __txsFailed += 1;
               continue nextTx;
             };
             case (#ok newState) newSubaccounts := List.push((oid, subaccountId, newState), newSubaccounts);
@@ -173,7 +192,10 @@ actor class Ledger(initialAggregators : [Principal]) {
       for ((oid, subaccountId, newSubaccount) in List.toIter(newSubaccounts)) {
         accounts[oid][subaccountId] := newSubaccount;
       };
+      __txsSucceeded += 1;
     };
+    batchHistory.put({ batchNumber = __totalBatchesProcessed; precedingTotalTxAmount = __txsTotal - results.size(); results = results });
+    __totalBatchesProcessed += 1;
   };
 
   // queries
@@ -213,6 +235,14 @@ actor class Ledger(initialAggregators : [Principal]) {
   public func addAggregator(p : Principal) : async Result<AggregatorId,()> {
     // AG: Array.append is deprecated due to bad performance, however in this case it appears more optimal than converting to buffer
     aggregators := Array.append(aggregators, [p]);
+    // for var arrays, even append does not exists...
+    __batchesProcessedPerAggregator := Array.tabulateVar<Nat>(__batchesProcessedPerAggregator.size() + 1, func (i : Nat) : Nat {
+      if (i < __batchesProcessedPerAggregator.size()) {
+        __batchesProcessedPerAggregator[i];
+      } else {
+        0;
+      };
+    });
     // let aggBuffer: Buffer.Buffer<Principal> = Buffer.fromArray(aggregators);
     // aggBuffer.add(p);
     // aggregators := aggBuffer.toArray();
@@ -225,6 +255,28 @@ actor class Ledger(initialAggregators : [Principal]) {
       case (null) #err(#NotFound);
       case (?oid) #ok(Array.freeze(accounts[oid]));
     };
+  };
+
+  public query func counters() : async { totalBatches: Nat; batchesPerAggregator: [Nat]; totalTxs: Nat; failedTxs: Nat; succeededTxs: Nat } {
+    {
+      totalBatches = __totalBatchesProcessed;
+      batchesPerAggregator = Array.freeze<Nat>(__batchesProcessedPerAggregator);
+      totalTxs = __txsTotal;
+      failedTxs = __txsFailed;
+      succeededTxs = __txsSucceeded;
+    };
+  };
+
+  type BatchResponse = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
+  public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [BatchResponse] {
+    Array.map<BatchHistoryEntry, BatchResponse>(
+      batchHistory.slice(startIndex, endIndex),
+      func (x: BatchHistoryEntry): BatchResponse = {
+        batchNumber = x.batchNumber;
+        precedingTotalTxAmount = x.precedingTotalTxAmount;
+        results = Array.freeze(x.results);
+      }
+    );
   };
 
   // private functionality

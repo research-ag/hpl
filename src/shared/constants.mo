@@ -19,4 +19,7 @@ module {
 
   // maximum number of accounts total in ledger
   public let maxPrincipals = 16777216;
+
+  // maximum number of stored latest processed batches on the ledger
+  public let batchHistoryLength = 1024;
 }

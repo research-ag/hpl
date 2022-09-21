@@ -7,7 +7,7 @@ env:
   vessel_version: v0.6.4
   moc_version: 0.7.0
   dfx_version: 0.12.0-beta.2
-  ic_repl_version: 0.3.4
+  ic-repl_version: 0.3.4
 
 jobs:
   build:
@@ -61,6 +61,6 @@ jobs:
 
       - name: Install ic-repl
         run: |
-          wget https://github.com/chenyan2002/ic-repl/releases/download/{{ env.ic_repl_version }}/ic-repl-linux64
+          wget https://github.com/chenyan2002/ic-repl/releases/download/${{ env.ic-repl_version }}/ic-repl-linux64
           mv ./ic-repl-linux64 /home/runner/bin 
           chmod a+x /home/runner/bin/ic-repl

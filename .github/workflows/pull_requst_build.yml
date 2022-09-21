@@ -62,5 +62,5 @@ jobs:
       - name: Install ic-repl
         run: |
           wget https://github.com/chenyan2002/ic-repl/releases/download/${{ env.ic-repl_version }}/ic-repl-linux64
-          mv ./ic-repl-linux64 /home/runner/bin 
+          mv ./ic-repl-linux64 /home/runner/bin/ic-repl 
           chmod a+x /home/runner/bin/ic-repl

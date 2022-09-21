@@ -33,23 +33,23 @@ module CircularBuffer {
     public func slice(startIndex: Nat, endIndex: Nat): [T] {
       // clamp indexes to buffer capacity/amount of already added elements
       let minIndex: Nat = if (pushCtr > capacity) { pushCtr - capacity } else { 0 };
-      var start = Nat.max(minIndex, Nat.min(pushCtr, startIndex));
-      var end = Nat.max(minIndex, Nat.min(pushCtr, endIndex));
+      let start = Nat.max(minIndex, Nat.min(pushCtr, startIndex));
+      let end = Nat.max(minIndex, Nat.min(pushCtr, endIndex));
       // cursor in buffer's array
-      var read_cursor = wrapIndex(start);
-      end := read_cursor + end - start;
+      var readCursor = wrapIndex(start);
+      let cursorEnd: Nat = readCursor + end - start;
       Iter.toArray(object {
         public func next() : ?T {
-          if (read_cursor >= end) {
+          if (readCursor >= cursorEnd) {
             return null;
           };
           var res: ?T = null;
-          if (read_cursor < capacity) {
-            res := array[read_cursor];
+          if (readCursor < capacity) {
+            res := array[readCursor];
           } else {
-            res := array[read_cursor - capacity];
+            res := array[readCursor - capacity];
           };
-          read_cursor += 1;
+          readCursor += 1;
           res;
         };
       });

@@ -38,8 +38,7 @@ jobs:
       - name: Install wasmtime
         run: |
           curl https://wasmtime.dev/install.sh -sSf | bash
-          echo "home dir ="$HOME
-          export PATH="$HOME/.wasmtime/bin:$PATH"
+          echo "/home/runner/.wasmtime/bin" >> $GITHUB_PATH
 
       - name: "install Motoko binaries"
         run: |

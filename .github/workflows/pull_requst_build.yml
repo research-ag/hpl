@@ -36,7 +36,9 @@ jobs:
           ~/bin/didc check .dfx/local/canisters/aggregator/aggregator.did src/aggregator/aggregator.did   
 
       - name: Install wasmtime
-        run: curl https://wasmtime.dev/install.sh -sSf | bash
+        run: |
+          curl https://wasmtime.dev/install.sh -sSf | bash
+          source /home/runner/.bashrc
 
       - name: "install Motoko binaries"
         run: |

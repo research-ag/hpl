@@ -1,23 +1,28 @@
-import { nyi; xxx } "mo:base/Prelude";
-import Deque "mo:base/Deque";
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Ledger "../ledger/main";
+import Bool "mo:base/Bool";
+import R "mo:base/Result";
+import Iter "mo:base/Iter";
 
 // type imports
 // pattern matching is not available for types (work-around required)
 import T "../shared/types";
-import R "mo:base/Result";
+import v "../shared/validators";
+import u "../shared/utils";
+import SlotTable "../shared/slot_table";
+import HPLQueue "../shared/queue";
+import DLL "../shared/dll";
 
 // aggregator
 // the constructor arguments are:
 //   principal of the ledger canister
 //   own aggregator id
 // the constructor arguments are passed like this:
-//   dfx deploy --argument='(principal "aaaaa-aa")' aggregator 
+//   dfx deploy --argument='(principal "aaaaa-aa")' aggregator
 // alternatively, the argument can be placed in dfx.json according to this scheme:
 // https://github.com/dfinity/sdk/blob/ca578a30ea27877a7222176baea3a6aa368ca6e8/docs/dfx-json-schema.json#L222-L229
-actor class Aggregator(_ledger : Principal, own_id : Nat) {
+actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
 
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
@@ -25,216 +30,64 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   type LocalId = T.LocalId;
   type GlobalId = T.GlobalId;
   type Batch = T.Batch;
-
-  /* store the init arguments: 
-       - canister id of the ledger canister
-       - own unique identifier of this aggregator
-  */
-  let ledger : Principal = _ledger; 
-  let selfAggregatorIndex: Nat = own_id;
-
-  // define the ledger actor
-  let Ledger_actor = actor (Principal.toText(ledger)) : Ledger.Ledger;
-
-  /* 
-  Glossary:
-  transaction (short: tx): The information that is being sent to the ledger if the transaction is approved. It captures a) everything needed during ledger-side validation of the transaction and b) everything needed to define the effect on the ledger if executed.
-
-  transaction request (short: tx request): The information of a transaction plus transient information needed while the transaction lives in the aggregator. 
-
-  local tx id (short: local id): An id that uniquely identifies a transaction request inside this aggregator. It is issued when a transaction request is first submitted. It is never re-used again for any other request regardless of whether the transaction request is approved, rejected or otherwise deleted (expired). It stays with the transaction if the transaction is send to the ledger. 
-
-  global tx id (short: global id): The local id plus aggregator id makes a globally unique id. 
- 
-  fully approved: A tx request that is approved by all contributors that are not marked as auto_approve by the tx. A fully approved tx is queued.
-
-  unapproved: A tx request that is not yet fully approved.
-  */
-
-  /* 
-  Lifetime of a transaction request:
-  - tx submitted by the user becomes a transaction request
-  - pre-validation: is it too large? too many fields, etc.?
-  - tx is added to the lookup table. if there is no space then it is rejected, if there is space then the lookup table
-    - generates a unique local tx id
-    - stores the local tx id in the tx in the request
-    - stores the tx request
-    - returns the local tx id  
-  - global tx id is returned to the user
-  - when approve and reject is called then the tx is looked up by its local id
-  - when a tx is fully approved its local id is queued for batching
-  - value of `push_ctr` is stored inside the tx request and `push_ctr` incremented
-  - when a local tx id is popped from the queue then
-    - the tx is deleted from the lookup table 
-    - `pop_ctr` is incremented
-
-  The lookup table internally maintains three values:
-  - capacity (constant) = the total number of slots available in the lookup table, i.e. used slots plus unused slots
-  - used = the number of used slots (equals the number of unapproved txs plus queued txs)
-  - unapproved = the number of unapproved txs  
-
-  debug counters:
-  - submitted : counts all that are ever submitted
-  */
+  type AggregatorId = T.AggregatorId;
+  type AssetId = T.AssetId;
 
   /*
-  The aggregator sends the transactions in batches to the ledger. It does so at every invocation by the heartbeat functionality.
-  Between heartbeats, approved transaction queue up and get stored in a queue. The batches have a size limit. At every heartbeat, 
-  we pop as many approved transactions from the queue as fit into a batch and send the batch.
-
-  In a future iteration we can send more than one batch per heartbeat. But such an approach requires a mechanism to slow down when 
-  delivery failures occur. We currently do not implement it. 
-
-  The queue is of type Deque<LocalId>. We don't need a double-ended queue but this is the only type of queue available in motoko-base.
-  Deque is a functional data structure, hence it is a mutable variable.
-  */
-
-  var approvedTxs = Deque.empty<LocalId>();
-
-  /*
-  global counters 
-  push_ctr = number of txs that were ever pushed to the queue
-  pop_ctr = number txs that were ever popped from the queue
-  the difference between the two equals the current length of the queue 
-  */
-  var push_ctr : Nat = 0;
-  var pop_ctr : Nat = 0;
-
-  /* 
-  debug counter
-  number of tx requests ever submitted 
-  */
-  var submitted : Nat = 0;
-
-  /* 
   Here is the information that makes up a transaction request.
   `Approvals` is a vector that captures the information who has already approved the transaction.
   The vector's length equals the number of contributors to the transactions.
   When a tx is approved (i.e. queued) then the value `push_ctr` is stored in the #approved field in the status variant.
   */
-
+  type MutableApprovals = [var Bool];
   type Approvals = [Bool];
   type TxRequest = {
     tx : Tx;
     submitter : Principal;
-    lid : LocalId;
-    status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
+    var lid : ?LocalId;
+    var status : { #unapproved : MutableApprovals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
- 
-  /* 
+
+  /*
   Here is the information we return to the user when the user queries for tx details.
   The difference to the internally stored TxRequest is:
   - global id instead of local id
   - the Nat in variant #approved is not the same. Here, we subtract the value `pop_ctr` to return the queue position.
   */
-
   type TxDetails = {
     tx : Tx;
     submitter : Principal;
     gid : GlobalId;
     status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
- 
-  /*
-  Our lookup data structure has the following interface.
 
-  The function `mark` will be called when a tx becomes fully approved. The reason is that we want to be able to overwrite old unapproved 
-  transactions like in a circular buffer, but we never want to overwrite transactions that are already queued.
+  /* store the init arguments:
+       - canister id of the ledger canister
+       - own unique identifier of this aggregator
   */
+  let ledger : Principal = _ledger;
+  let selfAggregatorIndex: AggregatorId = own_id;
 
-  type Lookup = {
-    // add an element to the data structure  
-    // return null if there is no space, otherwise assign a new local id to the element and return the id
-    // the data structure is allowed to overwrite the oldest unmarked element
-    add : (txreq : TxRequest) -> (?LocalId) ; 
-
-    // look up an element by id and return it 
-    // return null if the id cannot be found 
-    get : (lid : LocalId) -> (?TxRequest) ; 
- 
-    // look up an element by id and mark it so it cannot be overwritten 
-    // return null if the id cannot be found 
-    mark : (lid : LocalId) -> (?TxRequest) ; 
-
-    // look up an element by id and delete it
-    // ignore if the id cannot be found 
-    remove : (lid : LocalId) -> () ;
-  };
+  // define the ledger actor
+  let Ledger_actor = actor (Principal.toText(ledger)) : Ledger.Ledger;
 
   /*
-  We implement our lookup data structure as a lookup table (array) with a fixed number of slots.
-  The slots are numbered 0,..,N-1.
+  Glossary:
+  transaction (short: tx): The information that is being sent to the ledger if the transaction is approved. It captures a) everything needed during ledger-side validation of the transaction and b) everything needed to define the effect on the ledger if executed.
 
-  If 256 new transactions are submitted per second and never approved then, in a table with N=2**24 slots, they stay for ~18h before their slot gets overwritten. 
+  transaction request (short: tx request): The information of a transaction plus transient information needed while the transaction lives in the aggregator.
 
-  Each slot is an element of the following type:
-    value : stored the tx request if the slot is currently used
-    counter : counts how many times the slot has already been used (a trick to generate a unique local id)
-    next/prev_index : used to track the order in which slots are to be used
+  local tx id (short: local id): An id that uniquely identifies a transaction request inside this aggregator. It is issued when a transaction request is first submitted. It is never re-used again for any other request regardless of whether the transaction request is approved, rejected or otherwise deleted (expired). It stays with the transaction if the transaction is send to the ledger.
+
+  global tx id (short: global id): The local id plus aggregator id makes a globally unique id.
+
+  fully approved: A tx request that is approved by all contributors that are not marked as auto_approve by the tx. A fully approved tx is queued.
+
+  unapproved: A tx request that is not yet fully approved.
   */
-
-  type Slot = {
-    var value : ?TxRequest; // value `none` means the slot is empty
-    var counter : Nat; // must be initialized to 0
-    var next_index : ?Nat; // this must be initialized dynamically to i+1 for slot i and null for slot capacity-1
-    var prev_index : ?Nat; // this must be initialized dynamically to i-1 for slot i and null for slot 0 
-  };
-
-  /* 
-  Given a first index into the table and following recursively the `next_index` one gets a chain of slots inside the table.
-  The chain ends when the `next_index` value is `none`.
-
-  The following type captures such a chain.
-
-  Chains are used like queues, i.e. elements are removed from the head (first element) and added at the tail (last element), 
-  but we can also remove elements from somewhere in the middle.
-  */  
-
-  type Chain = { var length : Nat; var head : ?Nat; var tail : ?Nat };
-
-  /* 
-  Our lookup table is the following object.
-  The `unused` chain contains all unused slot indices and defines the order in which they are filled with new tx requests.
-  The `unapproved` chain contains all used slot indices that contain a unapproved tx request and defines the order in which they are to be overwritten.
-
-  We currently utilize only one unapproved chain. In the future there can be multiple chains. A principal can buy its own chain of a certain capacity for a fee.
-  Then the principal's own requests cannot be overwritten by others. But there is an recurring fee to reserve the chain capacity.
-  */
-
-  let lookup : Lookup = object {
-    let capacity = 16777216; // number of slots available in the table
-
-    // see below for explanation of the Slot type  
-    let slots : [Slot] = Array.tabulate<Slot>(16777216, func(n : Nat) { switch (n) {
-      case (0) { let s : Slot = { var value = null; var counter = 0; var next_index = ?(n+1); var prev_index = null} };
-      case (16777215) { let s : Slot = { var value = null; var counter = 0; var next_index = null; var prev_index = ?(n-1)} };
-      case (_) { let s : Slot = { var value = null; var counter = 0; var next_index = ?(n+1); var prev_index = ?(n-1)} };
-    }});
-
-    // see below for explanation of the Chain type  
-    let unused : Chain = { var length = 16777216; var head = ?0; var tail = ?16777215 }; // chain of all unused slots 
-    let unapproved : Chain = { var length = 0; var head = null; var tail = null }; // chain of all used slots with a unapproved tx request
- 
-    // add an element to the table
-    // if the table is not full then take an usued slot (the slot will shift to unapproved)
-    // if the table is full but there are unapproved slots then overwrite the oldest unapproved slot
-    // if the table is full and there are no unapproved slots then abort
-    public func add(txreq : TxRequest) : ?LocalId { nyi() }; 
-
-    // look up an element by id and return it 
-    // abort if the id cannot be found 
-    public func get(lid : LocalId) : ?TxRequest { nyi() }; 
- 
-    // look up an element by id and mark its slot 
-    // abort if the id cannot be found 
-    public func mark(lid : LocalId) : ?TxRequest { nyi() }; 
-
-    // look up an element by id and empty its slot
-    // ignore if the id cannot be found 
-    public func remove(lid : LocalId) : () { nyi() };
-  };
 
   /*
+
   Further details about the implementation of the functions:
 
   If a new element is added and the unused chain is non-empty then:
@@ -259,60 +112,239 @@ actor class Aggregator(_ledger : Principal, own_id : Nat) {
   If it equals and the `value` field in the slot is `none` then it means the local id entry is no longer stored (removed) and the lookup failed.  
   Otherwise the lookup was successful.
 
-  If a used slot gets marked (happens when the tx request gets approved) then it is removed from the `unapproved` chain.
- 
-  If the element in a used slot is removed then:
-    - the value in the slot is set to `none`
-    - the slot is pushed to the `unused` chain. 
+  The aggregator sends the transactions in batches to the ledger. It does so at every invocation by the heartbeat functionality.
+  Between heartbeats, approved transaction queue up and get stored in a queue. The batches have a size limit. At every heartbeat,
+  we pop as many approved transactions from the queue as fit into a batch and send the batch.
 
-  So the theoretical transitions of a slot are: 
-    unused ->(add) unapproved ->(remove) unused
-    unused ->(add) unapproved ->(mark) not in any chain ->(remove) unused
-
-  In practice what happens is:
-    unused_chain ->(tx is added) unapproved ->(tx gets fully approved) not in any chain ->(tx gets batched) unused 
+  In a future iteration we can send more than one batch per heartbeat. But such an approach requires a mechanism to slow down when
+  delivery failures occur. We currently do not implement it.
   */
 
-  // update functions
+  /*
+  debug counter
+  number of tx requests ever submitted
+  */
+  var submitted : Nat = 0;
 
-  type SubmitError = { #NoSpace; #Invalid; };
-  public func submit(transfer: Tx): async Result<GlobalId, SubmitError> {
-    nyi();
+  // lookup table
+  var lookup : SlotTable.SlotTable<DLL.Cell<TxRequest>> = SlotTable.SlotTable<DLL.Cell<TxRequest>>();
+  // chain of all used slots with a unapproved tx request
+  var unapproved : DLL.DoublyLinkedList<TxRequest> = DLL.DoublyLinkedList<TxRequest>();
+  // the queue of approved requests for batching
+  var approvedTxs = HPLQueue.HPLQueue<LocalId>();
+
+  /** Create a new transaction request.
+  * Here we init it and put to the lookup table.
+  * If the lookup table is full, we try to reuse the slot with oldest unapproved request
+  */
+  type SubmitError = { #NoSpace; #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted };
+  public shared(msg) func submit(tx: Tx): async Result<GlobalId, SubmitError> {
+    let validationResult = v.validateTx(tx);
+    switch (validationResult) {
+      case (#err error) return #err(error);
+      case (#ok) {};
+    };
+    let txRequest : TxRequest = {
+      tx = tx;
+      submitter = msg.caller;
+      var lid = null;
+      var status = #unapproved(Array.init(tx.map.size(), false));
+    };
+    let cell = unapproved.pushBack(txRequest);
+    txRequest.lid := lookup.add(cell);
+    switch (txRequest.lid) {
+      case (?lid) #ok(selfAggregatorIndex, lid);
+      case (null) {
+        // try to reuse oldest unapproved
+        if (unapproved.size() < 2) { // 1 means that chain contains only just added cell
+          cell.removeFromList();
+          return #err(#NoSpace);
+        };
+        let memoryFreed = cleanupOldest(unapproved);
+        switch (memoryFreed) {
+          case (false) {
+            cell.removeFromList();
+            #err(#NoSpace);
+          };
+          case (true) {
+            txRequest.lid := lookup.add(cell);
+            switch (txRequest.lid) {
+              case (?lid) #ok(selfAggregatorIndex, lid);
+              case (null) {
+                cell.removeFromList();
+                #err(#NoSpace);
+              }
+            };
+          };
+        };
+      };
+    };
   };
 
-  type NotPendingError = { #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
-  public func approve(transferId: GlobalId): async Result<(),NotPendingError> {
-    nyi();
+  /** Approve request. If the caller made the last required approvement, it:
+  * - marks request as approved
+  * - removes transaction request from the unapproved list
+  * - enqueues the request to the batch queue
+  */
+  type NotPendingError = { #WrongAggregator; #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
+  public shared(msg) func approve(txId: GlobalId): async Result<(),NotPendingError> {
+    let pendingRequestInfo = getPendingTxRequest(txId, msg.caller);
+    switch (pendingRequestInfo) {
+      case (#err err) return #err(err);
+      case (#ok (tr, approvals, index)) {
+        approvals[index] := true;
+        if (Array.foldRight(Array.freeze(approvals), true, Bool.logand)) {
+          let lid = txId.1;
+          let cell = lookup.get(lid);
+          // remove from unapproved list
+          switch (cell) {
+            case (?c) c.removeFromList();
+            case (null) {};
+          };
+          approvedTxs.enqueue(lid);
+          tr.status := #approved(approvedTxs.pushesAmount());
+        };
+        return #ok;
+      };
+    };
   };
 
-  public func reject(transferId: GlobalId): async Result<(),NotPendingError> {
-    nyi();
+  /** Reject request. It marks request as rejected, but don't remove the request from unapproved list,
+  * so it's status can still be queried until overwritten by newer requests
+  */
+  public shared(msg) func reject(txId: GlobalId): async Result<(),NotPendingError> {
+    let pendingRequestInfo = getPendingTxRequest(txId, msg.caller);
+    switch (pendingRequestInfo) {
+      case (#err err) return #err(err);
+      case (#ok (tr, _, _)) {
+        tr.status := #rejected;
+        return #ok;
+      };
+    };
   };
- 
-  // query functions
 
+  /** Query transaction request info */
   type TxError = { #NotFound; };
   public query func txDetails(gid: GlobalId): async Result<TxDetails, TxError> {
-    nyi();
+    let txRequest = lookup.get(gid.1);
+    switch (txRequest) {
+      case (null) #err(#NotFound);
+      case (?cell) {
+        let txr = cell.value;
+        return #ok({
+          tx = txr.tx;
+          submitter = txr.submitter;
+          gid = gid;
+          status = switch (txr.status) {
+            case (#unapproved list) #unapproved(Array.freeze(list));
+            case (#approved x) #approved(x);
+            case (#rejected) #rejected();
+            case (#pending) #pending();
+            case (#failed_to_send) #failed_to_send();
+          };
+        });
+      };
+    };
   };
 
-  // heartbeat function
-
+  /** heartbeat function */
   system func heartbeat() : async () {
-    let b : Batch = []; // pop from queue here
+    let requestsToSend: [TxRequest] = Iter.toArray(object {
+      var counter = 0;
+      public func next() : ?TxRequest {
+        if (counter >= T.batchSize) {
+          return null; // already added `batchSize` requests to the batch: stop iteration;
+        };
+        let lid = approvedTxs.dequeue();
+        switch (lid) {
+          case (null) {}; // queue ended: stop iteration;
+          case (?l) {
+            let cell = lookup.get(l);
+            switch (cell) {
+              case (null) assert false; // should never happen: request was overwritten in lookup table
+              case (?c) {
+                counter += 1;
+                c.value.status := #pending;
+                return ?c.value;
+              };
+            };
+          };
+        };
+        return null;
+      };
+    });
+    let batch: Batch = Array.map(requestsToSend, func (req: TxRequest): Tx = req.tx);
     try {
-      await Ledger_actor.processBatch(b);
+      await Ledger_actor.processBatch(batch);
       // the batch has been processed
       // the transactions in b are now explicitly deleted from the lookup table
       // the aggregator has now done its job
-      // the user has to query the ledger to see the execution status (executed or failed) and the order relative to other transactions 
+      // the user has to query the ledger to see the execution status (executed or failed) and the order relative to other transactions
+      for (req in requestsToSend.vals()) {
+        switch (req.lid) {
+          case (?l) lookup.remove(l);
+          case (null) assert false; // should never happen
+        };
+      };
     } catch (e) {
       // batch was not processed
       // we do not retry sending the batch
       // we set the status of all txs to #failed_to_send
       // we leave all txs in the lookup table forever
       // in the lookup table all of status #approved, #pending, #failed_to_send remain outside any chain, hence they won't be deleted
-      // only an upgrade can clean them up 
+      // only an upgrade can clean them up
+      for (req in requestsToSend.vals()) {
+        req.status := #failed_to_send;
+      };
+    };
+  };
+
+  // private functionality
+  /** get info about pending request. Returns user-friendly errors */
+  private func getPendingTxRequest(txId: GlobalId, caller: Principal): Result<( txRequest: TxRequest, approvals: MutableApprovals, index: Nat ),NotPendingError> {
+    let (aggregator, local_id) = txId;
+    if (aggregator != own_id) {
+      return #err(#WrongAggregator);
+    };
+    let cell = lookup.get(local_id);
+    switch (cell) {
+      case (null) return #err(#NotFound);
+      case (?c) {
+        let tr = c.value;
+        switch (tr.status) {
+          case (#approved _)            return #err(#AlreadyApproved);
+          case (#pending)               return #err(#AlreadyApproved);
+          case (#failed_to_send)        return #err(#AlreadyApproved);
+          case (#rejected)              return #err(#AlreadyRejected);
+          case (#unapproved approvals)  {
+            switch (u.arrayFindIndex(tr.tx.map, func (c: T.Contribution) : Bool { c.owner == caller })) {
+              case (#NotFound) return #err(#NoPart);
+              case (#Found index) {
+                return #ok( tr, approvals, index );
+              };
+            };
+          };
+        };
+      };
+    };
+    return #err(#NotFound);
+  };
+
+  /** cleanup oldest unapproved request */
+  private func cleanupOldest(chain: DLL.DoublyLinkedList<TxRequest>) : Bool {
+    let oldestTrRequest = chain.popFront();
+    switch (oldestTrRequest) {
+      case (null) false;
+      case (?req) {
+        switch (req.lid) {
+          case (?lid) {
+            lookup.remove(lid);
+            true;
+          };
+          // chain contained request without lid. Should never happen, but to be on the safe side let's try to cleanup further
+          case (null) cleanupOldest(chain);
+        };
+      };
     };
   };
 

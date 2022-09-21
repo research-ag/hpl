@@ -21,15 +21,18 @@ module {
   // inflow/outflow encodes a map subaccount -> asset list
   // subaccount id must be strictly increasing throughout the list to rule out duplicate keys
 
-  // Tx = Tx
-  public type Tx = { 
-    map : [Contribution]; 
+  // Tx = Transaction
+  // map is seen as a map from a principal to its contribution
+  // TODO the principals must be strictly increasing throughout the list to rule out duplicate keys in map
+  public type Tx = {
+    map : [Contribution];
     committer : ?Principal
   };
-  // map is seen as a map from a principal to its contribution
-  // the principals must be strictly increasing throughout the list to rule out duplicate keys in map
 
   public type Batch = [Tx];
+
+  // the amount of transactions in one batch
+  public let batchSize = 256;
 
   // maximal memo size is 256 bytes
   public let max_memo_size = 256;

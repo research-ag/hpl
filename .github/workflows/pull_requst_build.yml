@@ -38,8 +38,8 @@ jobs:
       - name: Install wasmtime
         run: |
           curl https://wasmtime.dev/install.sh -sSf | bash
-          cat /home/runner/.bashrc
-          source /home/runner/.bashrc
+          echo "home dir ="$HOME
+          export PATH="$HOME/.wasmtime/bin:$PATH"
 
       - name: "install Motoko binaries"
         run: |

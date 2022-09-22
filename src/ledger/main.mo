@@ -70,7 +70,7 @@ actor class Ledger(initialAggregators : [Principal]) {
   let accounts : [var [var SubaccountState]] = Array.init(C.maxPrincipals, [var] : [var SubaccountState]);
 
   /* history of last processed transactions */
-  type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [var Result<(), ProcessingError>] };
+  type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
   let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(C.batchHistoryLength);
 
   // ============================== DEBUG COUNTERS ==============================
@@ -194,7 +194,7 @@ actor class Ledger(initialAggregators : [Principal]) {
       };
       __txsSucceeded += 1;
     };
-    batchHistory.put({ batchNumber = __totalBatchesProcessed; precedingTotalTxAmount = __txsTotal - results.size(); results = results });
+    batchHistory.put({ batchNumber = __totalBatchesProcessed; precedingTotalTxAmount = __txsTotal - results.size(); results = Array.freeze(results) });
     __totalBatchesProcessed += 1;
   };
 
@@ -243,9 +243,6 @@ actor class Ledger(initialAggregators : [Principal]) {
         0;
       };
     });
-    // let aggBuffer: Buffer.Buffer<Principal> = Buffer.fromArray(aggregators);
-    // aggBuffer.add(p);
-    // aggregators := aggBuffer.toArray();
     #ok(aggregators.size() - 1);
   };
 
@@ -267,16 +264,8 @@ actor class Ledger(initialAggregators : [Principal]) {
     };
   };
 
-  type BatchResponse = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
-  public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [BatchResponse] {
-    Array.map<BatchHistoryEntry, BatchResponse>(
-      batchHistory.slice(startIndex, endIndex),
-      func (x: BatchHistoryEntry): BatchResponse = {
-        batchNumber = x.batchNumber;
-        precedingTotalTxAmount = x.precedingTotalTxAmount;
-        results = Array.freeze(x.results);
-      }
-    );
+  public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [BatchHistoryEntry] {
+    batchHistory.slice(startIndex, endIndex);
   };
 
   // private functionality

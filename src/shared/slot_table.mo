@@ -27,21 +27,22 @@ module SlotTable {
   */
   // `capacity` is a number of slots available in the table
   public class SlotTable<X>(capacity: Nat) {
-    // chain of all unused slots
-    let unused : HPLQueue.HPLQueue<Nat> = HPLQueue.HPLQueue<Nat>();
+    // total amount of pushes to the table
+    private var pushCtr : Nat = 0;
+    // chain of all slots, that can be reused
+    let reuseQueue : HPLQueue.HPLQueue<Nat> = HPLQueue.HPLQueue<Nat>();
     // slots array
-    let slots : [Slot<X>] = Array.tabulate<Slot<X>>(capacity, func(n : Nat) {
-      // during initialization, fill the queue with 0...<capacity> indexes
-      unused.enqueue(n);
-      { var value = null; var counter = 0; };
-    });
+    let slots : [Slot<X>] = Array.tabulate<Slot<X>>(capacity, func(n : Nat) = { var value = null; var counter = 0; });
+
+    /** number of items that were ever pushed to the table */
+    public func pushesAmount(): Nat = pushCtr;
 
     /** adds an element to the table.
     * If the table is not full then take an usued slot, write value and return unique local id;
     * if the table is full then return null
     */
     public func add(element : X) : ?LocalId {
-      let slotIndex = unused.dequeue();
+      let slotIndex = if (pushCtr < capacity) { ?pushCtr } else { reuseQueue.dequeue() };
       switch (slotIndex) {
         case (?si) ?insertValue(element, si);
         case (null) null;
@@ -67,7 +68,7 @@ module SlotTable {
       switch (slotInfo) {
         case (null) {};
         case (?(slot, slotIndex)) {
-          unused.enqueue(slotIndex);
+          reuseQueue.enqueue(slotIndex);
           slot.value := null;
         };
       };
@@ -89,6 +90,7 @@ module SlotTable {
       let slot = slots[slotIndex];
       slot.counter += 1;
       slot.value := ?element;
+      pushCtr += 1;
       slot.counter*capacity + slotIndex;
     };
   };

@@ -13,7 +13,7 @@ module CircularBuffer {
 
     private var pushCtr : Nat = 0;
 
-    /** number of items that were ever pushed to the queue */
+    /** number of items that were ever pushed to the buffer */
     public func pushesAmount(): Nat = pushCtr;
 
     /** insert value into the buffer */

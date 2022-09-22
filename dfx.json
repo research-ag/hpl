@@ -1,12 +1,16 @@
 {
   "canisters": {
-    "aggregator": {
-      "main": "src/aggregator/main.mo",
-      "type": "motoko"
-    },
     "ledger": {
       "main": "src/ledger/main.mo",
       "candid": "src/ledger/ledger.did",     
+      "type": "motoko"
+    },
+    "agg0": {
+      "main": "src/aggregator/main.mo",
+      "type": "motoko"
+    },
+    "agg1": {
+      "main": "src/aggregator/main.mo",
       "type": "motoko"
     }
   },

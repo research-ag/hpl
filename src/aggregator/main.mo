@@ -8,6 +8,7 @@ import Iter "mo:base/Iter";
 // type imports
 // pattern matching is not available for types (work-around required)
 import T "../shared/types";
+import C "../shared/constants";
 import v "../shared/validators";
 import u "../shared/utils";
 import SlotTable "../shared/slot_table";
@@ -81,7 +82,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
 
   global tx id (short: global id): The local id plus aggregator id makes a globally unique id.
 
-  fully approved: A tx request that is approved by all contributors that are not marked as auto_approve by the tx. A fully approved tx is queued.
+  fully approved: A tx request that is approved by all contributors that are not marked as autoApprove by the tx. A fully approved tx is queued.
 
   unapproved: A tx request that is not yet fully approved.
   */
@@ -116,7 +117,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   var submitted : Nat = 0;
 
   // lookup table
-  var lookup : SlotTable.SlotTable<DLL.Cell<TxRequest>> = SlotTable.SlotTable<DLL.Cell<TxRequest>>();
+  var lookup : SlotTable.SlotTable<DLL.Cell<TxRequest>> = SlotTable.SlotTable<DLL.Cell<TxRequest>>(C.lookupCapacity);
   // chain of all used slots with a unapproved tx request
   var unapproved : DLL.DoublyLinkedList<TxRequest> = DLL.DoublyLinkedList<TxRequest>();
   // the queue of approved requests for batching
@@ -126,23 +127,27 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   * Here we init it and put to the lookup table.
   * If the lookup table is full, we try to reuse the slot with oldest unapproved request
   */
-  type SubmitError = { #NoSpace; #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted };
+  type SubmitError = v.TxValidationError or { #NoSpace; };
   public shared(msg) func submit(tx: Tx): async Result<GlobalId, SubmitError> {
     let validationResult = v.validateTx(tx);
     switch (validationResult) {
       case (#err error) return #err(error);
       case (#ok) {};
     };
+    let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].autoApprove or tx.map[i].owner == msg.caller);
     let txRequest : TxRequest = {
       tx = tx;
       submitter = msg.caller;
       var lid = null;
-      var status = #unapproved(Array.init(tx.map.size(), false));
+      var status = #unapproved(approvals);
     };
     let cell = unapproved.pushBack(txRequest);
     txRequest.lid := lookup.add(cell);
     switch (txRequest.lid) {
-      case (?lid) #ok(selfAggregatorIndex, lid);
+      case (?lid) {
+        checkIsApprovedAndEnqueue(txRequest, lid, Array.freeze(approvals));
+        #ok(selfAggregatorIndex, lid);
+      };
       case (null) {
         // try to reuse oldest unapproved
         if (unapproved.size() < 2) { // 1 means that chain contains only just added cell
@@ -158,7 +163,10 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
           case (true) {
             txRequest.lid := lookup.add(cell);
             switch (txRequest.lid) {
-              case (?lid) #ok(selfAggregatorIndex, lid);
+              case (?lid) {
+                checkIsApprovedAndEnqueue(txRequest, lid, Array.freeze(approvals));
+                #ok(selfAggregatorIndex, lid);
+              };
               case (null) {
                 cell.removeFromList();
                 #err(#NoSpace);
@@ -182,17 +190,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
       case (#err err) return #err(err);
       case (#ok (tr, approvals, index)) {
         approvals[index] := true;
-        if (Array.foldRight(Array.freeze(approvals), true, Bool.logand)) {
-          let lid = txId.1;
-          let cell = lookup.get(lid);
-          // remove from unapproved list
-          switch (cell) {
-            case (?c) c.removeFromList();
-            case (null) {};
-          };
-          approvedTxs.enqueue(lid);
-          tr.status := #approved(approvedTxs.pushesAmount());
-        };
+        checkIsApprovedAndEnqueue(tr, txId.1, Array.freeze(approvals));
         return #ok;
       };
     };
@@ -241,7 +239,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
     let requestsToSend: [TxRequest] = Iter.toArray(object {
       var counter = 0;
       public func next() : ?TxRequest {
-        if (counter >= T.batchSize) {
+        if (counter >= C.batchSize) {
           return null; // already added `batchSize` requests to the batch: stop iteration;
         };
         let lid = approvedTxs.dequeue();
@@ -334,6 +332,20 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
           case (null) cleanupOldest(chain);
         };
       };
+    };
+  };
+
+  /** check if transaction is fully approved and enqueue it to the batch */
+  private func checkIsApprovedAndEnqueue(tr: TxRequest, lid: LocalId, approvals: Approvals) {
+    if (Array.foldRight(approvals, true, Bool.logand)) {
+      let cell = lookup.get(lid);
+      // remove from unapproved list
+      switch (cell) {
+        case (?c) c.removeFromList();
+        case (null) {};
+      };
+      approvedTxs.enqueue(lid);
+      tr.status := #approved(approvedTxs.pushesAmount());
     };
   };
 

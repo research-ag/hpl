@@ -7,16 +7,24 @@ type AssetId = nat;
 // Non-fungible tokens can be introduced later as a variant.
 // A fungible token asset is a pair consisting of the token id (AssetId)
 // and a quantity (nat).
-type Asset = variant {ft: record {
-                            AssetId;
-                            nat;
-                          };};
+type Asset = variant {
+  ft: record {
+    AssetId;
+    nat;
+  };
+  none;
+};
+
+type SubaccountState = record {
+  asset: Asset;
+  autoApprove: bool;
+};
 
 // A transaction has contributions from multiple parties, each of which is of the following type.
 // A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.
 // The memo is limited to 256 bytes.
-// auto_approve = false indicates that the aggregator waits for approveance of the owner.
-// auto_approve = true indicates that the owner is expected to have auto-approve configured in the ledger (if not the transaction will fail).
+// autoApprove = false indicates that the aggregator waits for approveance of the owner.
+// autoApprove = true indicates that the owner is expected to have auto-approve configured in the ledger (if not the transaction will fail).
 type Contribution = 
  record {
    owner : principal;
@@ -29,7 +37,7 @@ type Contribution =
                   Asset;
                 };
    memo: opt blob;
-   auto_approve: bool;
+   autoApprove: bool;
  };
 
 // A transaction is a map from owner to the owner's contribution.
@@ -65,26 +73,26 @@ type Nat_Result =
    ok: nat;
    err: variant {NotFound;};
  };
-type Asset_Result = 
+type Subaccount_Result =
  variant {
-   ok: Asset;
+   ok: SubaccountState;
    err: variant {
-          NotFound;
-          SubaccountNotFound;
-        };
+     NotFound;
+     SubaccountNotFound;
+   };
  };
-type Assets_Result = 
- variant {
-   ok: vec Asset;
-   err: variant {NotFound;};
- };
+type Subaccounts_Result =
+  variant {
+    ok: vec SubaccountState;
+    err: variant {NotFound;};
+  };
 
 service : (vec principal) -> {
   // updates
 
   /* 
   open n new subaccounts for owner = caller
-  set the new subaccounts to auto_approve if the second argument (bool) is true
+  set the new subaccounts to autoApprove if the second argument (bool) is true
   if the owner isn't known then the owner is newly registered
   return value is the id of the first newly created subaccount
   the remaining ones are consecutively numbered
@@ -111,15 +119,15 @@ service : (vec principal) -> {
   // return the asset in the n-th subaccount of the caller
   // NotFound if the caller isn't registered
   // SubaccountNotFound if the caller is registered but does not have n accounts
-  asset: (SubaccountId) -> (Asset_Result) query;
+  asset: (SubaccountId) -> (Subaccount_Result) query;
 
   // admin interface
 
-  add_aggregator: (principal) -> (variant { ok; err });
+  addAggregator: (principal) -> (variant { ok : nat ; err });
 
   // debug interface
 
   // return all assets (i.e. all subaccounts) of the given owner
   // NotFound if the given owner is not registered
-  all_assets: (principal) -> (Assets_Result) query;
+  allAssets: (principal) -> (Subaccounts_Result) query;
 }

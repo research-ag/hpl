@@ -59,7 +59,7 @@ jobs:
       - name: Check .did files
         run: |
           /home/runner/bin/didc check .dfx/local/canisters/ledger/ledger.did src/ledger/ledger.did   
-          /home/runner/bin/didc check .dfx/local/canisters/aggregator/aggregator.did src/aggregator/aggregator.did   
+          /home/runner/bin/didc check .dfx/local/canisters/agg0/agg0.did src/aggregator/aggregator.did   
 
       - name: Install ic-repl
         run: |

@@ -246,6 +246,21 @@ actor class Ledger(initialAggregators : [Principal]) {
     #ok(aggregators.size() - 1);
   };
 
+  public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Asset) : async Result<SubaccountState,ProcessingError> {
+    switch (owners.get(userPrincipal)) {
+      case (null) #err(#WrongOwnerId);
+      case (?oid) {
+        switch (processFlow(oid, subaccountId, false, asset, true)) {
+          case (#err err) #err(err);
+          case (#ok newState) {
+            accounts[oid][subaccountId] := newState;
+            #ok(newState);
+          };
+        };
+      };
+    };
+  };
+
   // debug interface
   public query func allAssets(owner : Principal) : async Result<[SubaccountState], { #NotFound; }> {
     switch (owners.get(owner)) {

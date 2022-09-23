@@ -1,0 +1,3 @@
+Empty batch: 10640
+Batch with one empty Tx: 15051
+One simple Tx: 41704

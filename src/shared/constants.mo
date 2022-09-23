@@ -2,9 +2,6 @@ module {
   // the amount of transactions in one batch
   public let batchSize = 256;
 
-  // the amount of slots in aggregator's LUT
-  public let lookupCapacity = 16777216;
-
   // maximal memo size is 256 bytes
   public let maxMemoSize = 256;
 

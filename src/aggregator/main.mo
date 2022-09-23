@@ -23,7 +23,7 @@ import DLL "../shared/dll";
 //   dfx deploy --argument='(principal "aaaaa-aa")' aggregator
 // alternatively, the argument can be placed in dfx.json according to this scheme:
 // https://github.com/dfinity/sdk/blob/ca578a30ea27877a7222176baea3a6aa368ca6e8/docs/dfx-json-schema.json#L222-L229
-actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
+actor class Aggregator(_ledger : Principal, ownId : T.AggregatorId, lookupTableCapacity: Nat) {
 
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
@@ -67,7 +67,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
        - own unique identifier of this aggregator
   */
   let ledger : Principal = _ledger;
-  let selfAggregatorIndex: AggregatorId = own_id;
+  let selfAggregatorIndex: AggregatorId = ownId;
 
   // define the ledger actor
   let Ledger_actor = actor (Principal.toText(ledger)) : Ledger.Ledger;
@@ -117,7 +117,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   var submitted : Nat = 0;
 
   // lookup table
-  var lookup : SlotTable.SlotTable<DLL.Cell<TxRequest>> = SlotTable.SlotTable<DLL.Cell<TxRequest>>(C.lookupCapacity);
+  var lookup : SlotTable.SlotTable<DLL.Cell<TxRequest>> = SlotTable.SlotTable<DLL.Cell<TxRequest>>(lookupTableCapacity);
   // chain of all used slots with a unapproved tx request
   var unapproved : DLL.DoublyLinkedList<TxRequest> = DLL.DoublyLinkedList<TxRequest>();
   // the queue of approved requests for batching
@@ -290,7 +290,7 @@ actor class Aggregator(_ledger : Principal, own_id : T.AggregatorId) {
   /** get info about pending request. Returns user-friendly errors */
   private func getPendingTxRequest(txId: GlobalId, caller: Principal): Result<( txRequest: TxRequest, approvals: MutableApprovals, index: Nat ),NotPendingError> {
     let (aggregator, local_id) = txId;
-    if (aggregator != own_id) {
+    if (aggregator != ownId) {
       return #err(#WrongAggregator);
     };
     let cell = lookup.get(local_id);

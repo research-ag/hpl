@@ -5,7 +5,7 @@ let id = call ic.provisional_create_canister_with_cycles(record { settings = nul
 call ic.install_code(
   record {
     arg = encode (vec { aggregator_mock });
-    wasm_module = file("../.dfx/local/canisters/ledger/ledger.wasm");
+    wasm_module = file("../../.dfx/local/canisters/ledger/ledger.wasm");
     mode = variant { install };
     canister_id = id.canister_id;
   },
@@ -18,7 +18,8 @@ call canister.processBatch(vec {
   }
 });
 call canister.counters();
-assert _.failedTxs == (0 : nat);
+// intentionally failed assertion
+assert _.failedTxs == (1234 : nat);
 assert _.totalBatches == (1 : nat);
 assert _.totalTxs == (1 : nat);
 assert _.succeededTxs == (1 : nat);

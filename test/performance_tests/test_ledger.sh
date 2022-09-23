@@ -18,8 +18,7 @@ call canister.processBatch(vec {
   }
 });
 call canister.counters();
-// intentionally failed assertion
-assert _.failedTxs == (1234 : nat);
+assert _.failedTxs == (0 : nat);
 assert _.totalBatches == (1 : nat);
 assert _.totalTxs == (1 : nat);
 assert _.succeededTxs == (1 : nat);

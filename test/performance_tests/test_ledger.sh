@@ -32,9 +32,9 @@ call canister.processBatch(vec {
 output("./test/performance_tests/cycle_stats.txt", stringify("Batch with one empty Tx: ", __cost__, "\n"));
 
 // test cycles of batch with one simple Tx
-identity user1;
-call canister.openNewAccounts(1, false);
 identity user2;
+call canister.openNewAccounts(1, false);
+identity user1;
 call canister.openNewAccounts(1, false);
 // give user2 800 tokens
 call canister.issueTokens(user2, 0, variant { ft = record { 0; 800 } });

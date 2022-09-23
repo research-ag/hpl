@@ -32,7 +32,7 @@ module SlotTable {
     // chain of all slots, that can be reused
     let reuseQueue : HPLQueue.HPLQueue<Nat> = HPLQueue.HPLQueue<Nat>();
     // slots array
-    let slots : [Slot<X>] = Array.tabulate<Slot<X>>(capacity, func(n : Nat) = { var value = null; var counter = 0; });
+    let slots : [Slot<X>] = Array.freeze(Array.init<Slot<X>>(capacity, { var value = null; var counter = 0; }));
 
     /** number of items that were ever pushed to the table */
     public func pushesAmount(): Nat = pushCtr;

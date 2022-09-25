@@ -1,3 +1,5 @@
+import E "mo:base/ExperimentalInternetComputer";
+
 import RBTree "mo:base/RBTree";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
@@ -146,6 +148,10 @@ actor class Ledger(initialAggregators : [Principal]) {
       case (#Found index) __batchesProcessedPerAggregator[index] += 1;
       case (#NotFound) throw Error.reject("Not a registered aggregator");
     };
+    _processBatch(batch);
+  };
+
+  private func _processBatch(batch: Batch): () {
     let results: [var Result<(), ProcessingError>] = Array.init<Result<(), ProcessingError>>(batch.size(), #ok());
     label nextTx
     for (i in batch.keys()) {
@@ -333,4 +339,8 @@ actor class Ledger(initialAggregators : [Principal]) {
       };
     };
   };
+
+  public func profile(batch : Batch): async Nat64 {
+    E.countInstructions(func foo() { _processBatch(batch) })  
+  }
 };

@@ -24,7 +24,8 @@ module {
       switch (lastOwnerPrincipal) {
         case (#val oid) {
           if (contribution.owner <= oid) {
-            return #err(#OwnersNotSorted);
+// temporarily turn off the check for sorted principals
+//            return #err(#OwnersNotSorted);
           };
         };
         case (#empty) {};

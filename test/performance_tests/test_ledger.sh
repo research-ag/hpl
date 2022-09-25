@@ -5,7 +5,7 @@ function createLedger(aggregators) {
   call ic.install_code(
     record {
       arg = encode (aggregators);
-      wasm_module = wasm_profiling("../../.dfx/local/canisters/ledger/ledger.wasm");
+      wasm_module = file("../../.dfx/local/canisters/ledger/ledger.wasm");
       mode = variant { install };
       canister_id = id.canister_id;
     },
@@ -19,17 +19,17 @@ let id = createLedger(vec { aggregator_mock });
 let canister = id.canister_id;
 
 // test cycles of empty batch
-call canister.processBatch(vec { });
-output("./test/performance_tests/cycle_stats.txt", stringify("Empty batch: ", __cost__, "\n"));
+let n = call canister.profile(vec { });
+output("./test/performance_tests/cycle_stats.txt", stringify("Empty batch: ", n, "\n"));
 
 // test cycles of batch with single empty Tx
-call canister.processBatch(vec {
+let n = call canister.profile(vec {
   record {
     map = vec { };
     committer = opt user;
   }
 });
-output("./test/performance_tests/cycle_stats.txt", stringify("Batch with one empty Tx: ", __cost__, "\n"));
+output("./test/performance_tests/cycle_stats.txt", stringify("Batch with one empty Tx: ", n, "\n"));
 
 // test cycles of batch with one simple Tx
 identity user2;
@@ -40,7 +40,7 @@ call canister.openNewAccounts(1, false);
 call canister.issueTokens(user2, 0, variant { ft = record { 0; 800 } });
 
 identity aggregator_mock;
-call canister.processBatch(vec {
+let n = call canister.profile(vec {
   record {
     map = vec {
         record {
@@ -61,7 +61,7 @@ call canister.processBatch(vec {
     committer = opt user;
   }
 });
-output("./test/performance_tests/cycle_stats.txt", stringify("One simple Tx: ", __cost__, "\n"));
+output("./test/performance_tests/cycle_stats.txt", stringify("One simple Tx: ", n, "\n"));
 
 // cycles above has wrong values if something went wrong. So check counters here:
 call canister.counters();
@@ -70,3 +70,7 @@ assert _.totalBatches == (3 : nat);
 assert _.totalTxs == (2 : nat);
 assert _.succeededTxs == (2 : nat);
 
+// load 2**16 txs
+load "arg.txt";
+let n = call canister.profile(arg);
+output("./test/performance_tests/cycle_stats.txt", stringify("65k txs: ", n, "\n"));

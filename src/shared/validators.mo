@@ -7,7 +7,7 @@ import Principal "mo:base/Principal";
 import T "types";
 import C "constants";
 import u "utils";
-import HashSet "hash_set";
+import LinkedListSet "linked_list_set";
 
 module {
 
@@ -21,7 +21,7 @@ module {
     // checking balances equilibrium
     let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) });
     // checking owners uniqueness
-    let ownersSet = HashSet.HashSet<Principal>(Principal.hash, Principal.equal);
+    let ownersSet = LinkedListSet.LinkedListSet<Principal>(Principal.equal);
     // main loop
     for (contribution in tx.map.vals()) {
       if (checkPrincipalUniqueness and not ownersSet.put(contribution.owner)) {
@@ -42,7 +42,7 @@ module {
         case (null) {};
       };
       // checking subaccounts uniqueness
-      let subaccountsSet = HashSet.HashSet<Nat>(func (a : Nat) { Nat32.fromNat(a) }, Nat.equal);
+      let subaccountsSet = LinkedListSet.LinkedListSet<Nat>(Nat.equal);
       for ((subaccountId, asset) in contribution.inflow.vals()) {
         if (not subaccountsSet.put(subaccountId)) {
           return #err(#SubaccountsNotUnique);

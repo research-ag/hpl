@@ -82,8 +82,8 @@ type SubmitError =
    MaxContributionsExceeded;
    MaxFlowsExceeded;
    MaxMemoSizeExceeded;
-   FlowsNotSorted;
-   OwnersNotSorted;
+   SubaccountsNotUnique;
+   OwnersNotUnique;
    WrongAssetType;
    AutoApproveNotAllowed;
  };

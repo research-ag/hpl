@@ -1,4 +1,5 @@
 import TrieSet "mo:base/TrieSet";
+import Trie "mo:base/Trie";
 
 module HashSet {
 
@@ -11,10 +12,12 @@ module HashSet {
 
     /** add item to set. Returns true if element added, false if it already was there */
     public func put(item : T) : Bool {
-      let hash = hashFunc(item);
-      let isInSet = TrieSet.mem<T>(_set, item, hash, eq);
-      _set := TrieSet.put<T>(_set, item, hash, eq);
-      not isInSet;
+      let (s2, oldValue) = Trie.replace<T,()>(_set, { key = item; hash = hashFunc(item) }, eq, ?());
+      _set := s2;
+      switch (oldValue) {
+        case (?ov) false;
+        case (null) true;
+      };
     };
 
   };

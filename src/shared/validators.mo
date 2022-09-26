@@ -14,7 +14,7 @@ module {
   public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #SubaccountsNotUnique; #OwnersNotUnique; #WrongAssetType; #AutoApproveNotAllowed };
 
   /** transaction request validation function. Optionally returns list of balances delta if success */
-  public func validateTx(tx: T.Tx): R.Result<(), TxValidationError> {
+  public func validateTx(tx: T.Tx, checkPrincipalUniqueness: Bool): R.Result<(), TxValidationError> {
     if (tx.map.size() > C.maxContribution) {
       return #err(#MaxContributionsExceeded);
     };
@@ -24,7 +24,7 @@ module {
     let ownersSet = HashSet.HashSet<Principal>(Principal.hash, Principal.equal);
     // main loop
     for (contribution in tx.map.vals()) {
-      if (not ownersSet.put(contribution.owner)) {
+      if (checkPrincipalUniqueness and not ownersSet.put(contribution.owner)) {
         return #err(#OwnersNotUnique);
       };
       if (contribution.autoApprove and contribution.outflow.size() > 0) {

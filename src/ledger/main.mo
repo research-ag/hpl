@@ -19,6 +19,7 @@ import v "../shared/validators";
 import u "../shared/utils";
 import DLL "../shared/dll";
 import CircularBuffer "../shared/circular_buffer";
+import HashSet "../shared/hash_set";
 
 // ledger
 // the constructor arguments are:
@@ -157,7 +158,7 @@ actor class Ledger(initialAggregators : [Principal]) {
     for (i in batch.keys()) {
       __txsTotal += 1;
       let tx = batch[i];
-      let validationResult = v.validateTx(tx);
+      let validationResult = v.validateTx(tx, false);
       if (R.isErr(validationResult)) {
           results[i] := validationResult;
           __txsFailed += 1;
@@ -165,6 +166,8 @@ actor class Ledger(initialAggregators : [Principal]) {
       };
       // cache owner ids per contribution. If some owner ID is wrong - return error
       let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
+      // checking uniqueness
+      let ownerIdsSet = HashSet.HashSet<Nat>(func (a : Nat) { Nat32.fromNat(a) }, Nat.equal);
       for (j in ownersCache.keys()) {
         switch (owners.get(tx.map[j].owner)) {
           case (null) {
@@ -172,7 +175,14 @@ actor class Ledger(initialAggregators : [Principal]) {
             __txsFailed += 1;
             continue nextTx;
           };
-          case (?oid) ownersCache[j] := oid;
+          case (?oid) {
+            if (not ownerIdsSet.put(oid)) {
+              results[i] := #err(#OwnersNotUnique);
+              __txsFailed += 1;
+              continue nextTx;
+            };
+            ownersCache[j] := oid;
+          };
         };
       };
       // list of new subaccounts to be written after full validation

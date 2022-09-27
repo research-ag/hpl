@@ -1,4 +1,4 @@
 Empty batch: 876
 Batch with one empty Tx: 3665
-One simple Tx: 21401
-65k txs: 613542223
+One simple Tx: 21281
+65k txs: 587851201

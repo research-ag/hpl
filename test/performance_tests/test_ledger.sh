@@ -13,10 +13,19 @@ function createLedger(aggregators) {
   id;
 };
 
-identity user;
 identity aggregator_mock;
+
 let id = createLedger(vec { aggregator_mock });
 let canister = id.canister_id;
+
+identity user1;
+call canister.openNewAccounts(1, false);
+identity user2;
+call canister.openNewAccounts(2, false);
+call canister.issueTokens(user2, 0, variant { ft = record { 0; 800 } });
+call canister.issueTokens(user2, 1, variant { ft = record { 0; 800 } });
+
+identity aggregator_mock;
 
 // test cycles of empty batch
 let n = call canister.profile(vec { });
@@ -26,20 +35,12 @@ output("./test/performance_tests/cycle_stats.txt", stringify("Empty batch: ", n,
 let n = call canister.profile(vec {
   record {
     map = vec { };
-    committer = opt user;
+    committer = opt user1;
   }
 });
 output("./test/performance_tests/cycle_stats.txt", stringify("Batch with one empty Tx: ", n, "\n"));
 
 // test cycles of batch with one simple Tx
-identity user2;
-call canister.openNewAccounts(1, false);
-identity user1;
-call canister.openNewAccounts(1, false);
-// give user2 800 tokens
-call canister.issueTokens(user2, 0, variant { ft = record { 0; 800 } });
-
-identity aggregator_mock;
 let n = call canister.profile(vec {
   record {
     map = vec {
@@ -58,19 +59,19 @@ let n = call canister.profile(vec {
           autoApprove = false;
         }
     };
-    committer = opt user;
+    committer = opt user1;
   }
 });
 output("./test/performance_tests/cycle_stats.txt", stringify("One simple Tx: ", n, "\n"));
 
+// load 2**14 txs
+load "arg.txt";
+let n = call canister.profile(arg);
+output("./test/performance_tests/cycle_stats.txt", stringify("16,384 txs: ", n, "\n"));
+
 // cycles above has wrong values if something went wrong. So check counters here:
 call canister.counters();
 assert _.failedTxs == (0 : nat);
-assert _.totalBatches == (3 : nat);
-assert _.totalTxs == (2 : nat);
-assert _.succeededTxs == (2 : nat);
-
-// load 2**16 txs
-load "arg.txt";
-let n = call canister.profile(arg);
-output("./test/performance_tests/cycle_stats.txt", stringify("65k txs: ", n, "\n"));
+assert _.totalBatches == (4 : nat);
+assert _.totalTxs == (16386 : nat);
+assert _.succeededTxs == (16386 : nat);

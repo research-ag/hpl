@@ -11,7 +11,7 @@ import LinkedListSet "linked_list_set";
 
 module {
 
-  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #SubaccountsNotUnique; #OwnersNotUnique; #WrongAssetType; #AutoApproveNotAllowed };
+  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique; #WrongAssetType; #AutoApproveNotAllowed };
 
   /** transaction request validation function. Optionally returns list of balances delta if success */
   public func validateTx(tx: T.Tx, checkPrincipalUniqueness: Bool): R.Result<(), TxValidationError> {
@@ -41,12 +41,31 @@ module {
         };
         case (null) {};
       };
-      // checking subaccounts uniqueness
-      let subaccountsSet = LinkedListSet.LinkedListSet<Nat>(Nat.equal);
-      for ((subaccountId, asset) in contribution.inflow.vals()) {
-        if (not subaccountsSet.put(subaccountId)) {
-          return #err(#SubaccountsNotUnique);
+      // checking flows sorting
+      for (flows in [contribution.inflow, contribution.outflow].vals()) {
+        var lastSubaccountId : { #empty; #val: Nat } = #empty;
+        for ((subaccountId, asset) in flows.vals()) {
+          switch (lastSubaccountId) {
+            case (#val lsid) {
+              if (subaccountId <= lsid) {
+                return #err(#FlowsNotSorted);
+              };
+            };
+            case (#empty) {};
+          };
+          lastSubaccountId := #val(subaccountId);
         };
+      };
+      // check that subaccounts are unique in inflow + outflow
+      // this algorithm works only if subaccounts are unique and sorted in both arrays, which is true here
+      if (not u.isSortedArraysUnique<(T.SubaccountId, T.Asset)>(
+        contribution.inflow,
+        contribution.outflow,
+        func (flowA, flowB) : {#equal; #greater; #less} = Nat.compare(flowA.0, flowB.0),
+      )) {
+        return #err(#FlowsNotSorted);
+      };
+      for ((subaccountId, asset) in contribution.inflow.vals()) {
         switch asset {
           case (#ft (id, quantity)) {
             let currentBalance : ?Int = assetBalanceMap.get(id);
@@ -59,9 +78,6 @@ module {
         };
       };
       for ((subaccountId, asset) in contribution.outflow.vals()) {
-        if (not subaccountsSet.put(subaccountId)) {
-          return #err(#SubaccountsNotUnique);
-        };
         switch asset {
           case (#ft (id, quantity)) {
             let currentBalance : ?Int = assetBalanceMap.get(id);

@@ -66,3 +66,22 @@ jobs:
           wget https://github.com/chenyan2002/ic-repl/releases/download/${{ env.ic-repl_version }}/ic-repl-linux64
           mv ./ic-repl-linux64 /home/runner/bin/ic-repl 
           chmod a+x /home/runner/bin/ic-repl
+
+      - name: Start local dfx
+        run: |
+          dfx start --host 127.0.0.1:4943 --background
+
+      - name: Run ledger load test
+        run: |
+          rm -f ./test/performance_tests/cycle_stats.txt
+          ic-repl ./test/performance_tests/test_ledger.sh
+
+      - name: update stats
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          file_pattern: '*_stats.txt'
+          commit_message: '[skip ci] update stats'
+
+      - name: Stop local dfx
+        run: |
+          dfx stop

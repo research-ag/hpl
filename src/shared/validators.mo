@@ -7,27 +7,26 @@ import Principal "mo:base/Principal";
 import T "types";
 import C "constants";
 import u "utils";
+import LinkedListSet "linked_list_set";
 
 module {
 
-  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotSorted; #WrongAssetType; #AutoApproveNotAllowed };
+  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique; #WrongAssetType; #AutoApproveNotAllowed };
 
   /** transaction request validation function. Optionally returns list of balances delta if success */
-  public func validateTx(tx: T.Tx): R.Result<(), TxValidationError> {
+  public func validateTx(tx: T.Tx, checkPrincipalUniqueness: Bool): R.Result<(), TxValidationError> {
     if (tx.map.size() > C.maxContribution) {
       return #err(#MaxContributionsExceeded);
     };
-    var lastOwnerPrincipal : { #empty; #val: Principal } = #empty;
+    // checking balances equilibrium
+    let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) });
+    // checking owners uniqueness
+    let ownersSet = LinkedListSet.LinkedListSet<Principal>(Principal.equal);
+    // main loop
     for (contribution in tx.map.vals()) {
-      switch (lastOwnerPrincipal) {
-        case (#val oid) {
-          if (contribution.owner <= oid) {
-            return #err(#OwnersNotSorted);
-          };
-        };
-        case (#empty) {};
+      if (checkPrincipalUniqueness and not ownersSet.put(contribution.owner)) {
+        return #err(#OwnersNotUnique);
       };
-      lastOwnerPrincipal := #val(contribution.owner);
       if (contribution.autoApprove and contribution.outflow.size() > 0) {
         return #err(#AutoApproveNotAllowed);
       };
@@ -64,10 +63,8 @@ module {
         contribution.outflow,
         func (flowA, flowB) : {#equal; #greater; #less} = Nat.compare(flowA.0, flowB.0),
       )) {
-        return #err(#OwnersNotSorted);
+        return #err(#FlowsNotSorted);
       };
-      // checking balances equilibrium
-      let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) });
       for ((subaccountId, asset) in contribution.inflow.vals()) {
         switch asset {
           case (#ft (id, quantity)) {
@@ -85,29 +82,17 @@ module {
           case (#ft (id, quantity)) {
             let currentBalance : ?Int = assetBalanceMap.get(id);
             switch (currentBalance) {
-              case (?b) {
-                let newBalance = b - quantity;
-                if (newBalance < 0) {
-                  return #err(#FlowsNotBroughtToZero);
-                };
-                assetBalanceMap.put(id, newBalance);
-              };
-              case (null) {
-                // out flows are being processed after in flows, so if we have non-zero out flow and did not have in flow,
-                // it will never add up to zero
-                if (quantity > 0) {
-                  return #err(#FlowsNotBroughtToZero);
-                };
-              };
+              case (?b) assetBalanceMap.put(id, b - quantity);
+              case (null) assetBalanceMap.put(id, -quantity);
             };
           };
           case (#none _) assert false; // should never happen
         };
       };
-      for (balance in assetBalanceMap.vals()) {
-        if (balance != 0) {
-          return #err(#FlowsNotBroughtToZero);
-        };
+    };
+    for (balance in assetBalanceMap.vals()) {
+      if (balance != 0) {
+        return #err(#FlowsNotBroughtToZero);
       };
     };
     #ok();

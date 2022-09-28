@@ -1,3 +1,5 @@
+import E "mo:base/ExperimentalInternetComputer";
+
 import RBTree "mo:base/RBTree";
 import List "mo:base/List";
 import Nat "mo:base/Nat";
@@ -17,6 +19,7 @@ import v "../shared/validators";
 import u "../shared/utils";
 import DLL "../shared/dll";
 import CircularBuffer "../shared/circular_buffer";
+import LinkedListSet "../shared/linked_list_set";
 
 // ledger
 // the constructor arguments are:
@@ -146,12 +149,16 @@ actor class Ledger(initialAggregators : [Principal]) {
       case (#Found index) __batchesProcessedPerAggregator[index] += 1;
       case (#NotFound) throw Error.reject("Not a registered aggregator");
     };
+    _processBatch(batch);
+  };
+
+  private func _processBatch(batch: Batch): () {
     let results: [var Result<(), ProcessingError>] = Array.init<Result<(), ProcessingError>>(batch.size(), #ok());
     label nextTx
     for (i in batch.keys()) {
       __txsTotal += 1;
       let tx = batch[i];
-      let validationResult = v.validateTx(tx);
+      let validationResult = v.validateTx(tx, false);
       if (R.isErr(validationResult)) {
           results[i] := validationResult;
           __txsFailed += 1;
@@ -159,6 +166,8 @@ actor class Ledger(initialAggregators : [Principal]) {
       };
       // cache owner ids per contribution. If some owner ID is wrong - return error
       let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
+      // checking uniqueness
+      let ownerIdsSet = LinkedListSet.LinkedListSet<Nat>(Nat.equal);
       for (j in ownersCache.keys()) {
         switch (owners.get(tx.map[j].owner)) {
           case (null) {
@@ -166,7 +175,14 @@ actor class Ledger(initialAggregators : [Principal]) {
             __txsFailed += 1;
             continue nextTx;
           };
-          case (?oid) ownersCache[j] := oid;
+          case (?oid) {
+            if (not ownerIdsSet.put(oid)) {
+              results[i] := #err(#OwnersNotUnique);
+              __txsFailed += 1;
+              continue nextTx;
+            };
+            ownersCache[j] := oid;
+          };
         };
       };
       // list of new subaccounts to be written after full validation
@@ -246,6 +262,21 @@ actor class Ledger(initialAggregators : [Principal]) {
     #ok(aggregators.size() - 1);
   };
 
+  public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Asset) : async Result<SubaccountState,ProcessingError> {
+    switch (owners.get(userPrincipal)) {
+      case (null) #err(#WrongOwnerId);
+      case (?oid) {
+        switch (processFlow(oid, subaccountId, false, asset, true)) {
+          case (#err err) #err(err);
+          case (#ok newState) {
+            accounts[oid][subaccountId] := newState;
+            #ok(newState);
+          };
+        };
+      };
+    };
+  };
+
   // debug interface
   public query func allAssets(owner : Principal) : async Result<[SubaccountState], { #NotFound; }> {
     switch (owners.get(owner)) {
@@ -318,4 +349,8 @@ actor class Ledger(initialAggregators : [Principal]) {
       };
     };
   };
+
+  public func profile(batch : Batch): async Nat64 {
+    E.countInstructions(func foo() { _processBatch(batch) })  
+  }
 };

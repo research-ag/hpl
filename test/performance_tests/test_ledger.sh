@@ -13,10 +13,25 @@ function createLedger(aggregators) {
   id;
 };
 
+function createLedgerUtil(ledger) {
+  let id = call ic.provisional_create_canister_with_cycles(record { settings = null; amount = null });
+  call ic.install_code(
+    record {
+      arg = encode (ledger);
+      wasm_module = file("../../.dfx/local/canisters/ledger_test_util/ledger_test_util.wasm");
+      mode = variant { install };
+      canister_id = id.canister_id;
+    },
+  );
+  id;
+};
+
 identity aggregator_mock;
 
 let id = createLedger(vec { aggregator_mock });
 let canister = id.canister_id;
+let utilId = createLedgerUtil(canister);
+let utilCanister = utilId.canister_id;
 
 identity user1;
 call canister.openNewAccounts(1, false);
@@ -65,8 +80,8 @@ let n = call canister.profile(vec {
 output("./test/performance_tests/cycle_stats.txt", stringify("One simple Tx: ", n, "\n"));
 
 // load 2**14 txs
-load "arg.txt";
-let n = call canister.profile(arg);
+let batch = call utilCanister.createTestBatch(user2, user2, 16384);
+let n = call canister.profile(batch);
 output("./test/performance_tests/cycle_stats.txt", stringify("16,384 txs: ", n, "\n"));
 
 // cycles above has wrong values if something went wrong. So check counters here:

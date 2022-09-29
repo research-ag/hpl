@@ -12,6 +12,10 @@
     "agg1": {
       "main": "src/aggregator/main.mo",
       "type": "motoko"
+    },
+    "ledger_test_util": {
+      "main": "test/performance_tests/ledger_test_util.mo",
+      "type": "motoko"
     }
   },
   "defaults": {

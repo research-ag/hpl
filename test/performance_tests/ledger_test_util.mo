@@ -13,6 +13,6 @@ actor class LedgerTestUtil(_ledger : Principal) {
       map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; memo = null; autoApprove = false }];
       committer = ?committer;
     };
-    Array.tabulate<T.Tx>(txAmount, func (n) = tx);
+    Array.freeze(Array.init<T.Tx>(txAmount, tx));
   };
 };

@@ -20,8 +20,8 @@ actor class LedgerTestUtil(_ledger : Principal) {
     Array.freeze(Array.init<T.Tx>(txAmount, tx));
   };
 
-  public func registerPrincipals(startPrincipalNumber: Nat, amount: Nat, subaccountsAmount: Nat, autoApprove: Bool): async () {
-    let _ = Ledger_actor.bulkOpenSubaccounts(
+  public func registerPrincipals(startPrincipalNumber: Nat, amount: Nat, subaccountsAmount: Nat, autoApprove: Bool, initialBalance: Nat): async () {
+    let _ = Ledger_actor.openTestSubaccounts(
       Iter.toArray<Principal>(
         Iter.map<Nat, Principal>(
           Iter.range(startPrincipalNumber, startPrincipalNumber + amount),
@@ -29,7 +29,8 @@ actor class LedgerTestUtil(_ledger : Principal) {
         )
       ),
       subaccountsAmount,
-      autoApprove
+      autoApprove,
+      initialBalance,
     );
   };
 
@@ -40,7 +41,7 @@ actor class LedgerTestUtil(_ledger : Principal) {
         func (i: Nat) = {
           owner = principalFromNat(startPrincipalNumber + i);
           inflow = Array.tabulate<(T.SubaccountId, T.Asset)>(C.maxFlows / 2, func (j: Nat) = (j, #ft(0, 10)));
-          outflow = Array.tabulate<(T.SubaccountId, T.Asset)>(C.maxFlows / 2, func (j: Nat) = (j + C.maxFlows / 2 + 1, #ft(0, 10)));
+          outflow = Array.tabulate<(T.SubaccountId, T.Asset)>(C.maxFlows / 2, func (j: Nat) = (j + C.maxFlows / 2, #ft(0, 10)));
           memo = ?Blob.fromArray(Array.freeze(Array.init<Nat8>(C.maxMemoSize, 12)));
           autoApprove = false
         },

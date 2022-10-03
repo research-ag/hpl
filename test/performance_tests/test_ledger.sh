@@ -33,26 +33,32 @@ let canister = id.canister_id;
 let utilId = createLedgerUtil(canister);
 let utilCanister = utilId.canister_id;
 
-call utilCanister.registerPrincipals(0, 25000, 256, false);
-call utilCanister.registerPrincipals(25000, 25000, 256, false);
-call utilCanister.registerPrincipals(50000, 25000, 256, false);
-call utilCanister.registerPrincipals(75000, 25000, 256, false);
-call utilCanister.registerPrincipals(100000, 25000, 256, false);
-call utilCanister.registerPrincipals(125000, 25000, 256, false);
-call utilCanister.registerPrincipals(150000, 25000, 256, false);
-call utilCanister.registerPrincipals(175000, 25000, 256, false);
-call utilCanister.registerPrincipals(200000, 25000, 256, false);
-call utilCanister.registerPrincipals(225000, 25000, 256, false);
-call utilCanister.registerPrincipals(250000, 25000, 256, false);
-call utilCanister.registerPrincipals(275000, 25000, 256, false);
-call utilCanister.registerPrincipals(300000, 25000, 256, false);
-call utilCanister.registerPrincipals(325000, 25000, 256, false);
-call utilCanister.registerPrincipals(350000, 25000, 256, false);
-call utilCanister.registerPrincipals(375000, 25000, 256, false);
-call utilCanister.registerPrincipals(400000, 25000, 256, false);
-call utilCanister.registerPrincipals(425000, 25000, 256, false);
-call utilCanister.registerPrincipals(450000, 25000, 256, false);
-call utilCanister.registerPrincipals(475000, 25000, 256, false);
+// register 1,000,000 principals, generated from sequent Nat-s (0 - 999,999)
+call utilCanister.registerPrincipals(0, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(40000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(80000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(120000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(160000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(200000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(240000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(280000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(320000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(360000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(400000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(440000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(480000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(520000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(560000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(600000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(640000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(680000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(720000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(760000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(800000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(840000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(880000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(920000, 40000, 256, false, 500);
+call utilCanister.registerPrincipals(960000, 40000, 256, false, 500);
 
 identity user1;
 call canister.openNewAccounts(1, false);
@@ -113,7 +119,7 @@ let n = call canister.profile(vec { tx });
 output("./test/performance_tests/cycle_stats.txt", stringify("Heavy tx: ", n, "\n"));
 
 // uncomment for debug: check the error if any
-// call canister.batchesHistory(4, 6);
+call canister.batchesHistory(4, 6);
 
 // cycles above has wrong values if something went wrong. So check counters here:
 call canister.counters();

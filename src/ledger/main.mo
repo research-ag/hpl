@@ -248,9 +248,27 @@ actor class Ledger(initialAggregators : [Principal]) {
     };
   };
 
-  public func bulkOpenSubaccounts(userPrincipals: [Principal], subaccounts: Nat, autoApprove : Bool): async () {
+  public func openTestSubaccounts(userPrincipals: [Principal], subaccounts: Nat, autoApprove : Bool, initialBalance: Nat): async () {
     for (p in Array.vals(userPrincipals)) {
-      let _ = openSubaccounts(p, subaccounts, autoApprove);
+      var ownerId: ?OwnerId = null;
+      // get or register owner ID
+      switch (owners.get(p)) {
+        case (?oid) ownerId := ?oid;
+        case (null) {
+          let regResult = registerAccount(p);
+          switch (regResult) {
+            case (#err _) {};
+            case (#ok (oid, _)) ownerId := ?oid;
+          };
+        };
+      };
+      // update accounts
+      switch (ownerId) {
+        case (null) ();
+        case (?oid) {
+          accounts[oid] := Array.init<SubaccountState>(subaccounts, { asset = #ft(0, initialBalance); autoApprove = autoApprove });
+        };
+      };
     };
     ();
   };

@@ -3,3 +3,4 @@ Batch with one empty Tx: 3665
 One simple Tx: 29849
 16,384 txs: 326452095
 Heavy tx: 267390844
+5 heavy tx-s (max possible batch): 1336939561

@@ -80,6 +80,8 @@ let n = call canister.profile(vec {
     committer = opt user1;
   }
 });
+call canister.counters();
+assert _.failedTxs == (0 : nat);
 output("./test/performance_tests/cycle_stats.txt", stringify("Batch with one empty Tx: ", n, "\n"));
 
 // test cycles of batch with one simple Tx
@@ -104,26 +106,38 @@ let n = call canister.profile(vec {
     committer = opt user1;
   }
 });
+call canister.counters();
+assert _.failedTxs == (0 : nat);
 output("./test/performance_tests/cycle_stats.txt", stringify("One simple Tx: ", n, "\n"));
 
 // load 2**14 txs
 let batch = call utilCanister.createTestBatch(user2, user2, 16384);
 let n = call canister.profile(batch);
+call canister.counters();
+assert _.failedTxs == (0 : nat);
 output("./test/performance_tests/cycle_stats.txt", stringify("16,384 txs: ", n, "\n"));
 
-call utilCanister.generateHeavyTx(0);
-
 // one the biggest possible Tx
-let tx = call utilCanister.generateHeavyTx(0);
-let n = call canister.profile(vec { tx });
+let heavy_tx = call utilCanister.generateHeavyTx(0);
+let n = call canister.profile(vec { heavy_tx });
+call canister.counters();
+assert _.failedTxs == (0 : nat);
 output("./test/performance_tests/cycle_stats.txt", stringify("Heavy tx: ", n, "\n"));
 
+// full batch with biggest possible Tx-s
+let n = call canister.profile(vec {
+  heavy_tx; heavy_tx; heavy_tx; heavy_tx; heavy_tx;
+});
+call canister.counters();
+assert _.failedTxs == (0 : nat);
+output("./test/performance_tests/cycle_stats.txt", stringify("5 heavy tx-s (max possible batch): ", n, "\n"));
+
 // uncomment for debug: check the error if any
-//call canister.batchesHistory(4, 6);
+//call canister.batchesHistory(5, 7);
 
 // cycles above has wrong values if something went wrong. So check counters here:
 call canister.counters();
 assert _.failedTxs == (0 : nat);
-assert _.totalBatches == (5 : nat);
-assert _.totalTxs == (16387 : nat);
-assert _.succeededTxs == (16387 : nat);
+assert _.totalBatches == (6 : nat);
+assert _.totalTxs == (16392 : nat);
+assert _.succeededTxs == (16392 : nat);

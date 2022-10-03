@@ -100,36 +100,7 @@ actor class Ledger(initialAggregators : [Principal]) {
   That will set the Asset value in the subaccount to the wanted token id.
   */
   public shared({caller}) func openNewAccounts(n: Nat, autoApprove : Bool): async Result<SubaccountId, { #NoSpace; }> {
-    var ownerId: ?OwnerId = null;
-    // get or register owner ID
-    switch (owners.get(caller)) {
-      case (?oid) ownerId := ?oid;
-      case (null) {
-        let regResult = registerAccount(caller);
-        switch (regResult) {
-          case (#err _) {};
-          case (#ok (oid, _)) ownerId := ?oid;
-        };
-      };
-    };
-    // update accounts
-    switch (ownerId) {
-      case (null) #err(#NoSpace);
-      case (?oid) {
-        let oldSize = accounts[oid].size();
-        if (oldSize + n > C.maxSubaccounts) {
-          return #err(#NoSpace);
-        };
-        // array.append seems to not work with var type
-        accounts[oid] := Array.tabulateVar<SubaccountState>(oldSize + n, func (n: Nat) {
-          if (n < oldSize) {
-            return accounts[oid][n];
-          };
-          return { asset = #none; autoApprove = autoApprove };
-        });
-        #ok(oldSize);
-      };
-    };
+    openSubaccounts(caller, n, autoApprove);
   };
 
   /*
@@ -277,6 +248,13 @@ actor class Ledger(initialAggregators : [Principal]) {
     };
   };
 
+  public func bulkOpenSubaccounts(userPrincipals: [Principal], subaccounts: Nat, autoApprove : Bool): async () {
+    for (p in Array.vals(userPrincipals)) {
+      let _ = openSubaccounts(p, subaccounts, autoApprove);
+    };
+    ();
+  };
+
   // debug interface
   public query func allAssets(owner : Principal) : async Result<[SubaccountState], { #NotFound; }> {
     switch (owners.get(owner)) {
@@ -310,6 +288,39 @@ actor class Ledger(initialAggregators : [Principal]) {
     ownersAmount += 1;
     accounts[ownerId] := Array.init<SubaccountState>(0, { asset = #none; autoApprove = false; });
     #ok(ownerId, accounts[ownerId]);
+  };
+
+  private func openSubaccounts(principal: Principal, n: Nat, autoApprove: Bool): Result<SubaccountId, { #NoSpace; }> {
+    var ownerId: ?OwnerId = null;
+    // get or register owner ID
+    switch (owners.get(principal)) {
+      case (?oid) ownerId := ?oid;
+      case (null) {
+        let regResult = registerAccount(principal);
+        switch (regResult) {
+          case (#err _) {};
+          case (#ok (oid, _)) ownerId := ?oid;
+        };
+      };
+    };
+    // update accounts
+    switch (ownerId) {
+      case (null) #err(#NoSpace);
+      case (?oid) {
+        let oldSize = accounts[oid].size();
+        if (oldSize + n > C.maxSubaccounts) {
+          return #err(#NoSpace);
+        };
+        // array.append seems to not work with var type
+        accounts[oid] := Array.tabulateVar<SubaccountState>(oldSize + n, func (n: Nat) {
+          if (n < oldSize) {
+            return accounts[oid][n];
+          };
+          return { asset = #none; autoApprove = autoApprove };
+        });
+        #ok(oldSize);
+      };
+    };
   };
 
   private func processFlow(ownerId: OwnerId, subaccountId: T.SubaccountId, autoApprove: Bool, flowAsset: T.Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {

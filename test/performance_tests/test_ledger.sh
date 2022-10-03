@@ -119,7 +119,7 @@ let n = call canister.profile(vec { tx });
 output("./test/performance_tests/cycle_stats.txt", stringify("Heavy tx: ", n, "\n"));
 
 // uncomment for debug: check the error if any
-call canister.batchesHistory(4, 6);
+//call canister.batchesHistory(4, 6);
 
 // cycles above has wrong values if something went wrong. So check counters here:
 call canister.counters();

@@ -30,7 +30,7 @@ actor class LedgerTestUtil(_ledger : Principal) {
       ),
       subaccountsAmount,
       autoApprove,
-      initialBalance,
+      #ft(0, initialBalance),
     );
   };
 

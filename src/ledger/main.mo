@@ -158,12 +158,22 @@ actor class Ledger(initialAggregators : [Principal]) {
     for (i in batch.keys()) {
       __txsTotal += 1;
       let tx = batch[i];
-      let validationResult = v.validateTx(tx, false);
-      if (R.isErr(validationResult)) {
-          results[i] := validationResult;
-          __txsFailed += 1;
-          continue nextTx;
-      };
+
+      // disabled validation, performed on the aggregator side. The ledger still validates:
+      // - owner Id-s
+      // - owner Id-s uniqueness
+      // - subaccount Id-s
+      // - auto-approve flag
+      // - asset type
+      // - is balance sufficient
+
+      // let validationResult = v.validateTx(tx, false);
+      // if (R.isErr(validationResult)) {
+      //     results[i] := validationResult;
+      //     __txsFailed += 1;
+      //     continue nextTx;
+      // };
+
       // cache owner ids per contribution. If some owner ID is wrong - return error
       let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
       // checking uniqueness

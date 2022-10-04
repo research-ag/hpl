@@ -19,7 +19,7 @@ import v "../shared/validators";
 import u "../shared/utils";
 import DLL "../shared/dll";
 import CircularBuffer "../shared/circular_buffer";
-import LinkedListSet "../shared/linked_list_set";
+// import LinkedListSet "../shared/linked_list_set";
 
 // ledger
 // the constructor arguments are:
@@ -161,7 +161,6 @@ actor class Ledger(initialAggregators : [Principal]) {
 
       // disabled validation, performed on the aggregator side. The ledger still validates:
       // - owner Id-s
-      // - owner Id-s uniqueness
       // - subaccount Id-s
       // - auto-approve flag
       // - asset type
@@ -176,8 +175,8 @@ actor class Ledger(initialAggregators : [Principal]) {
 
       // cache owner ids per contribution. If some owner ID is wrong - return error
       let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
-      // checking uniqueness
-      let ownerIdsSet = LinkedListSet.LinkedListSet<Nat>(Nat.equal);
+      // checking uniqueness (disabled now, since aggregator alredy checked principal uniqueness)
+      // let ownerIdsSet = LinkedListSet.LinkedListSet<Nat>(Nat.equal);
       for (j in ownersCache.keys()) {
         switch (owners.get(tx.map[j].owner)) {
           case (null) {
@@ -186,11 +185,11 @@ actor class Ledger(initialAggregators : [Principal]) {
             continue nextTx;
           };
           case (?oid) {
-            if (not ownerIdsSet.put(oid)) {
-              results[i] := #err(#OwnersNotUnique);
-              __txsFailed += 1;
-              continue nextTx;
-            };
+            // if (not ownerIdsSet.put(oid)) {
+            //   results[i] := #err(#OwnersNotUnique);
+            //   __txsFailed += 1;
+            //   continue nextTx;
+            // };
             ownersCache[j] := oid;
           };
         };

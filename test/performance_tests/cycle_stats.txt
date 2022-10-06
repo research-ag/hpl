@@ -1,6 +1,6 @@
-Empty batch: 995
-Batch with one empty Tx: 1666
-One simple Tx: 20148
-16,384 txs: 182508065
-Heavy tx: 92105963
-5 heavy tx-s (max possible batch): 460589523
+Empty batch: 1014
+Batch with one empty Tx: 1685
+One simple Tx: 20167
+16,384 txs: 182508084
+Heavy tx: 92115308
+5 heavy tx-s (max possible batch): 460568287

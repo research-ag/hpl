@@ -1,8 +1,5 @@
-import E "mo:base/ExperimentalInternetComputer";
-
 import RBTree "mo:base/RBTree";
 import List "mo:base/List";
-// import Nat "mo:base/Nat";
 import Array "mo:base/Array";
 import { compare } "mo:base/Principal";
 import Iter "mo:base/Iter";
@@ -12,7 +9,6 @@ import T "../shared/types";
 import C "../shared/constants";
 import v "../shared/validators";
 import u "../shared/utils";
-import DLL "../shared/dll";
 import CircularBuffer "../shared/circular_buffer";
 // import LinkedListSet "../shared/linked_list_set";
 
@@ -23,8 +19,6 @@ module {
   type Result<X,Y> = R.Result<X,Y>;
   type AggregatorId = T.AggregatorId;
   type SubaccountId = T.SubaccountId;
-  type GlobalId = T.GlobalId;
-  type AssetId = T.AssetId;
   type Asset = T.Asset;
 
   public type SubaccountState = { asset: Asset; autoApprove: Bool };
@@ -47,10 +41,16 @@ module {
       #ok(aggregators[aid]);
     };
 
-    public func nAccounts(p: Principal): Result<Nat, { #NotFound; }> =
+    public func ownerId(p: Principal): Result<OwnerId, { #NotFound; }> =
       switch (owners.get(p)) {
         case (null) #err(#NotFound);
-        case (?oid) #ok(accounts[oid].size());
+        case (?oid) #ok(oid);
+      };
+
+    public func nAccounts(p: Principal): Result<Nat, { #NotFound; }> =
+      switch (ownerId(p)) {
+        case (#err err) #err(err);
+        case (#ok oid) #ok(accounts[oid].size());
       };
 
     public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #NotFound; #SubaccountNotFound; }> =
@@ -126,21 +126,6 @@ module {
             return { asset = #none; autoApprove = autoApprove };
           });
           #ok(oldSize);
-        };
-      };
-    };
-
-    public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Asset) : Result<SubaccountState,ProcessingError> {
-      switch (owners.get(userPrincipal)) {
-        case (null) #err(#WrongOwnerId);
-        case (?oid) {
-          switch (processFlow(oid, subaccountId, false, asset, true)) {
-            case (#err err) #err(err);
-            case (#ok newState) {
-              accounts[oid][subaccountId] := newState;
-              #ok(newState);
-            };
-          };
         };
       };
     };
@@ -227,10 +212,6 @@ module {
       batchHistory.put({ batchNumber = __totalBatchesProcessed; precedingTotalTxAmount = __txsTotal - results.size(); results = Array.freeze(results) });
       __batchesProcessedPerAggregator[aggregatorIndex] += 1;
       __totalBatchesProcessed += 1;
-    };
-
-    public func profileBatch(batch : Batch): Nat64 {
-      E.countInstructions(func foo() { let _ = processBatch(0, batch); (); });
     };
 
     private func processFlow(ownerId: OwnerId, subaccountId: T.SubaccountId, autoApprove: Bool, flowAsset: T.Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {

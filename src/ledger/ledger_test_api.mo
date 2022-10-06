@@ -1,10 +1,5 @@
 import E "mo:base/ExperimentalInternetComputer";
 
-import RBTree "mo:base/RBTree";
-import List "mo:base/List";
-import Nat "mo:base/Nat";
-import Int "mo:base/Int";
-import Nat32 "mo:base/Nat32";
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Nat8 "mo:base/Nat8";
@@ -14,27 +9,15 @@ import R "mo:base/Result";
 import Error "mo:base/Error";
 import Ledger "ledger";
 
-// type imports
-// pattern matching is not available for types during import (work-around required)
 import T "../shared/types";
 import C "../shared/constants";
 import v "../shared/validators";
 import u "../shared/utils";
-import DLL "../shared/dll";
-import CircularBuffer "../shared/circular_buffer";
-// import LinkedListSet "../shared/linked_list_set";
 
-// ledger
-// the constructor arguments are:
-//   initial list of the canister ids of the aggregators
-// more can be added later with addAggregator()
-// the constructor arguments are passed like this:
-//   dfx deploy --argument='(vec { principal "aaaaa-aa"; ... })' ledger
 actor class TestLedgerAPI(initialAggregators : [Principal]) {
 
   let _ledger = Ledger.Ledger(initialAggregators);
 
-  // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
   type AggregatorId = T.AggregatorId;
   type SubaccountId = T.SubaccountId;
@@ -80,7 +63,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
     };
   };
   public func profile(batch : Batch): async Nat64 {
-    _ledger.profileBatch(batch);
+    E.countInstructions(func foo() = _ledger.processBatch(0, batch));
   };
 
   // queries
@@ -134,7 +117,13 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   public func addAggregator(p : Principal) : async Result<AggregatorId,()> { _ledger.addAggregator(p); };
 
   public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Asset) : async Result<Ledger.SubaccountState,ProcessingError> {
-    _ledger.issueTokens(userPrincipal, subaccountId, asset);
+    switch (_ledger.ownerId(userPrincipal)) {
+      case (#err _) #err(#WrongOwnerId);
+      case (#ok oid) {
+        _ledger.accounts[oid][subaccountId] := { asset = asset; autoApprove = false };
+        #ok(_ledger.accounts[oid][subaccountId]);
+      };
+    };
   };
 
   // debug interface

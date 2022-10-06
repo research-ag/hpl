@@ -1,26 +1,10 @@
-import E "mo:base/ExperimentalInternetComputer";
-
-import RBTree "mo:base/RBTree";
-import List "mo:base/List";
-import Nat "mo:base/Nat";
-import Int "mo:base/Int";
-import Nat32 "mo:base/Nat32";
-import Array "mo:base/Array";
-import { compare } "mo:base/Principal";
-import Iter "mo:base/Iter";
 import R "mo:base/Result";
 import Error "mo:base/Error";
 import Ledger "ledger";
 
-// type imports
-// pattern matching is not available for types during import (work-around required)
 import T "../shared/types";
-import C "../shared/constants";
 import v "../shared/validators";
 import u "../shared/utils";
-import DLL "../shared/dll";
-import CircularBuffer "../shared/circular_buffer";
-// import LinkedListSet "../shared/linked_list_set";
 
 // ledger
 // the constructor arguments are:
@@ -32,7 +16,6 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
 
   let _ledger = Ledger.Ledger(initialAggregators);
 
-  // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
   type AggregatorId = T.AggregatorId;
   type SubaccountId = T.SubaccountId;

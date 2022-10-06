@@ -1,6 +1,6 @@
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
-import Ledger "../ledger/main";
+import LedgerAPI "../ledger/ledger_api";
 import Bool "mo:base/Bool";
 import R "mo:base/Result";
 import Iter "mo:base/Iter";
@@ -70,7 +70,7 @@ actor class Aggregator(_ledger : Principal, ownId : T.AggregatorId, lookupTableC
   let selfAggregatorIndex: AggregatorId = ownId;
 
   // define the ledger actor
-  let Ledger_actor = actor (Principal.toText(ledger)) : Ledger.Ledger;
+  let Ledger_actor = actor (Principal.toText(ledger)) : LedgerAPI.LedgerAPI;
 
   /*
   Glossary:

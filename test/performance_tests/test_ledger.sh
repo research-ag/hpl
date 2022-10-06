@@ -5,20 +5,7 @@ function createLedger(aggregators) {
   call ic.install_code(
     record {
       arg = encode (aggregators);
-      wasm_module = file("../../.dfx/local/canisters/ledger/ledger.wasm");
-      mode = variant { install };
-      canister_id = id.canister_id;
-    },
-  );
-  id;
-};
-
-function createLedgerUtil(ledger) {
-  let id = call ic.provisional_create_canister_with_cycles(record { settings = null; amount = null });
-  call ic.install_code(
-    record {
-      arg = encode (ledger);
-      wasm_module = file("../../.dfx/local/canisters/ledger_test_util/ledger_test_util.wasm");
+      wasm_module = file("../../.dfx/local/canisters/ledger_test/ledger_test.wasm");
       mode = variant { install };
       canister_id = id.canister_id;
     },
@@ -30,35 +17,12 @@ identity aggregator_mock;
 
 let id = createLedger(vec { aggregator_mock });
 let canister = id.canister_id;
-let utilId = createLedgerUtil(canister);
-let utilCanister = utilId.canister_id;
 
-// register 1,000,000 principals, generated from sequent Nat-s (0 - 999,999)
-call utilCanister.registerPrincipals(0, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(40000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(80000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(120000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(160000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(200000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(240000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(280000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(320000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(360000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(400000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(440000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(480000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(520000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(560000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(600000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(640000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(680000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(720000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(760000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(800000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(840000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(880000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(920000, 40000, 256, false, 500);
-call utilCanister.registerPrincipals(960000, 40000, 256, false, 500);
+// register 40,000 principals, generated from sequent Nat-s (0 - 39,999)
+call canister.registerPrincipals(0, 10000, 256, false, 500);
+call canister.registerPrincipals(10000, 10000, 256, false, 500);
+call canister.registerPrincipals(20000, 10000, 256, false, 500);
+call canister.registerPrincipals(30000, 10000, 256, false, 500);
 
 identity user1;
 call canister.openNewAccounts(1, false);
@@ -111,14 +75,14 @@ assert _.failedTxs == (0 : nat);
 output("./test/performance_tests/cycle_stats.txt", stringify("One simple Tx: ", n, "\n"));
 
 // load 2**14 txs
-let batch = call utilCanister.createTestBatch(user2, user2, 16384);
+let batch = call canister.createTestBatch(user2, user2, 16384);
 let n = call canister.profile(batch);
 call canister.counters();
 assert _.failedTxs == (0 : nat);
 output("./test/performance_tests/cycle_stats.txt", stringify("16,384 txs: ", n, "\n"));
 
 // one the biggest possible Tx
-let heavy_tx = call utilCanister.generateHeavyTx(0);
+let heavy_tx = call canister.generateHeavyTx(0);
 let n = call canister.profile(vec { heavy_tx });
 call canister.counters();
 assert _.failedTxs == (0 : nat);

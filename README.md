@@ -147,7 +147,7 @@ With **HPL**, registered principals can submit and approve multi-token transacti
 
 #### Ledger
 
-See [code](src/ledger/main.mo).
+See [code](src/ledger/ledger.mo).
 
 #### Aggregator
 

@@ -11,7 +11,7 @@ import u "../shared/utils";
 // the constructor arguments are passed like this:
 //   dfx deploy --argument='(vec { principal "aaaaa-aa"; ... })' ledger
 actor class LedgerAPI(initialAggregators : [Principal]) {
-  let _ledger = Ledger.Ledger(initialAggregators);
+  let ledger_ = Ledger.Ledger(initialAggregators);
 
   type Result<X,Y> = R.Result<X,Y>;
   type AggregatorId = Ledger.AggregatorId;
@@ -32,7 +32,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   That will set the Asset value in the subaccount to the wanted token id.
   */
   public shared({caller}) func openNewAccounts(n: Nat, autoApprove : Bool): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> =
-    async _ledger.openNewAccounts(caller, n, autoApprove);
+    async ledger_.openNewAccounts(caller, n, autoApprove);
 
   /*
   Process a batch of transactions. Each transaction only executes if the following conditions are met:
@@ -46,26 +46,26 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   */
   type ProcessingError = Ledger.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public shared({caller}) func processBatch(batch: Batch): async () {
-    let aggId = u.arrayFindIndex(_ledger.aggregators, func (agg: Principal): Bool = agg == caller);
+    let aggId = u.arrayFindIndex(ledger_.aggregators, func (agg: Principal): Bool = agg == caller);
     switch (aggId) {
-      case (#Found index) _ledger.processBatch(index, batch);
+      case (#Found index) ledger_.processBatch(index, batch);
       case (#NotFound) throw Error.reject("Not a registered aggregator");
     };
   };
 
   // queries
-  public query func nAggregators(): async Nat = async _ledger.nAggregators();
-  public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async _ledger.aggregatorPrincipal(aid);
-  public shared query ({caller}) func nAccounts(): async Result<Nat, { #NotFound; }> = async _ledger.nAccounts(caller);
-  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #NotFound; #SubaccountNotFound; }> = async _ledger.asset(caller, sid);
+  public query func nAggregators(): async Nat = async ledger_.nAggregators();
+  public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async ledger_.aggregatorPrincipal(aid);
+  public shared query ({caller}) func nAccounts(): async Result<Nat, { #NotFound; }> = async ledger_.nAccounts(caller);
+  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #NotFound; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
 
   // admin interface
   // TODO admin-only authorization
   // add one aggregator principal
-  public func addAggregator(p : Principal) : async AggregatorId = async _ledger.addAggregator(p);
+  public func addAggregator(p : Principal) : async AggregatorId = async ledger_.addAggregator(p);
 
   // debug interface
-  public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #NotFound; }> = async _ledger.allAssets(owner);
-  public query func counters() : async { totalBatches: Nat; batchesPerAggregator: [Nat]; totalTxs: Nat; failedTxs: Nat; succeededTxs: Nat } = async _ledger.counters();
-  public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async _ledger.batchesHistory(startIndex, endIndex);
+  public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #NotFound; }> = async ledger_.allAssets(owner);
+  public query func counters() : async { totalBatches: Nat; batchesPerAggregator: [Nat]; totalTxs: Nat; failedTxs: Nat; succeededTxs: Nat } = async ledger_.counters();
+  public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async ledger_.batchesHistory(startIndex, endIndex);
 };

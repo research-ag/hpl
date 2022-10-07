@@ -70,11 +70,11 @@ module {
 
     public func counters() : { totalBatches: Nat; batchesPerAggregator: [Nat]; totalTxs: Nat; failedTxs: Nat; succeededTxs: Nat } =
       {
-        totalBatches = __totalBatchesProcessed;
-        batchesPerAggregator = Array.freeze<Nat>(__batchesProcessedPerAggregator);
-        totalTxs = __txsTotal;
-        failedTxs = __txsFailed;
-        succeededTxs = __txsSucceeded;
+        totalBatches = totalBatchesProcessed_;
+        batchesPerAggregator = Array.freeze<Nat>(batchesProcessedPerAggregator_);
+        totalTxs = txsTotal_;
+        failedTxs = txsFailed_;
+        succeededTxs = txsSucceeded_;
       };
 
     public func batchesHistory(startIndex: Nat, endIndex: Nat) : [BatchHistoryEntry] = batchHistory.slice(startIndex, endIndex);
@@ -85,9 +85,9 @@ module {
       // AG: Array.append is deprecated due to bad performance, however in this case it appears more optimal than converting to buffer
       aggregators := Array.append(aggregators, [p]);
       // for var arrays, even append does not exists...
-      __batchesProcessedPerAggregator := Array.tabulateVar<Nat>(__batchesProcessedPerAggregator.size() + 1, func (i : Nat) : Nat {
-        if (i < __batchesProcessedPerAggregator.size()) {
-          __batchesProcessedPerAggregator[i];
+      batchesProcessedPerAggregator_ := Array.tabulateVar<Nat>(batchesProcessedPerAggregator_.size() + 1, func (i : Nat) : Nat {
+        if (i < batchesProcessedPerAggregator_.size()) {
+          batchesProcessedPerAggregator_[i];
         } else {
           0;
         };
@@ -140,7 +140,7 @@ module {
       let results: [var Result<(), ProcessingError>] = Array.init<Result<(), ProcessingError>>(batch.size(), #ok());
       label nextTx
       for (i in batch.keys()) {
-        __txsTotal += 1;
+        txsTotal_ += 1;
         let tx = batch[i];
 
         // disabled validation, performed on the aggregator side. The ledger still validates:
@@ -153,7 +153,7 @@ module {
         // let validationResult = v.validateTx(tx, false);
         // if (R.isErr(validationResult)) {
         //     results[i] := validationResult;
-        //     __txsFailed += 1;
+        //     txsFailed_ += 1;
         //     continue nextTx;
         // };
 
@@ -165,13 +165,13 @@ module {
           switch (owners.get(tx.map[j].owner)) {
             case (null) {
               results[i] := #err(#WrongOwnerId);
-              __txsFailed += 1;
+                txsFailed_ += 1;
               continue nextTx;
             };
             case (?oid) {
               // if (not ownerIdsSet.put(oid)) {
               //   results[i] := #err(#OwnersNotUnique);
-              //   __txsFailed += 1;
+              //   txsFailed_ += 1;
               //   continue nextTx;
               // };
               ownersCache[j] := oid;
@@ -190,7 +190,7 @@ module {
             switch (processFlow(oid, subaccountId, contribution.autoApprove, flowAsset, isInflow)) {
               case (#err err) {
                 results[i] := #err(err);
-                __txsFailed += 1;
+                txsFailed_ += 1;
                 continue nextTx;
               };
               case (#ok newState) newSubaccounts := List.push((oid, subaccountId, newState), newSubaccounts);
@@ -201,11 +201,11 @@ module {
         for ((oid, subaccountId, newSubaccount) in List.toIter(newSubaccounts)) {
           accounts[oid][subaccountId] := newSubaccount;
         };
-        __txsSucceeded += 1;
+        txsSucceeded_ += 1;
       };
-      batchHistory.put({ batchNumber = __totalBatchesProcessed; precedingTotalTxAmount = __txsTotal - results.size(); results = Array.freeze(results) });
-      __batchesProcessedPerAggregator[aggregatorIndex] += 1;
-      __totalBatchesProcessed += 1;
+      batchHistory.put({ batchNumber = totalBatchesProcessed_; precedingTotalTxAmount = txsTotal_ - results.size(); results = Array.freeze(results) });
+      batchesProcessedPerAggregator_[aggregatorIndex] += 1;
+      totalBatchesProcessed_ += 1;
     };
 
     private func processFlow(ownerId: OwnerId, subaccountId: T.SubaccountId, autoApprove: Bool, flowAsset: T.Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
@@ -275,12 +275,11 @@ module {
     let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(C.batchHistoryLength);
 
     // debug counters
-    var __totalBatchesProcessed: Nat = 0;
-    var __batchesProcessedPerAggregator: [var Nat] = Array.init(initialAggregators.size(), 0);
-
-    var __txsSucceeded: Nat = 0;
-    var __txsFailed: Nat = 0;
-    var __txsTotal: Nat = 0;
+    var totalBatchesProcessed_: Nat = 0;
+    var batchesProcessedPerAggregator_: [var Nat] = Array.init(initialAggregators.size(), 0);
+    var txsSucceeded_: Nat = 0;
+    var txsFailed_: Nat = 0;
+    var txsTotal_: Nat = 0;
 
   };
 };

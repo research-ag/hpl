@@ -95,27 +95,30 @@ module {
       aggregators.size() - 1;
     };
 
-    public func registerOrSignPrincipal(p: Principal): Result<OwnerId, { #NoSpaceForPrincipal }> =
+    public func getOwnerId(p: Principal, autoRegister: Bool): Result<OwnerId, { #NoSpaceForPrincipal; #NotFound }> =
       switch (owners.get(p)) {
         case (?oid) #ok(oid);
-        case (null) registerAccount(p);
+        case (null)
+          switch (autoRegister) {
+            case (true) registerAccount(p);
+            case (_) #err(#NotFound);
+        };
       };
 
     public func openNewAccounts(p: Principal, n: Nat, autoApprove : Bool): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> {
-      switch (registerOrSignPrincipal(p)) {
-        case (#err err) #err(err);
+      switch (getOwnerId(p, true)) {
+        case (#err _) #err(#NoSpaceForPrincipal);
         case (#ok oid) {
           let oldSize = accounts[oid].size();
           if (oldSize + n > C.maxSubaccounts) {
             return #err(#NoSpaceForSubaccount);
           };
           // array.append seems to not work with var type
-          accounts[oid] := Array.tabulateVar<SubaccountState>(oldSize + n, func (n: Nat) {
-            if (n < oldSize) {
-              return accounts[oid][n];
-            };
-            return { asset = #none; autoApprove = autoApprove };
-          });
+          accounts[oid] := Array.tabulateVar<SubaccountState>(oldSize + n, func (n: Nat) =
+            switch (n < oldSize) {
+              case (true) accounts[oid][n];
+              case (_) ({ asset = #none; autoApprove = autoApprove });
+            });
           #ok(oldSize);
         };
       };

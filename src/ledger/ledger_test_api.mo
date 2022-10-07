@@ -99,7 +99,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   public func registerPrincipals(startPrincipalNumber: Nat, amount: Nat, subaccountsAmount: Nat, autoApprove: Bool, initialBalance: Nat): async () {
     let initialAsset = { asset = #ft(0, initialBalance); autoApprove = autoApprove };
     for (p in Iter.map<Nat, Principal>(Iter.range(startPrincipalNumber, startPrincipalNumber + amount), func (i: Nat) : Principal = principalFromNat(i))) {
-      switch (_ledger.registerOrSignPrincipal(p)) {
+      switch (_ledger.getOwnerId(p, true)) {
         case (#err _) ();
         case (#ok oid) _ledger.accounts[oid] := Array.init<Ledger.SubaccountState>(subaccountsAmount, initialAsset);
       };

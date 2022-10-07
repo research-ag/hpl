@@ -123,7 +123,7 @@ service : (vec principal) -> {
 
   // admin interface
 
-  addAggregator: (principal) -> (variant { ok : nat ; err });
+  addAggregator: (principal) -> (nat);
 
   // debug interface
 

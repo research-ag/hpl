@@ -1,8 +1,13 @@
 {
   "canisters": {
     "ledger": {
-      "main": "src/ledger/main.mo",
-      "candid": "src/ledger/ledger.did",     
+      "main": "src/ledger/ledger_api.mo",
+      "candid": "src/ledger/ledger.did",
+      "type": "motoko"
+    },
+    "ledger_test": {
+      "main": "src/ledger/ledger_test_api.mo",
+      "candid": "src/ledger/ledger.did",
       "type": "motoko"
     },
     "agg0": {

@@ -1,6 +1,6 @@
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
-import Ledger "../ledger/main";
+import LedgerAPI "../ledger/ledger_api";
 import Bool "mo:base/Bool";
 import R "mo:base/Result";
 import Iter "mo:base/Iter";
@@ -23,7 +23,7 @@ import DLL "../shared/dll";
 //   dfx deploy --argument='(principal "aaaaa-aa")' aggregator
 // alternatively, the argument can be placed in dfx.json according to this scheme:
 // https://github.com/dfinity/sdk/blob/ca578a30ea27877a7222176baea3a6aa368ca6e8/docs/dfx-json-schema.json#L222-L229
-actor class Aggregator(_ledger : Principal, ownId : T.AggregatorId, lookupTableCapacity: Nat) {
+actor class Aggregator(ledger_ : Principal, ownId : T.AggregatorId, lookupTableCapacity: Nat) {
 
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
@@ -66,11 +66,11 @@ actor class Aggregator(_ledger : Principal, ownId : T.AggregatorId, lookupTableC
        - canister id of the ledger canister
        - own unique identifier of this aggregator
   */
-  let ledger : Principal = _ledger;
+  let ledger : Principal = ledger_;
   let selfAggregatorIndex: AggregatorId = ownId;
 
   // define the ledger actor
-  let Ledger_actor = actor (Principal.toText(ledger)) : Ledger.Ledger;
+  let Ledger_actor = actor (Principal.toText(ledger)) : LedgerAPI.LedgerAPI;
 
   /*
   Glossary:

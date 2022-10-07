@@ -61,7 +61,7 @@ type Batch = vec Tx;
 type SubaccountId_Result = 
  variant {
    ok: SubaccountId;
-   err: variant {NoSpace;};
+   err: variant {NoSpaceForPrincipal;NoSpaceForSubaccount;};
  };
 type Principal_Result = 
  variant {
@@ -123,7 +123,7 @@ service : (vec principal) -> {
 
   // admin interface
 
-  addAggregator: (principal) -> (variant { ok : nat ; err });
+  addAggregator: (principal) -> (nat);
 
   // debug interface
 

@@ -66,6 +66,6 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
 
   // debug interface
   public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #NotFound; }> = async ledger_.allAssets(owner);
-  public query func counters() : async { totalBatches: Nat; batchesPerAggregator: [Nat]; totalTxs: Nat; failedTxs: Nat; succeededTxs: Nat } = async ledger_.counters();
+  public query func counters() : async { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat } = async ledger_.counters();
   public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async ledger_.batchesHistory(startIndex, endIndex);
 };

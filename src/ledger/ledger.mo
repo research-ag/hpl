@@ -34,34 +34,32 @@ module {
     // ================================ ACCESSORS =================================
     public func nAggregators(): Nat = aggregators.size();
 
-    public func aggregatorPrincipal(aid: AggregatorId): Result<Principal, { #NotFound; }> {
-      if (aggregators.size() >= aid) {
-        return #err(#NotFound);
+    public func aggregatorPrincipal(aid: AggregatorId): Result<Principal, { #NotFound; }> =
+      switch (aggregators.size() > aid) {
+        case (true) #ok(aggregators[aid]);
+        case (_) #err(#NotFound);
       };
-      #ok(aggregators[aid]);
-    };
 
     public func ownerId(p: Principal): Result<OwnerId, { #NotFound; }> =
       switch (owners.get(p)) {
-        case (null) #err(#NotFound);
         case (?oid) #ok(oid);
+        case (_) #err(#NotFound);
       };
 
     public func nAccounts(p: Principal): Result<Nat, { #NotFound; }> =
       switch (ownerId(p)) {
-        case (#err err) #err(err);
         case (#ok oid) #ok(accounts[oid].size());
+        case (#err err) #err(err);
       };
 
     public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #NotFound; #SubaccountNotFound; }> =
       switch (owners.get(p)) {
         case (null) #err(#NotFound);
-        case (?oid) {
-          if (sid >= accounts[oid].size()) {
-            return #err(#SubaccountNotFound);
+        case (?oid)
+          switch (accounts[oid].size() > sid) {
+            case (true) #ok(accounts[oid][sid]);
+            case (_) #err(#SubaccountNotFound);
           };
-          #ok(accounts[oid][sid]);
-        };
       };
 
     public func allAssets(owner : Principal) : Result<[SubaccountState], { #NotFound; }> =
@@ -83,7 +81,7 @@ module {
 
     // ================================= MUTATORS =================================
     // add one aggregator principal
-    public func addAggregator(p : Principal) : Result<AggregatorId,()> {
+    public func addAggregator(p : Principal) : AggregatorId {
       // AG: Array.append is deprecated due to bad performance, however in this case it appears more optimal than converting to buffer
       aggregators := Array.append(aggregators, [p]);
       // for var arrays, even append does not exists...
@@ -94,29 +92,22 @@ module {
           0;
         };
       });
-      #ok(aggregators.size() - 1);
+      aggregators.size() - 1;
     };
 
-    public func registerOrSignPrincipal(p: Principal): Result<OwnerId, { #NoSpace }> {
+    public func registerOrSignPrincipal(p: Principal): Result<OwnerId, { #NoSpaceForPrincipal }> =
       switch (owners.get(p)) {
         case (?oid) #ok(oid);
-        case (null) {
-          let regResult = registerAccount(p);
-          switch (regResult) {
-            case (#err _) #err(#NoSpace);
-            case (#ok (oid, _)) #ok(oid);
-          };
-        };
+        case (null) registerAccount(p);
       };
-    };
 
-    public func openNewAccounts(p: Principal, n: Nat, autoApprove : Bool): Result<SubaccountId, { #NoSpace; }> {
+    public func openNewAccounts(p: Principal, n: Nat, autoApprove : Bool): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> {
       switch (registerOrSignPrincipal(p)) {
         case (#err err) #err(err);
         case (#ok oid) {
           let oldSize = accounts[oid].size();
           if (oldSize + n > C.maxSubaccounts) {
-            return #err(#NoSpace);
+            return #err(#NoSpaceForSubaccount);
           };
           // array.append seems to not work with var type
           accounts[oid] := Array.tabulateVar<SubaccountState>(oldSize + n, func (n: Nat) {
@@ -130,15 +121,15 @@ module {
       };
     };
 
-    private func registerAccount(principal: Principal) : Result<(OwnerId, [var SubaccountState]), { #NoSpace }> {
+    private func registerAccount(principal: Principal) : Result<OwnerId, { #NoSpaceForPrincipal }> {
       let ownerId = ownersAmount;
       if (ownerId >= C.maxPrincipals) {
-        return #err(#NoSpace);
+        return #err(#NoSpaceForPrincipal);
       };
       owners.put(principal, ownerId);
       ownersAmount += 1;
       accounts[ownerId] := Array.init<SubaccountState>(0, { asset = #none; autoApprove = false; });
-      #ok(ownerId, accounts[ownerId]);
+      #ok(ownerId);
     };
 
     // ================================ PROCESSING ================================

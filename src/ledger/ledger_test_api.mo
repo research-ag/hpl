@@ -36,7 +36,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
   That will set the Asset value in the subaccount to the wanted token id.
   */
-  public shared({caller}) func openNewAccounts(n: Nat, autoApprove : Bool): async Result<SubaccountId, { #NoSpace; }> {
+  public shared({caller}) func openNewAccounts(n: Nat, autoApprove : Bool): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> {
     _ledger.openNewAccounts(caller, n, autoApprove);
   };
 
@@ -110,7 +110,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   // TODO admin-only authorization
 
   // add one aggregator principal
-  public func addAggregator(p : Principal) : async Result<AggregatorId,()> { _ledger.addAggregator(p); };
+  public func addAggregator(p : Principal) : async AggregatorId { _ledger.addAggregator(p); };
 
   public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Ledger.Asset) : async Result<Ledger.SubaccountState,ProcessingError> {
     switch (_ledger.ownerId(userPrincipal)) {

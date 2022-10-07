@@ -9,9 +9,8 @@ import R "mo:base/Result";
 import Error "mo:base/Error";
 import Ledger "ledger";
 
-import T "../shared/types";
 import C "../shared/constants";
-import v "../shared/validators";
+import T "../shared/types";
 import u "../shared/utils";
 
 actor class TestLedgerAPI(initialAggregators : [Principal]) {
@@ -19,12 +18,9 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   let _ledger = Ledger.Ledger(initialAggregators);
 
   type Result<X,Y> = R.Result<X,Y>;
-  type AggregatorId = T.AggregatorId;
-  type SubaccountId = T.SubaccountId;
-  type GlobalId = T.GlobalId;
-  type AssetId = T.AssetId;
-  type Asset = T.Asset;
-  type Batch = T.Batch;
+  type AggregatorId = Ledger.AggregatorId;
+  type SubaccountId = Ledger.SubaccountId;
+  type Batch = Ledger.Batch;
 
   // updates
 
@@ -54,7 +50,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   If the call returns (i.e. no system-level failure) the aggregator knows that the batch has been processed.
   If the aggregator catches a system-level failure then it knows that the batch has not been processed.
   */
-  type ProcessingError = v.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
+  type ProcessingError = Ledger.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public shared({caller}) func processBatch(batch: Batch): async () {
     let aggId = u.arrayFindIndex(_ledger.aggregators, func (agg: Principal): Bool = agg == caller);
     switch (aggId) {
@@ -116,7 +112,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   // add one aggregator principal
   public func addAggregator(p : Principal) : async Result<AggregatorId,()> { _ledger.addAggregator(p); };
 
-  public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Asset) : async Result<Ledger.SubaccountState,ProcessingError> {
+  public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Ledger.Asset) : async Result<Ledger.SubaccountState,ProcessingError> {
     switch (_ledger.ownerId(userPrincipal)) {
       case (#err _) #err(#WrongOwnerId);
       case (#ok oid) {

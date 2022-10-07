@@ -14,15 +14,15 @@ import CircularBuffer "../shared/circular_buffer";
 
 module {
 
-  // type import work-around
-  type Batch = T.Batch;
-  type Result<X,Y> = R.Result<X,Y>;
-  type AggregatorId = T.AggregatorId;
-  type SubaccountId = T.SubaccountId;
-  type Asset = T.Asset;
+  public type Batch = T.Batch;
+  public type Result<X,Y> = R.Result<X,Y>;
+  public type AggregatorId = T.AggregatorId;
+  public type SubaccountId = T.SubaccountId;
+  public type Asset = T.Asset;
 
   public type SubaccountState = { asset: Asset; autoApprove: Bool };
-  public type ProcessingError = v.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
+  public type TxValidationError = v.TxValidationError;
+  public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (= owner ids) are issued consecutively

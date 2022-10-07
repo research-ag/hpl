@@ -2,8 +2,6 @@ import R "mo:base/Result";
 import Error "mo:base/Error";
 import Ledger "ledger";
 
-import T "../shared/types";
-import v "../shared/validators";
 import u "../shared/utils";
 
 // ledger
@@ -17,12 +15,9 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   let _ledger = Ledger.Ledger(initialAggregators);
 
   type Result<X,Y> = R.Result<X,Y>;
-  type AggregatorId = T.AggregatorId;
-  type SubaccountId = T.SubaccountId;
-  type GlobalId = T.GlobalId;
-  type AssetId = T.AssetId;
-  type Asset = T.Asset;
-  type Batch = T.Batch;
+  type AggregatorId = Ledger.AggregatorId;
+  type SubaccountId = Ledger.SubaccountId;
+  type Batch = Ledger.Batch;
 
   // updates
 
@@ -52,7 +47,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   If the call returns (i.e. no system-level failure) the aggregator knows that the batch has been processed.
   If the aggregator catches a system-level failure then it knows that the batch has not been processed.
   */
-  type ProcessingError = v.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
+  type ProcessingError = Ledger.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public shared({caller}) func processBatch(batch: Batch): async () {
     let aggId = u.arrayFindIndex(_ledger.aggregators, func (agg: Principal): Bool = agg == caller);
     switch (aggId) {

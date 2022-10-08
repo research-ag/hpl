@@ -19,6 +19,7 @@ module {
   public type AggregatorId = T.AggregatorId;
   public type SubaccountId = T.SubaccountId;
   public type Asset = T.Asset;
+  public type AssetId = T.AssetId;
 
   public type SubaccountState = { asset: Asset; autoApprove: Bool };
   public type TxValidationError = v.TxValidationError;
@@ -273,6 +274,9 @@ module {
 
     /* history of last processed transactions */
     let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(C.batchHistoryLength);
+
+    // asset ids
+    let assetController : [var Nat] = [var];
 
     // debug counters
     var nBatchTotal_: Nat = 0;

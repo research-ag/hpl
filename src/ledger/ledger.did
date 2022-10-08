@@ -86,6 +86,22 @@ type Subaccounts_Result =
     ok: vec SubaccountState;
     err: variant {NotFound;};
   };
+type CreateFt_Result =
+  variant {
+    ok: nat;
+    err: variant {NoSpace; FeeError}
+  };
+type Mint_Result =
+  variant {
+    ok;
+    err: variant {NotController; SubaccountNotFound; WrongAssetType}
+  };
+type Burn_Result =
+  variant {
+    ok;
+    err: variant {NotController; SubaccountNotFound; WrongAssetType; InsufficientFunds}
+  };
+
 
 service : (vec principal) -> {
   // updates
@@ -124,6 +140,12 @@ service : (vec principal) -> {
   // admin interface
 
   addAggregator: (principal) -> (nat);
+
+  // asset interface
+
+  createFungibleToken: () -> (CreateFt_Result); 
+  mint: (SubaccountId, Asset) -> (Mint_Result);
+  burn: (SubaccountId, Asset) -> (Burn_Result);
 
   // debug interface
 

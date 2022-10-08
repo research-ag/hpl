@@ -1,5 +1,6 @@
 import R "mo:base/Result";
 import Error "mo:base/Error";
+import { nyi } "mo:base/Prelude";
 import Ledger "ledger";
 
 import u "../shared/utils";
@@ -17,6 +18,8 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   type AggregatorId = Ledger.AggregatorId;
   type SubaccountId = Ledger.SubaccountId;
   type Batch = Ledger.Batch;
+  type Asset = Ledger.Asset;
+  type AssetId = Ledger.AssetId;
 
   // updates
   /*
@@ -51,6 +54,45 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
       case (#Found index) ledger_.processBatch(index, batch);
       case (#NotFound) throw Error.reject("Not a registered aggregator");
     };
+  };
+
+  // asset interface
+  // create a new fungible token and get the asset id
+  // in the future, calling this will cost a fee in ICP or cycles
+  // an error occurs when the maximum number of asset ids is reached
+  // an error occurs when the call does not carry a valid fee payment
+  // the caller will become the "controller" if the asset id
+  // the controller is the sole principal that can mint and burn tokens
+  // typically the controller will be a canister
+  type createFtError = { #NoSpace; #FeeError };
+  public shared (msg) func createFungibleToken() : async Result<Ledger.AssetId, createFtError> {
+    // take the next free asset id 
+    // the ledger keeps an array of controllers indexed by assed id 
+    // append msg.caller to this array, i.e. make msg.caller the controller of the new asset id
+    // return the new asset id
+    nyi()
+  }; 
+
+  // mint fungible tokens
+  type MintError = { #NotController; #SubaccountNotFound; #WrongAssetType };
+  public shared (msg) func mint(sid : SubaccountId, asset : Asset) : async Result<(), MintError> {
+    // check if the asset is of the #ft variant (otherwise return #WrongAsset)
+    // check if msg.caller is the controller of the asset id 
+    // check if sid exists
+    // check if asset id to mint matches asset id in subaccount 
+    // add asset to subaccount
+    nyi()
+  };
+
+  type BurnError = MintError or { #InsufficientFunds };
+  public shared (msg) func burn(sid : SubaccountId, asset : Asset) : async Result<(), BurnError> {
+    // check if the asset is of the #ft variant (otherwise return #WrongAsset)
+    // check if msg.caller is the controller of the asset id 
+    // check if sid exists
+    // check if asset id to burn matches asset id in subaccount 
+    // check if available quantity is sufficient
+    // subtract asset from subaccount
+    nyi()
   };
 
   // queries

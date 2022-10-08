@@ -19,4 +19,7 @@ module {
 
   // maximum number of stored latest processed batches on the ledger
   public let batchHistoryLength = 1024;
+
+  // maximum number of asset ids total in ledger
+  public let maxAssetIds = 16777216;
 }

@@ -1,3 +1,4 @@
+import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Aggregator "./aggregator";
 import LedgerAPI "../ledger/ledger_api";
@@ -11,7 +12,7 @@ import R "mo:base/Result";
 //   dfx deploy --argument='(principal "aaaaa-aa")' aggregator
 // alternatively, the argument can be placed in dfx.json according to this scheme:
 // https://github.com/dfinity/sdk/blob/ca578a30ea27877a7222176baea3a6aa368ca6e8/docs/dfx-json-schema.json#L222-L229
-actor class AggregatorAPI(ledger_ : Principal, ownId : Aggregator.AggregatorId, lookupTableCapacity: Nat) {
+actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.AggregatorId, lookupTableCapacity: Nat) {
   let aggregator_ = Aggregator.Aggregator(ledger_, ownId, lookupTableCapacity);
 
   type Result<X,Y> = R.Result<X,Y>;
@@ -56,8 +57,8 @@ actor class AggregatorAPI(ledger_ : Principal, ownId : Aggregator.AggregatorId, 
   };
 
   /** heartbeat function */
-  system func heartbeat() : async () {
-    await aggregator_.heartbeat();
+  public func getNextBatch() : async Aggregator.Batch {
+    Array.map(aggregator_.getNextBatchRequests(), func (req: Aggregator.TxRequest): Aggregator.Tx = req.tx);
   };
 
 };

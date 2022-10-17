@@ -230,7 +230,34 @@ module {
 
     /** heartbeat function */
     public func heartbeat() : async () {
-      let requestsToSend: [TxRequest] = Iter.toArray(object {
+      let requestsToSend = getNextBatchRequests();
+      try {
+        await Ledger_actor.processBatch(Array.map(requestsToSend, func (req: TxRequest): Tx = req.tx));
+        // the batch has been processed
+        // the transactions in b are now explicitly deleted from the lookup table
+        // the aggregator has now done its job
+        // the user has to query the ledger to see the execution status (executed or failed) and the order relative to other transactions
+        for (req in requestsToSend.vals()) {
+          switch (req.lid) {
+            case (?l) lookup.remove(l);
+            case (null) assert false; // should never happen
+          };
+        };
+      } catch (e) {
+        // batch was not processed
+        // we do not retry sending the batch
+        // we set the status of all txs to #failed_to_send
+        // we leave all txs in the lookup table forever
+        // in the lookup table all of status #approved, #pending, #failed_to_send remain outside any chain, hence they won't be deleted
+        // only an upgrade can clean them up
+        for (req in requestsToSend.vals()) {
+          req.status := #failed_to_send;
+        };
+      };
+    };
+
+    public func getNextBatchRequests(): [TxRequest] =
+      Iter.toArray(object {
         var counter = 0;
         public func next() : ?TxRequest {
           if (counter >= C.batchSize) {
@@ -254,31 +281,6 @@ module {
           return null;
         };
       });
-      let batch: Batch = Array.map(requestsToSend, func (req: TxRequest): Tx = req.tx);
-      try {
-        await Ledger_actor.processBatch(batch);
-        // the batch has been processed
-        // the transactions in b are now explicitly deleted from the lookup table
-        // the aggregator has now done its job
-        // the user has to query the ledger to see the execution status (executed or failed) and the order relative to other transactions
-        for (req in requestsToSend.vals()) {
-          switch (req.lid) {
-            case (?l) lookup.remove(l);
-            case (null) assert false; // should never happen
-          };
-        };
-      } catch (e) {
-        // batch was not processed
-        // we do not retry sending the batch
-        // we set the status of all txs to #failed_to_send
-        // we leave all txs in the lookup table forever
-        // in the lookup table all of status #approved, #pending, #failed_to_send remain outside any chain, hence they won't be deleted
-        // only an upgrade can clean them up
-        for (req in requestsToSend.vals()) {
-          req.status := #failed_to_send;
-        };
-      };
-    };
 
     // private functionality
     /** get info about pending request. Returns user-friendly errors */

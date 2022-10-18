@@ -3,6 +3,9 @@ import Principal "mo:base/Principal";
 import Aggregator "./aggregator";
 import LedgerAPI "../ledger/ledger_api";
 import R "mo:base/Result";
+import T "../shared/types";
+import C "../shared/constants";
+import Blob "mo:base/Blob";
 
 // aggregator
 // the constructor arguments are:
@@ -56,9 +59,40 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
     aggregator_.txDetails(gid);
   };
 
-  /** heartbeat function */
   public func getNextBatch() : async Aggregator.Batch {
     Array.map(aggregator_.getNextBatchRequests(), func (req: Aggregator.TxRequest): Aggregator.Tx = req.tx);
+  };
+
+  public query func generateSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): async Aggregator.Tx {
+    if (sender == receiver) {
+      {
+        map = [{
+          owner = sender;
+          inflow = [ (receiverSubaccountId, #ft(0, amount)) ];
+          outflow = [ (senderSubaccountId, #ft(0, amount)) ];
+          memo = null;
+          autoApprove = false;
+        }];
+        committer = null;
+      };
+    } else {
+      {
+        map = [{
+          owner = sender;
+          inflow = [];
+          outflow = [ (senderSubaccountId, #ft(0, amount)) ];
+          memo = null;
+          autoApprove = false;
+        }, {
+          owner = receiver;
+          inflow = [ (receiverSubaccountId, #ft(0, amount)) ];
+          outflow = [];
+          memo = null;
+          autoApprove = false;
+        }];
+        committer = null;
+      };
+    };
   };
 
 };

@@ -13,4 +13,11 @@ call ic.install_code(
 );
 let canister = id.canister_id;
 
-call canister.getNextBatch();
+identity user;
+
+let tx = call canister.generateSimpleTx(user, 0, user, 1, 10);
+call canister.submit(tx);
+// should be automatically put into batch, since approved
+let batch = call canister.getNextBatch();
+assert batch[0] != null;
+

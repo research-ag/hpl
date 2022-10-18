@@ -13,8 +13,8 @@ module {
 
   public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique; #WrongAssetType; #AutoApproveNotAllowed };
 
-  /** transaction request validation function. Optionally returns list of balances delta if success */
-  public func validateTx(tx: T.Tx, checkPrincipalUniqueness: Bool): R.Result<(), TxValidationError> {
+  /** transaction request validation function. Returns Tx size in bytes if success */
+  public func validateTx(tx: T.Tx, checkPrincipalUniqueness: Bool): R.Result<Nat, TxValidationError> {
     if (tx.map.size() > C.maxContribution) {
       return #err(#MaxContributionsExceeded);
     };
@@ -22,8 +22,11 @@ module {
     let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) });
     // checking owners uniqueness
     let ownersSet = LinkedListSet.LinkedListSet<Principal>(Principal.equal);
+    var contributionsAmount = 0;
+    var flowsAmount = 0;
     // main loop
     for (contribution in tx.map.vals()) {
+      contributionsAmount += 1;
       if (checkPrincipalUniqueness and not ownersSet.put(contribution.owner)) {
         return #err(#OwnersNotUnique);
       };
@@ -45,6 +48,7 @@ module {
       for (flows in [contribution.inflow, contribution.outflow].vals()) {
         var lastSubaccountId : { #empty; #val: Nat } = #empty;
         for ((subaccountId, asset) in flows.vals()) {
+          flowsAmount += 1;
           switch (lastSubaccountId) {
             case (#val lsid) {
               if (subaccountId <= lsid) {
@@ -95,6 +99,6 @@ module {
         return #err(#FlowsNotBroughtToZero);
       };
     };
-    #ok();
+    #ok(contributionsAmount * 34 + flowsAmount * 29);
   }
 }

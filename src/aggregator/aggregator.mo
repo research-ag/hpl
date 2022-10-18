@@ -43,6 +43,7 @@ module {
     submitter : Principal;
     var lid : ?LocalId;
     var status : { #unapproved : MutableApprovals; #approved : Nat; #rejected; #pending; #failed_to_send };
+    size: Nat;
   };
 
   /*
@@ -126,9 +127,10 @@ module {
     */
     public func submit(caller: Principal, tx: Tx): Result<GlobalId, SubmitError> {
       let validationResult = v.validateTx(tx, true);
+      var txSize = 0;
       switch (validationResult) {
         case (#err error) return #err(error);
-        case (#ok) {};
+        case (#ok size) txSize := size;
       };
       let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].autoApprove or tx.map[i].owner == caller);
       let txRequest : TxRequest = {
@@ -136,6 +138,7 @@ module {
         submitter = caller;
         var lid = null;
         var status = #unapproved(approvals);
+        size = txSize;
       };
       let cell = unapproved.pushBack(txRequest);
       txRequest.lid := lookup.add(cell);
@@ -259,11 +262,12 @@ module {
     public func getNextBatchRequests(): [TxRequest] =
       Iter.toArray(object {
         var counter = 0;
+        var availableRequestSpace = 262144 - 70; // 2MB - 70 bytes DIDL prefix and type table
         public func next() : ?TxRequest {
           if (counter >= C.batchSize) {
             return null; // already added `batchSize` requests to the batch: stop iteration;
           };
-          let lid = approvedTxs.dequeue();
+          let lid = approvedTxs.peek();
           switch (lid) {
             case (null) {}; // queue ended: stop iteration;
             case (?l) {
@@ -271,6 +275,12 @@ module {
               switch (cell) {
                 case (null) assert false; // should never happen: request was overwritten in lookup table
                 case (?c) {
+                  // batch cannot fit this tx
+                  if (availableRequestSpace <= c.value.size) {
+                    return null;
+                  };
+                  let _ = approvedTxs.dequeue();
+                  availableRequestSpace -= 1 + c.value.size;
                   counter += 1;
                   c.value.status := #pending;
                   return ?c.value;

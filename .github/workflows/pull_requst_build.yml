@@ -76,6 +76,10 @@ jobs:
           rm -f ./test/performance_tests/cycle_stats.txt
           ic-repl ./test/performance_tests/test_ledger.sh
 
+      - name: Run aggregator load test
+        run: |
+          ic-repl ./test/performance_tests/test_aggregator.sh
+
       - name: update stats
         uses: stefanzweifel/git-auto-commit-action@v4
         with:

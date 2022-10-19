@@ -18,10 +18,12 @@ identity user;
 
 let tx = call canister.generateSimpleTx(user, 0, anotherUser, 0, 10);
 let res0 = call canister.profileSubmit(tx);
+res0;
 output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] submit simple Tx: ", res0[0], "\n"));
 
 let tx = call canister.generateSimpleTx(user, 0, user, 1, 10);
 let res1 = call canister.profileSubmit(tx);
+res1;
 // should be automatically put into batch, since approved
 let batch = call canister.getNextBatch();
 assert batch[0] != null;
@@ -29,6 +31,7 @@ output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] submit + aut
 
 let heavy_tx = call canister.generateHeavyTx(0);
 let res2 = call canister.profileSubmit(heavy_tx);
+res2;
 output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] submit heavy tx: ", res2[0], "\n"));
 
 // clear batch if any

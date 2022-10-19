@@ -75,7 +75,7 @@ module SlotTable {
     /** returns slot and it's index for provided local id. Returns null if slot was overwritten */
     private func getSlotInfoByLid(lid : LocalId) : ?(Slot<X>, Nat) {
       let slotIndex = lid % capacity;
-      let counterValue = lid / capacity;
+      let counterValue = lid / capacity + 1;
       let slot = slots[slotIndex];
       if (slot.counter != counterValue) {
         return null;  // slot was overwritten
@@ -87,7 +87,7 @@ module SlotTable {
     private func insertValue(element: X, slotIndex: Nat) : LocalId {
       slots[slotIndex] := { value = ?element; counter = slots[slotIndex].counter + 1; };
       pushCtr += 1;
-      slots[slotIndex].counter*capacity + slotIndex;
+      (slots[slotIndex].counter - 1)*capacity + slotIndex;
     };
   };
 };

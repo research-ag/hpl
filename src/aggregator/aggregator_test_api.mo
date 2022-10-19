@@ -2,13 +2,17 @@ import E "mo:base/ExperimentalInternetComputer";
 
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
-import Aggregator "./aggregator";
-import LedgerAPI "../ledger/ledger_api";
+import Iter "mo:base/Iter";
+import Blob "mo:base/Blob";
+
 import R "mo:base/Result";
 import T "../shared/types";
 import C "../shared/constants";
-import Blob "mo:base/Blob";
+
 import TestUtils "../shared/test_utils";
+
+import Aggregator "./aggregator";
+import LedgerAPI "../ledger/ledger_api";
 
 // aggregator
 // the constructor arguments are:
@@ -46,6 +50,17 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
       result := aggregator_.submit(caller, tx);
     });
     (instructions, result);
+  };
+  public shared({ caller }) func submitManySimpleTxs(
+    txAmount: Nat, sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat
+  ): async [Result<Aggregator.GlobalId, Aggregator.SubmitError>] {
+    Array.tabulate<Result<Aggregator.GlobalId, Aggregator.SubmitError>>(
+      txAmount,
+      func (n: Nat) = aggregator_.submit(
+        caller,
+        createSimpleTx(sender, senderSubaccountId, receiver, receiverSubaccountId, amount)
+      )
+    );
   };
 
   /** Approve request. If the caller made the last required approvement, it:
@@ -86,8 +101,23 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
   public func getNextBatch() : async Aggregator.Batch {
     Array.map(aggregator_.getNextBatchRequests(), func (req: Aggregator.TxRequest): Aggregator.Tx = req.tx);
   };
+  public func profileGetNextBatch() : async (Nat64, Aggregator.Batch) {
+    var result: [Aggregator.TxRequest] = [];
+    let instructions: Nat64 = E.countInstructions(func foo() {
+      result := aggregator_.getNextBatchRequests();
+    });
+    (instructions, Array.map(result, func (req: Aggregator.TxRequest): Aggregator.Tx = req.tx));
+  };
 
   public query func generateSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): async Aggregator.Tx {
+    createSimpleTx(sender, senderSubaccountId, receiver, receiverSubaccountId, amount);
+  };
+
+  public query func generateHeavyTx(startPrincipalNumber: Nat): async T.Tx {
+    TestUtils.generateHeavyTx(startPrincipalNumber);
+  };
+
+  func createSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): Aggregator.Tx {
     if (sender == receiver) {
       {
         map = [{
@@ -117,10 +147,6 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
         committer = null;
       };
     };
-  };
-
-  public query func generateHeavyTx(startPrincipalNumber: Nat): async T.Tx {
-    TestUtils.generateHeavyTx(startPrincipalNumber);
   };
 
 };

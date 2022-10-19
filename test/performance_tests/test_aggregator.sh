@@ -44,3 +44,19 @@ res3;
 let batch = call canister.getNextBatch();
 assert batch[0] != null;
 output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] approve + equeue simple Tx: ", res3[0], "\n"));
+
+identity user;
+let tx = call canister.generateSimpleTx(user, 0, anotherUser, 0, 10);
+call canister.submit(tx);
+let gid = _.ok;
+identity anotherUser;
+let res5 = call canister.profileReject(gid);
+res5;
+output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] reject simple Tx: ", res5[0], "\n"));
+
+// big batch
+identity user;
+call canister.submitManySimpleTxs(1000, user, 0, user, 1, 10);
+let res6 = call canister.profileGetNextBatch();
+res6;
+output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] prepare big batch: ", res6[0], "\n"));

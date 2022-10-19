@@ -7,9 +7,8 @@ module SlotTable {
 
   type Slot<X> = {
     // value `none` means the slot is empty
-    var value : ?X;
-    // must be initialized to 0
-    var counter : Nat;
+    value : ?X;
+    counter : Nat;
   };
 
   /** We implement our lookup data structure as a lookup table (array) with a fixed number of slots.
@@ -31,7 +30,7 @@ module SlotTable {
     // chain of all slots, that can be reused
     let reuseQueue : HPLQueue.HPLQueue<Nat> = HPLQueue.HPLQueue<Nat>();
     // slots array
-    let slots : [Slot<X>] = Array.tabulate<Slot<X>>(capacity, func (n: Nat) = { var value = null; var counter = 0; });
+    let slots : [var Slot<X>] = Array.init<Slot<X>>(capacity, { value = null; counter = 0; });
 
     /** number of items that were ever pushed to the table */
     public func pushesAmount(): Nat = pushCtr;
@@ -68,7 +67,7 @@ module SlotTable {
         case (null) {};
         case (?(slot, slotIndex)) {
           reuseQueue.enqueue(slotIndex);
-          slot.value := null;
+          slots[slotIndex] := { value = null; counter = slot.counter; };
         };
       };
     };
@@ -86,11 +85,9 @@ module SlotTable {
 
     /** inserts value to slot with provided index, updates counter; generates and returns local id  */
     private func insertValue(element: X, slotIndex: Nat) : LocalId {
-      let slot = slots[slotIndex];
-      slot.counter += 1;
-      slot.value := ?element;
+      slots[slotIndex] := { value = ?element; counter = slots[slotIndex].counter + 1; };
       pushCtr += 1;
-      slot.counter*capacity + slotIndex;
+      slots[slotIndex].counter*capacity + slotIndex;
     };
   };
 };

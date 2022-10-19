@@ -1,3 +1,5 @@
+import E "mo:base/ExperimentalInternetComputer";
+
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Aggregator "./aggregator";
@@ -6,6 +8,7 @@ import R "mo:base/Result";
 import T "../shared/types";
 import C "../shared/constants";
 import Blob "mo:base/Blob";
+import TestUtils "../shared/test_utils";
 
 // aggregator
 // the constructor arguments are:
@@ -37,6 +40,13 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
   public shared({ caller }) func submit(tx: Aggregator.Tx): async Result<Aggregator.GlobalId, Aggregator.SubmitError> {
     aggregator_.submit(caller, tx);
   };
+  public shared({ caller }) func profileSubmit(tx: Aggregator.Tx): async (Nat64, Result<Aggregator.GlobalId, Aggregator.SubmitError>) {
+    var result: Result<Aggregator.GlobalId, Aggregator.SubmitError> = #err(#NoSpace);
+    let instructions: Nat64 = E.countInstructions(func foo() {
+      result := aggregator_.submit(caller, tx);
+    });
+    (instructions, result);
+  };
 
   /** Approve request. If the caller made the last required approvement, it:
   * - marks request as approved
@@ -46,12 +56,26 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
   public shared({ caller }) func approve(txId: Aggregator.GlobalId): async Result<(), Aggregator.NotPendingError> {
     aggregator_.approve(caller, txId);
   };
+  public shared({ caller }) func profileApprove(txId: Aggregator.GlobalId): async (Nat64, Result<(), Aggregator.NotPendingError>) {
+    var result: Result<(), Aggregator.NotPendingError> = #err(#AlreadyApproved);
+    let instructions: Nat64 = E.countInstructions(func foo() {
+      result := aggregator_.approve(caller, txId);
+    });
+    (instructions, result);
+  };
 
   /** Reject request. It marks request as rejected, but don't remove the request from unapproved list,
   * so it's status can still be queried until overwritten by newer requests
   */
   public shared({ caller }) func reject(txId: Aggregator.GlobalId): async Result<(), Aggregator.NotPendingError> {
     aggregator_.reject(caller, txId);
+  };
+  public shared({ caller }) func profileReject(txId: Aggregator.GlobalId): async (Nat64, Result<(), Aggregator.NotPendingError>) {
+    var result: Result<(), Aggregator.NotPendingError> = #err(#NotFound);
+    let instructions: Nat64 = E.countInstructions(func foo() {
+      result := aggregator_.reject(caller, txId);
+    });
+    (instructions, result);
   };
 
   /** Query transaction request info */
@@ -93,6 +117,10 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
         committer = null;
       };
     };
+  };
+
+  public query func generateHeavyTx(startPrincipalNumber: Nat): async T.Tx {
+    TestUtils.generateHeavyTx(startPrincipalNumber);
   };
 
 };

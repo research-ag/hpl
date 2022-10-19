@@ -13,11 +13,31 @@ call ic.install_code(
 );
 let canister = id.canister_id;
 
+identity anotherUser;
 identity user;
 
+let tx = call canister.generateSimpleTx(user, 0, anotherUser, 0, 10);
+let res0 = call canister.profileSubmit(tx);
+output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] submit simple Tx: ", res0[0], "\n"));
+
 let tx = call canister.generateSimpleTx(user, 0, user, 1, 10);
-call canister.submit(tx);
+let res1 = call canister.profileSubmit(tx);
 // should be automatically put into batch, since approved
 let batch = call canister.getNextBatch();
 assert batch[0] != null;
+output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] submit + auto-enqueue simple Tx: ", res1[0], "\n"));
 
+let heavy_tx = call canister.generateHeavyTx(0);
+let res2 = call canister.profileSubmit(heavy_tx);
+output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] submit heavy tx: ", res2[0], "\n"));
+
+// clear batch if any
+call canister.getNextBatch();
+
+identity anotherUser;
+let res3 = call canister.profileApprove(res0[1].ok);
+res3;
+// should be automatically put into batch, since approved
+let batch = call canister.getNextBatch();
+assert batch[0] != null;
+output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] approve + equeue simple Tx: ", res3[0], "\n"));

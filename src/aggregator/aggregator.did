@@ -81,6 +81,7 @@ type SubmitError =
    FlowsNotBroughtToZero;
    MaxContributionsExceeded;
    MaxFlowsExceeded;
+   MaxFtQuantityExceeded;
    MaxMemoSizeExceeded;
    FlowsNotSorted;
    OwnersNotUnique;

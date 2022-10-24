@@ -125,7 +125,6 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
           inflow = [ (receiverSubaccountId, #ft(0, amount)) ];
           outflow = [ (senderSubaccountId, #ft(0, amount)) ];
           memo = null;
-          autoApprove = false;
         }];
         committer = null;
       };
@@ -136,13 +135,11 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
           inflow = [];
           outflow = [ (senderSubaccountId, #ft(0, amount)) ];
           memo = null;
-          autoApprove = false;
         }, {
           owner = receiver;
           inflow = [ (receiverSubaccountId, #ft(0, amount)) ];
           outflow = [];
           memo = null;
-          autoApprove = false;
         }];
         committer = null;
       };

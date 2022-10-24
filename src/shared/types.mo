@@ -17,8 +17,7 @@ module {
     owner : Principal;
     inflow : [(SubaccountId, Asset)];
     outflow : [(SubaccountId, Asset)];
-    memo : ?Blob;
-    autoApprove : Bool
+    memo : ?Blob
   };
   // inflow/outflow encodes a map subaccount -> asset list
   // subaccount id must be strictly increasing throughout the list to rule out duplicate keys

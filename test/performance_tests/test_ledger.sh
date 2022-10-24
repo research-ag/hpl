@@ -19,15 +19,15 @@ let id = createLedger(vec { aggregator_mock });
 let canister = id.canister_id;
 
 // register 40,000 principals, generated from sequent Nat-s (0 - 39,999)
-call canister.registerPrincipals(0, 10000, 256, false, 500);
-call canister.registerPrincipals(10000, 10000, 256, false, 500);
-call canister.registerPrincipals(20000, 10000, 256, false, 500);
-call canister.registerPrincipals(30000, 10000, 256, false, 500);
+call canister.registerPrincipals(0, 10000, 256, 500);
+call canister.registerPrincipals(10000, 10000, 256, 500);
+call canister.registerPrincipals(20000, 10000, 256, 500);
+call canister.registerPrincipals(30000, 10000, 256, 500);
 
 identity user1;
-call canister.openNewAccounts(1, false);
+call canister.openNewAccounts(1);
 identity user2;
-call canister.openNewAccounts(2, false);
+call canister.openNewAccounts(2);
 call canister.issueTokens(user2, 0, variant { ft = record { 0; 800 } });
 call canister.issueTokens(user2, 1, variant { ft = record { 0; 800 } });
 
@@ -57,14 +57,12 @@ let n = call canister.profile(vec {
           inflow = vec { record { 0; variant { ft = record { 0; 500 } } } };
           outflow = vec { };
           memo = null;
-          autoApprove = false;
         };
         record {
           owner = user2;
           inflow = vec { };
           outflow = vec { record { 0; variant { ft = record { 0; 500 } } } };
           memo = null;
-          autoApprove = false;
         }
     };
     committer = opt user1;

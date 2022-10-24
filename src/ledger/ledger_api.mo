@@ -20,8 +20,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
 
   // updates
   /*
-  Open n new subaccounts. When `autoApprove` is true then all subaccounts will be set to be "auto approving".
-  This setting cannot be changed anymore afterwards with the current API.
+  Open n new subaccounts.
 
   Note that the owner does not specify a token id. The new subaccounts hold the Asset value none.
   The token id of a subaccount is determined by the first inflow.
@@ -31,12 +30,11 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
   That will set the Asset value in the subaccount to the wanted token id.
   */
-  public shared({caller}) func openNewAccounts(n: Nat, autoApprove : Bool): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> =
-    async ledger_.openNewAccounts(caller, n, autoApprove);
+  public shared({caller}) func openNewAccounts(n: Nat): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> =
+    async ledger_.openNewAccounts(caller, n);
 
   /*
   Process a batch of transactions. Each transaction only executes if the following conditions are met:
-  - all subaccounts that are marked `autoApprove` in the transactions are also autoApprove in the ledger
   - all outflow subaccounts have matching token id and sufficient balance
   - all inflow subaccounts have matching token id (or Asset value `none`)
   - on a per-token id basis the sum of all outflows matches all inflows

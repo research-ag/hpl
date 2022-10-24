@@ -132,7 +132,7 @@ module {
         case (#err error) return #err(error);
         case (#ok size) txSize := size;
       };
-      let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].autoApprove or tx.map[i].owner == caller);
+      let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].autoApprove or tx.map[i].owner == caller or tx.map[i].outflow.size() == 0);
       let txRequest : TxRequest = {
         tx = tx;
         submitter = caller;

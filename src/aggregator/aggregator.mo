@@ -80,7 +80,7 @@ module {
 
     global tx id (short: global id): The local id plus aggregator id makes a globally unique id.
 
-    fully approved: A tx request that is approved by all contributors that are not marked as autoApprove by the tx. A fully approved tx is queued.
+    fully approved: A tx request that is approved by all contributors. A fully approved tx is queued.
 
     unapproved: A tx request that is not yet fully approved.
     */
@@ -132,7 +132,7 @@ module {
         case (#err error) return #err(error);
         case (#ok size) txSize := size;
       };
-      let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].autoApprove or tx.map[i].owner == caller);
+      let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].owner == caller or tx.map[i].outflow.size() == 0);
       let txRequest : TxRequest = {
         tx = tx;
         submitter = caller;

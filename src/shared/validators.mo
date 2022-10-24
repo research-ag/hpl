@@ -11,7 +11,7 @@ import LinkedListSet "linked_list_set";
 
 module {
 
-  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxFtQuantityExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique; #WrongAssetType; #AutoApproveNotAllowed };
+  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxFtQuantityExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique; #WrongAssetType };
 
   /** transaction request validation function. Returns Tx size in bytes if success */
   public func validateTx(tx: T.Tx, checkPrincipalUniqueness: Bool): R.Result<Nat, TxValidationError> {
@@ -29,9 +29,6 @@ module {
       contributionsAmount += 1;
       if (checkPrincipalUniqueness and not ownersSet.put(contribution.owner)) {
         return #err(#OwnersNotUnique);
-      };
-      if (contribution.autoApprove and contribution.outflow.size() > 0) {
-        return #err(#AutoApproveNotAllowed);
       };
       if (contribution.inflow.size() + contribution.outflow.size() > C.maxFlows) {
         return #err(#MaxFlowsExceeded);

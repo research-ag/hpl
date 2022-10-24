@@ -37,8 +37,11 @@ output("./test/performance_tests/cycle_stats.txt", stringify("[AGG] submit heavy
 // clear batch if any
 call canister.getNextBatch();
 
+identity user;
+let tx = call canister.generateSimpleTx(user, 0, anotherUser, 0, 10);
+let req3 = call canister.profileSubmit(tx);
 identity anotherUser;
-let res3 = call canister.profileApprove(res0[1].ok);
+let res3 = call canister.profileApprove(req3[1].ok);
 res3;
 // should be automatically put into batch, since approved
 let batch = call canister.getNextBatch();

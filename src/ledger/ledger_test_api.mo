@@ -2,8 +2,6 @@ import E "mo:base/ExperimentalInternetComputer";
 
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
-import Nat8 "mo:base/Nat8";
-import Blob "mo:base/Blob";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
 import Error "mo:base/Error";
@@ -12,6 +10,7 @@ import Ledger "ledger";
 import C "../shared/constants";
 import T "../shared/types";
 import u "../shared/utils";
+import TestUtils "../shared/test_utils";
 
 actor class TestLedgerAPI(initialAggregators : [Principal]) {
   let ledger_ = Ledger.Ledger(initialAggregators);
@@ -72,24 +71,12 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   };
 
   public query func generateHeavyTx(startPrincipalNumber: Nat): async T.Tx {
-    {
-      map = Array.tabulate<T.Contribution>(
-        C.maxContribution,
-        func (i: Nat) = {
-          owner = principalFromNat(startPrincipalNumber + i);
-          inflow = Array.tabulate<(T.SubaccountId, T.Asset)>(C.maxFlows / 2, func (j: Nat) = (j, #ft(0, 10)));
-          outflow = Array.tabulate<(T.SubaccountId, T.Asset)>(C.maxFlows / 2, func (j: Nat) = (j + C.maxFlows / 2, #ft(0, 10)));
-          memo = ?Blob.fromArray(Array.freeze(Array.init<Nat8>(C.maxMemoSize, 12)));
-          autoApprove = false
-        },
-      );
-      committer = null;
-    };
+    TestUtils.generateHeavyTx(startPrincipalNumber);
   };
 
   public func registerPrincipals(startPrincipalNumber: Nat, amount: Nat, subaccountsAmount: Nat, autoApprove: Bool, initialBalance: Nat): async () {
     let initialAsset = { asset = #ft(0, initialBalance); autoApprove = autoApprove };
-    for (p in Iter.map<Nat, Principal>(Iter.range(startPrincipalNumber, startPrincipalNumber + amount), func (i: Nat) : Principal = principalFromNat(i))) {
+    for (p in Iter.map<Nat, Principal>(Iter.range(startPrincipalNumber, startPrincipalNumber + amount), func (i: Nat) : Principal = TestUtils.principalFromNat(i))) {
       switch (ledger_.getOwnerId(p, true)) {
         case (#err _) ();
         case (#ok oid) ledger_.accounts[oid] := Array.init<Ledger.SubaccountState>(subaccountsAmount, initialAsset);
@@ -116,17 +103,4 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   public query func counters() : async { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat } = async ledger_.counters();
   public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async ledger_.batchesHistory(startIndex, endIndex);
 
-  private func principalFromNat(n : Nat) : Principal {
-    let blobLength = 16;
-    Principal.fromBlob(Blob.fromArray(
-      Array.tabulate<Nat8>(
-        blobLength,
-        func (i : Nat) : Nat8 {
-          assert(i < blobLength);
-          let shift : Nat = 8 * (blobLength - 1 - i);
-          Nat8.fromIntWrap(n / 2**shift)
-        }
-      )
-    ));
-  };
 };

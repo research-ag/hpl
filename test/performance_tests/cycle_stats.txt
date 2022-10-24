@@ -1,6 +1,12 @@
-Empty batch: 1014
-Batch with one empty Tx: 1685
-One simple Tx: 20167
-16,384 txs: 186849844
-Heavy tx: 92113364
-5 heavy tx-s (max possible batch): 460582014
+[LED] Empty batch: 1014
+[LED] Batch with one empty Tx: 1685
+[LED] One simple Tx: 20167
+[LED] 16,384 txs: 186849844
+[LED] Heavy tx: 92115690
+[LED] 5 heavy tx-s (max possible batch): 460575352
+[AGG] submit simple Tx: 16024
+[AGG] submit + auto-enqueue simple Tx: 15854
+[AGG] submit heavy tx: 258359804
+[AGG] approve + equeue simple Tx: 4388
+[AGG] reject simple Tx: 2193
+[AGG] prepare big batch: 801452

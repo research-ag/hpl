@@ -1,16 +1,14 @@
-import T "types";
 import Array "mo:base/Array";
 import HPLQueue "queue";
 
 module SlotTable {
 
-  type Tx = T.Tx;
-  type LocalId = T.LocalId;
+  public type LocalId = Nat;
+
   type Slot<X> = {
     // value `none` means the slot is empty
-    var value : ?X;
-    // must be initialized to 0
-    var counter : Nat;
+    value : ?X;
+    counter : Nat;
   };
 
   /** We implement our lookup data structure as a lookup table (array) with a fixed number of slots.
@@ -32,7 +30,7 @@ module SlotTable {
     // chain of all slots, that can be reused
     let reuseQueue : HPLQueue.HPLQueue<Nat> = HPLQueue.HPLQueue<Nat>();
     // slots array
-    let slots : [Slot<X>] = Array.freeze(Array.init<Slot<X>>(capacity, { var value = null; var counter = 0; }));
+    let slots : [var Slot<X>] = Array.init<Slot<X>>(capacity, { value = null; counter = 0; });
 
     /** number of items that were ever pushed to the table */
     public func pushesAmount(): Nat = pushCtr;
@@ -69,7 +67,7 @@ module SlotTable {
         case (null) {};
         case (?(slot, slotIndex)) {
           reuseQueue.enqueue(slotIndex);
-          slot.value := null;
+          slots[slotIndex] := { value = null; counter = slot.counter; };
         };
       };
     };
@@ -77,7 +75,7 @@ module SlotTable {
     /** returns slot and it's index for provided local id. Returns null if slot was overwritten */
     private func getSlotInfoByLid(lid : LocalId) : ?(Slot<X>, Nat) {
       let slotIndex = lid % capacity;
-      let counterValue = lid / capacity;
+      let counterValue = lid / capacity + 1;
       let slot = slots[slotIndex];
       if (slot.counter != counterValue) {
         return null;  // slot was overwritten
@@ -87,11 +85,9 @@ module SlotTable {
 
     /** inserts value to slot with provided index, updates counter; generates and returns local id  */
     private func insertValue(element: X, slotIndex: Nat) : LocalId {
-      let slot = slots[slotIndex];
-      slot.counter += 1;
-      slot.value := ?element;
+      slots[slotIndex] := { value = ?element; counter = slots[slotIndex].counter + 1; };
       pushCtr += 1;
-      slot.counter*capacity + slotIndex;
+      (slots[slotIndex].counter - 1)*capacity + slotIndex;
     };
   };
 };

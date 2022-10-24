@@ -11,11 +11,16 @@
       "type": "motoko"
     },
     "agg0": {
-      "main": "src/aggregator/main.mo",
+      "main": "src/aggregator/aggregator_api.mo",
       "type": "motoko"
     },
     "agg1": {
-      "main": "src/aggregator/main.mo",
+      "main": "src/aggregator/aggregator_api.mo",
+      "type": "motoko"
+    },
+    "aggregator_test": {
+      "main": "src/aggregator/aggregator_test_api.mo",
+      "candid": "src/aggregator/aggregator.did",
       "type": "motoko"
     }
   },

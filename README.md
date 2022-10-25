@@ -151,7 +151,7 @@ See [code](src/ledger/ledger.mo).
 
 #### Aggregator
 
-See [code](src/aggregator/main.mo).
+See [code](src/aggregator/aggregator.mo).
 
 Summary lifecycle of the `Transaction` entity:
 ```mermaid

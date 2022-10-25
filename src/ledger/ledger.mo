@@ -21,7 +21,7 @@ module {
   public type Asset = T.Asset;
   public type AssetId = T.AssetId;
 
-  public type SubaccountState = { asset: Asset; autoApprove: Bool };
+  public type SubaccountState = { asset: Asset };
   public type TxValidationError = v.TxValidationError;
   public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
@@ -106,7 +106,7 @@ module {
         };
       };
 
-    public func openNewAccounts(p: Principal, n: Nat, autoApprove : Bool): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> {
+    public func openNewAccounts(p: Principal, n: Nat): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> {
       switch (getOwnerId(p, true)) {
         case (#err _) #err(#NoSpaceForPrincipal);
         case (#ok oid) {
@@ -118,7 +118,7 @@ module {
           accounts[oid] := Array.tabulateVar<SubaccountState>(oldSize + n, func (n: Nat) =
             switch (n < oldSize) {
               case (true) accounts[oid][n];
-              case (_) ({ asset = #none; autoApprove = autoApprove });
+              case (_) ({ asset = #none });
             });
           #ok(oldSize);
         };
@@ -132,7 +132,7 @@ module {
       };
       owners.put(principal, ownerId);
       ownersAmount += 1;
-      accounts[ownerId] := Array.init<SubaccountState>(0, { asset = #none; autoApprove = false; });
+      accounts[ownerId] := Array.init<SubaccountState>(0, { asset = #none; });
       #ok(ownerId);
     };
 
@@ -188,7 +188,7 @@ module {
             Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
             Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
           )) {
-            switch (processFlow(oid, subaccountId, contribution.autoApprove, flowAsset, isInflow)) {
+            switch (processFlow(oid, subaccountId, flowAsset, isInflow)) {
               case (#err err) {
                 results[i] := #err(err);
                 nTxFailed_ += 1;
@@ -209,14 +209,11 @@ module {
       nBatchTotal_ += 1;
     };
 
-    private func processFlow(ownerId: OwnerId, subaccountId: T.SubaccountId, autoApprove: Bool, flowAsset: T.Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
+    private func processFlow(ownerId: OwnerId, subaccountId: T.SubaccountId, flowAsset: T.Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
       if (subaccountId >= accounts[ownerId].size()) {
         return #err(#WrongSubaccountId);
       };
       let subaccount = accounts[ownerId][subaccountId];
-      if (isInflow and autoApprove and not subaccount.autoApprove) {
-        return #err(#AutoApproveNotAllowed);
-      };
       switch (flowAsset) {
         case (#none) return #err(#WrongAssetType);
         case (#ft flowAssetData) {
@@ -227,18 +224,18 @@ module {
                 return #err(#WrongAssetType);
               };
               if (isInflow) {
-                return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1); autoApprove = subaccount.autoApprove });
+                return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1) });
               };
               // check is enough balance
               if (userAssetData.1 < flowAssetData.1) {
                 return #err(#InsufficientFunds);
               };
-              return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 - flowAssetData.1); autoApprove = subaccount.autoApprove });
+              return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 - flowAssetData.1) });
             };
             case (#none) {
               // subaccount not initialized: inflow always valid, outflow cannot be applied
               if (isInflow) {
-                return #ok({ asset = #ft(flowAssetData.0, flowAssetData.1); autoApprove = subaccount.autoApprove });
+                return #ok({ asset = #ft(flowAssetData.0, flowAssetData.1) });
               };
               return #err(#InsufficientFunds);
             };

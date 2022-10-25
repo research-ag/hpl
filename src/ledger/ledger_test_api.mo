@@ -2,8 +2,6 @@ import E "mo:base/ExperimentalInternetComputer";
 
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
-import Nat8 "mo:base/Nat8";
-import Blob "mo:base/Blob";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
 import Error "mo:base/Error";
@@ -12,6 +10,7 @@ import Ledger "ledger";
 import C "../shared/constants";
 import T "../shared/types";
 import u "../shared/utils";
+import TestUtils "../shared/test_utils";
 
 actor class TestLedgerAPI(initialAggregators : [Principal]) {
   let ledger_ = Ledger.Ledger(initialAggregators);
@@ -23,8 +22,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
 
   // updates
   /*
-  Open n new subaccounts. When `autoApprove` is true then all subaccounts will be set to be "auto approving".
-  This setting cannot be changed anymore afterwards with the current API.
+  Open n new subaccounts.
 
   Note that the owner does not specify a token id. The new subaccounts hold the Asset value none.
   The token id of a subaccount is determined by the first inflow.
@@ -34,12 +32,11 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
   That will set the Asset value in the subaccount to the wanted token id.
   */
-  public shared({caller}) func openNewAccounts(n: Nat, autoApprove : Bool): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> =
-    async ledger_.openNewAccounts(caller, n, autoApprove);
+  public shared({caller}) func openNewAccounts(n: Nat): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> =
+    async ledger_.openNewAccounts(caller, n);
 
   /*
   Process a batch of transactions. Each transaction only executes if the following conditions are met:
-  - all subaccounts that are marked `autoApprove` in the transactions are also autoApprove in the ledger
   - all outflow subaccounts have matching token id and sufficient balance
   - all inflow subaccounts have matching token id (or Asset value `none`)
   - on a per-token id basis the sum of all outflows matches all inflows
@@ -65,31 +62,19 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
 
   public query func createTestBatch(committer: Principal, owner: Principal, txAmount: Nat): async [T.Tx] {
     let tx: T.Tx = {
-      map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; memo = null; autoApprove = false }];
+      map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; memo = null }];
       committer = ?committer;
     };
     Array.freeze(Array.init<T.Tx>(txAmount, tx));
   };
 
   public query func generateHeavyTx(startPrincipalNumber: Nat): async T.Tx {
-    {
-      map = Array.tabulate<T.Contribution>(
-        C.maxContribution,
-        func (i: Nat) = {
-          owner = principalFromNat(startPrincipalNumber + i);
-          inflow = Array.tabulate<(T.SubaccountId, T.Asset)>(C.maxFlows / 2, func (j: Nat) = (j, #ft(0, 10)));
-          outflow = Array.tabulate<(T.SubaccountId, T.Asset)>(C.maxFlows / 2, func (j: Nat) = (j + C.maxFlows / 2, #ft(0, 10)));
-          memo = ?Blob.fromArray(Array.freeze(Array.init<Nat8>(C.maxMemoSize, 12)));
-          autoApprove = false
-        },
-      );
-      committer = null;
-    };
+    TestUtils.generateHeavyTx(startPrincipalNumber);
   };
 
-  public func registerPrincipals(startPrincipalNumber: Nat, amount: Nat, subaccountsAmount: Nat, autoApprove: Bool, initialBalance: Nat): async () {
-    let initialAsset = { asset = #ft(0, initialBalance); autoApprove = autoApprove };
-    for (p in Iter.map<Nat, Principal>(Iter.range(startPrincipalNumber, startPrincipalNumber + amount), func (i: Nat) : Principal = principalFromNat(i))) {
+  public func registerPrincipals(startPrincipalNumber: Nat, amount: Nat, subaccountsAmount: Nat, initialBalance: Nat): async () {
+    let initialAsset = { asset = #ft(0, initialBalance) };
+    for (p in Iter.map<Nat, Principal>(Iter.range(startPrincipalNumber, startPrincipalNumber + amount), func (i: Nat) : Principal = TestUtils.principalFromNat(i))) {
       switch (ledger_.getOwnerId(p, true)) {
         case (#err _) ();
         case (#ok oid) ledger_.accounts[oid] := Array.init<Ledger.SubaccountState>(subaccountsAmount, initialAsset);
@@ -105,7 +90,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
     switch (ledger_.ownerId(userPrincipal)) {
       case (#err _) #err(#WrongOwnerId);
       case (#ok oid) {
-        ledger_.accounts[oid][subaccountId] := { asset = asset; autoApprove = false };
+        ledger_.accounts[oid][subaccountId] := { asset = asset };
         #ok(ledger_.accounts[oid][subaccountId]);
       };
     };
@@ -116,17 +101,4 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   public query func counters() : async { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat } = async ledger_.counters();
   public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async ledger_.batchesHistory(startIndex, endIndex);
 
-  private func principalFromNat(n : Nat) : Principal {
-    let blobLength = 16;
-    Principal.fromBlob(Blob.fromArray(
-      Array.tabulate<Nat8>(
-        blobLength,
-        func (i : Nat) : Nat8 {
-          assert(i < blobLength);
-          let shift : Nat = 8 * (blobLength - 1 - i);
-          Nat8.fromIntWrap(n / 2**shift)
-        }
-      )
-    ));
-  };
 };

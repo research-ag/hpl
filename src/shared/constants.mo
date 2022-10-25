@@ -11,6 +11,9 @@ module {
   // maximum number of contributions per transaction
   public let maxContribution = 256;
 
+  // maximum quantity of #ft in the flow, equals to 2**128 - 1
+  public let flowMaxFtQuantity = 340282366920938463463374607431768211455;
+
   // maximum number of subaccounts per principal in ledger
   public let maxSubaccounts = 65536;
 

@@ -20,8 +20,6 @@ type Asset = variant {
 // A transaction has contributions from multiple parties, each of which is of the following type.
 // A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.
 // The memo is limited to 256 bytes.
-// autoApprove = false indicates that the aggregator waits for approveance of the owner.
-// autoApprove = true indicates that the owner is expected to have auto-approve configured in the ledger (if not the transaction will fail).
 type Contribution = 
  record {
    owner : principal;
@@ -34,7 +32,6 @@ type Contribution =
                   Asset;
                 };
    memo: opt blob;
-   autoApprove: bool;
  };
 
 // A transaction is a map from owner to the owner's contribution.
@@ -81,11 +78,11 @@ type SubmitError =
    FlowsNotBroughtToZero;
    MaxContributionsExceeded;
    MaxFlowsExceeded;
+   MaxFtQuantityExceeded;
    MaxMemoSizeExceeded;
    FlowsNotSorted;
    OwnersNotUnique;
    WrongAssetType;
-   AutoApproveNotAllowed;
  };
 
 type Submit_Result = 

@@ -18,6 +18,9 @@ identity aggregator_mock;
 let id = createLedger(vec { aggregator_mock });
 let canister = id.canister_id;
 
+// register one fungible token (asset id)
+call canister.createFungibleToken();
+
 // register 40,000 principals, generated from sequent Nat-s (0 - 39,999)
 call canister.registerPrincipals(0, 10000, 256, 500);
 call canister.registerPrincipals(10000, 10000, 256, 500);

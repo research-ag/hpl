@@ -23,7 +23,7 @@ module {
 
   public type SubaccountState = { asset: Asset };
   public type TxValidationError = v.TxValidationError;
-  public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
+  public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; #WrongAssetId; };
   public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
   public type CreateFtError = { #NoSpace; #FeeError };
   // Owners are tracked via a "short id" which is a Nat
@@ -243,9 +243,13 @@ module {
               return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 - flowAssetData.1) });
             };
             case (#none) {
-              // subaccount not initialized: inflow always valid, outflow cannot be applied
+              // subaccount not initialized: inflow inits the subaccount, outflow cannot be applied
               if (isInflow) {
-                return #ok({ asset = #ft(flowAssetData.0, flowAssetData.1) });
+                if (flowAssetData.0 < assetControllers.size()) {
+                  return #ok({ asset = #ft(flowAssetData.0, flowAssetData.1) });
+                } else {
+                  return #err(#WrongAssetId);
+                };
               };
               return #err(#InsufficientFunds);
             };

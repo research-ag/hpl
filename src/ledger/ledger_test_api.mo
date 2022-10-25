@@ -44,7 +44,6 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   If the call returns (i.e. no system-level failure) the aggregator knows that the batch has been processed.
   If the aggregator catches a system-level failure then it knows that the batch has not been processed.
   */
-  type ProcessingError = Ledger.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public shared({caller}) func processBatch(batch: Batch): async () {
     let aggId = u.arrayFindIndex(ledger_.aggregators, func (agg: Principal): Bool = agg == caller);
     switch (aggId) {
@@ -86,7 +85,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   // add one aggregator principal
   public func addAggregator(p : Principal) : async AggregatorId = async ledger_.addAggregator(p);
 
-  public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Ledger.Asset) : async Result<Ledger.SubaccountState,ProcessingError> {
+  public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Ledger.Asset) : async Result<Ledger.SubaccountState,Ledger.ProcessingError> {
     switch (ledger_.ownerId(userPrincipal)) {
       case (#err _) #err(#WrongOwnerId);
       case (#ok oid) {

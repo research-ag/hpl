@@ -14,7 +14,6 @@ type Asset = variant {
     AssetId;
     nat;
   };
-  none;
 };
 
 // A transaction has contributions from multiple parties, each of which is of the following type.

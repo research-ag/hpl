@@ -25,10 +25,8 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   /*
   Open n new subaccounts.
 
-  Note that the owner does not specify a token id. The new subaccounts hold the Asset value none.
-  The token id of a subaccount is determined by the first inflow.
-  After that, the token id cannot be changed anymore with the current API.
-  For any subsequent transaction the inflow has to match the token id of the subaccount or else is rejected.
+  The token id cannot be changed anymore with the current API.
+  For any transaction the inflow has to match the token id of the subaccount or else is rejected.
 
   If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
   That will set the Asset value in the subaccount to the wanted token id.
@@ -39,7 +37,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   /*
   Process a batch of transactions. Each transaction only executes if the following conditions are met:
   - all outflow subaccounts have matching token id and sufficient balance
-  - all inflow subaccounts have matching token id (or Asset value `none`)
+  - all inflow subaccounts have matching token id
   - on a per-token id basis the sum of all outflows matches all inflows
   There is no return value.
   If the call returns (i.e. no system-level failure) the aggregator knows that the batch has been processed.

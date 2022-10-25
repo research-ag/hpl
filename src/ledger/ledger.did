@@ -56,7 +56,7 @@ type Batch = vec Tx;
 type SubaccountId_Result = 
  variant {
    ok: SubaccountId;
-   err: variant {NoSpaceForPrincipal;NoSpaceForSubaccount;};
+   err: variant {NoSpaceForPrincipal; NoSpaceForSubaccount; WrongAssetId; };
  };
 type Principal_Result = 
  variant {

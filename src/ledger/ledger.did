@@ -90,12 +90,12 @@ type CreateFt_Result =
 type Mint_Result =
   variant {
     ok;
-    err: variant {NotController; SubaccountNotFound; WrongAssetType}
+    err: variant {NotController; SubaccountNotFound; WrongAssetId}
   };
 type Burn_Result =
   variant {
     ok;
-    err: variant {NotController; SubaccountNotFound; WrongAssetType; InsufficientFunds}
+    err: variant {NotController; SubaccountNotFound; WrongAssetId; InsufficientFunds}
   };
 
 

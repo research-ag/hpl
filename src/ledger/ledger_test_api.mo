@@ -32,8 +32,8 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
   That will set the Asset value in the subaccount to the wanted token id.
   */
-  public shared({caller}) func openNewAccounts(n: Nat): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> =
-    async ledger_.openNewAccounts(caller, n);
+  public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #WrongAssetId }> =
+    async ledger_.openNewAccounts(caller, n, assetId);
 
   /*
   Process a batch of transactions. Each transaction only executes if the following conditions are met:

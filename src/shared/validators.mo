@@ -11,7 +11,7 @@ import LinkedListSet "linked_list_set";
 
 module {
 
-  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxFtQuantityExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique; #WrongAssetType };
+  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxFtQuantityExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique };
 
   /** transaction request validation function. Returns Tx size in bytes if success */
   public func validateTx(tx: T.Tx, checkPrincipalUniqueness: Bool): R.Result<Nat, TxValidationError> {
@@ -78,7 +78,6 @@ module {
               case (null) assetBalanceMap.put(id, quantity);
             };
           };
-          case (#none _) return #err(#WrongAssetType);
         };
       };
       for ((subaccountId, asset) in contribution.outflow.vals()) {
@@ -93,7 +92,6 @@ module {
               case (null) assetBalanceMap.put(id, -quantity);
             };
           };
-          case (#none _) assert false; // should never happen
         };
       };
     };

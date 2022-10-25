@@ -10,7 +10,6 @@ module {
 
   public type Asset = { 
     #ft : (id : AssetId, quantity : Nat);
-    #none;
   };
 
   public type Contribution = {

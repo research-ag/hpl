@@ -10,7 +10,6 @@ import C "../shared/constants";
 import v "../shared/validators";
 import u "../shared/utils";
 import CircularBuffer "../shared/circular_buffer";
-// import LinkedListSet "../shared/linked_list_set";
 
 module {
 
@@ -116,7 +115,10 @@ module {
       #ok(assetId);
     };
 
-    public func openNewAccounts(p: Principal, n: Nat): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> {
+    public func openNewAccounts(p: Principal, n: Nat, assetId: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #WrongAssetId }> {
+      if (assetId >= assetControllers.size()) {
+        return #err(#WrongAssetId);
+      };
       switch (getOwnerId(p, true)) {
         case (#err _) #err(#NoSpaceForPrincipal);
         case (#ok oid) {
@@ -128,7 +130,7 @@ module {
           accounts[oid] := Array.tabulateVar<SubaccountState>(oldSize + n, func (n: Nat) =
             switch (n < oldSize) {
               case (true) accounts[oid][n];
-              case (_) ({ asset = #none });
+              case (_) ({ asset = #ft(assetId, 0) });
             });
           #ok(oldSize);
         };
@@ -142,7 +144,7 @@ module {
       };
       owners.put(principal, ownerId);
       ownersAmount += 1;
-      accounts[ownerId] := Array.init<SubaccountState>(0, { asset = #none; });
+      accounts[ownerId] := Array.init<SubaccountState>(0, { asset = #ft(0, 0); });
       #ok(ownerId);
     };
 
@@ -225,13 +227,12 @@ module {
       };
       let subaccount = accounts[ownerId][subaccountId];
       switch (flowAsset) {
-        case (#none) return #err(#WrongAssetType);
         case (#ft flowAssetData) {
           switch (subaccount.asset) {
             case (#ft userAssetData) {
               // subaccount has some tokens: check asset type
               if (flowAssetData.0 != userAssetData.0) {
-                return #err(#WrongAssetType);
+                return #err(#WrongAssetId);
               };
               if (isInflow) {
                 return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1) });
@@ -241,17 +242,6 @@ module {
                 return #err(#InsufficientFunds);
               };
               return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 - flowAssetData.1) });
-            };
-            case (#none) {
-              // subaccount not initialized: inflow inits the subaccount, outflow cannot be applied
-              if (isInflow) {
-                if (flowAssetData.0 < assetControllers.size()) {
-                  return #ok({ asset = #ft(flowAssetData.0, flowAssetData.1) });
-                } else {
-                  return #err(#WrongAssetId);
-                };
-              };
-              return #err(#InsufficientFunds);
             };
           };
         };

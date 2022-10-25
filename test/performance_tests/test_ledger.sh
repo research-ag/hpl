@@ -28,9 +28,9 @@ call canister.registerPrincipals(20000, 10000, 256, 500);
 call canister.registerPrincipals(30000, 10000, 256, 500);
 
 identity user1;
-call canister.openNewAccounts(1);
+call canister.openNewAccounts(1, 0);
 identity user2;
-call canister.openNewAccounts(2);
+call canister.openNewAccounts(2, 0);
 call canister.issueTokens(user2, 0, variant { ft = record { 0; 800 } });
 call canister.issueTokens(user2, 1, variant { ft = record { 0; 800 } });
 

@@ -62,13 +62,8 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   // the caller will become the "controller" if the asset id
   // the controller is the sole principal that can mint and burn tokens
   // typically the controller will be a canister
-  type createFtError = { #NoSpace; #FeeError };
-  public shared (msg) func createFungibleToken() : async Result<Ledger.AssetId, createFtError> {
-    // take the next free asset id 
-    // the ledger keeps an array of controllers indexed by assed id 
-    // append msg.caller to this array, i.e. make msg.caller the controller of the new asset id
-    // return the new asset id
-    nyi()
+  public shared ({caller}) func createFungibleToken() : async Result<Ledger.AssetId, Ledger.CreateFtError> {
+    ledger_.createFungibleToken(caller);
   }; 
 
   // mint fungible tokens

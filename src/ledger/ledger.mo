@@ -25,6 +25,7 @@ module {
   public type TxValidationError = v.TxValidationError;
   public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
+  public type CreateFtError = { #NoSpace; #FeeError };
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (= owner ids) are issued consecutively
   public type OwnerId = Nat;
@@ -105,6 +106,15 @@ module {
             case (_) #err(#NotFound);
         };
       };
+
+    public func createFungibleToken(controller: Principal) : Result<AssetId, CreateFtError> {
+      let assetId: AssetId = assetControllers.size();
+      if (assetId >= C.maxAssetIds) {
+        return #err(#NoSpace);
+      };
+      assetControllers := Array.append(assetControllers, [controller]);
+      #ok(assetId);
+    };
 
     public func openNewAccounts(p: Principal, n: Nat): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> {
       switch (getOwnerId(p, true)) {
@@ -273,7 +283,7 @@ module {
     let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(C.batchHistoryLength);
 
     // asset ids
-    let assetController : [var Nat] = [var];
+    public var assetControllers: [Principal] = [];
 
     // debug counters
     var nBatchTotal_: Nat = 0;

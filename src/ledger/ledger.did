@@ -107,7 +107,7 @@ service : (vec principal) -> {
   return value is the id of the first newly created subaccount
   the remaining ones are consecutively numbered
   */
-  openNewAccounts: (nat) -> (SubaccountId_Result);
+  openNewAccounts: (nat, AssetId) -> (SubaccountId_Result);
  
   // process a batch of transaction, caller must be an aggregator
   processBatch: (Batch) -> ();

@@ -12,7 +12,6 @@ type Asset = variant {
     AssetId;
     nat;
   };
-  none;
 };
 
 type SubaccountState = record {

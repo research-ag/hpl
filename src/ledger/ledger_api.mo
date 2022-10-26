@@ -1,6 +1,5 @@
 import R "mo:base/Result";
 import Error "mo:base/Error";
-import { nyi } "mo:base/Prelude";
 import Ledger "ledger";
 
 import u "../shared/utils";
@@ -64,25 +63,13 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   }; 
 
   // mint fungible tokens
-  type MintError = { #NotController; #SubaccountNotFound; #WrongAssetId };
-  public shared (msg) func mint(sid : SubaccountId, asset : Asset) : async Result<(), MintError> {
-    // check if the asset is of the #ft variant (otherwise return #WrongAsset)
-    // check if msg.caller is the controller of the asset id 
-    // check if sid exists
-    // check if asset id to mint matches asset id in subaccount 
-    // add asset to subaccount
-    nyi()
+  public shared ({caller}) func mintFungibleToken(sid : SubaccountId, asset : Asset) : async Result<(), Ledger.MintFtError> {
+    ledger_.mintFungibleToken(caller, sid, asset);
   };
 
-  type BurnError = MintError or { #InsufficientFunds };
-  public shared (msg) func burn(sid : SubaccountId, asset : Asset) : async Result<(), BurnError> {
-    // check if the asset is of the #ft variant (otherwise return #WrongAsset)
-    // check if msg.caller is the controller of the asset id 
-    // check if sid exists
-    // check if asset id to burn matches asset id in subaccount 
-    // check if available quantity is sufficient
-    // subtract asset from subaccount
-    nyi()
+  // burn fungible tokens
+  public shared ({caller}) func burnFungibleToken(sid : SubaccountId, asset : Asset) : async Result<(), Ledger.BurnFtError> {
+    ledger_.burnFungibleToken(caller, sid, asset);
   };
 
   // queries

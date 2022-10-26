@@ -25,6 +25,8 @@ module {
   public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; #WrongAssetId; };
   public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
   public type CreateFtError = { #NoSpace; #FeeError };
+  public type MintFtError = { #NotAController; #SubaccountNotFound; #WrongAssetId };
+  public type BurnFtError = MintFtError or { #InsufficientFunds };
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (= owner ids) are issued consecutively
   public type OwnerId = Nat;
@@ -107,16 +109,47 @@ module {
       };
 
     public func createFungibleToken(controller: Principal) : Result<AssetId, CreateFtError> {
-      let assetId: AssetId = assetControllers.size();
+      let assetId: AssetId = ftControllers.size();
       if (assetId >= C.maxAssetIds) {
         return #err(#NoSpace);
       };
-      assetControllers := Array.append(assetControllers, [controller]);
+      ftControllers := Array.append(ftControllers, [controller]);
       #ok(assetId);
     };
 
+    public func mintFungibleToken(caller: Principal, sid: SubaccountId, asset: Asset) : Result<(), MintFtError> {
+      switch (asset) {
+        case (#ft ft) {
+          if (caller != ftControllers[ft.0]) {
+            return #err(#NotAController);
+          };
+        };
+        case _ return #err(#WrongAssetId);
+      };
+    // check if sid exists
+    // check if asset id to mint matches asset id in subaccount
+    // add asset to subaccount
+      #ok();
+    };
+
+    public func burnFungibleToken(caller: Principal, sid: SubaccountId, asset: Asset) : Result<(), BurnFtError> {
+      switch (asset) {
+        case (#ft ft) {
+          if (caller != ftControllers[ft.0]) {
+            return #err(#NotAController);
+          };
+        };
+        case _ return #err(#WrongAssetId);
+      };
+        // check if sid exists
+        // check if asset id to burn matches asset id in subaccount
+        // check if available quantity is sufficient
+        // subtract asset from subaccount
+      #ok();
+    };
+
     public func openNewAccounts(p: Principal, n: Nat, assetId: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #WrongAssetId }> {
-      if (assetId >= assetControllers.size()) {
+      if (assetId >= ftControllers.size()) {
         return #err(#WrongAssetId);
       };
       switch (getOwnerId(p, true)) {
@@ -277,7 +310,7 @@ module {
     let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(C.batchHistoryLength);
 
     // asset ids
-    public var assetControllers: [Principal] = [];
+    public var ftControllers: [Principal] = [];
 
     // debug counters
     var nBatchTotal_: Nat = 0;

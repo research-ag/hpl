@@ -3,6 +3,7 @@ import TrieMap "mo:base/TrieMap";
 import Nat32 "mo:base/Nat32";
 import Nat "mo:base/Nat";
 import Principal "mo:base/Principal";
+import Iter "mo:base/Iter";
 
 import T "types";
 import C "constants";
@@ -30,7 +31,7 @@ module {
       if (checkPrincipalUniqueness and not ownersSet.put(contribution.owner)) {
         return #err(#OwnersNotUnique);
       };
-      if (contribution.inflow.size() + contribution.outflow.size() > C.maxFlows) {
+      if (contribution.inflow.size() + contribution.outflow.size() + contribution.mints.size() + contribution.burns.size() > C.maxFlows) {
         return #err(#MaxFlowsExceeded);
       };
       switch (contribution.memo) {
@@ -66,7 +67,15 @@ module {
       )) {
         return #err(#FlowsNotSorted);
       };
-      for ((subaccountId, asset) in contribution.inflow.vals()) {
+      let tokenSupplements: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
+        Iter.map<(T.SubaccountId, T.Asset), T.Asset>(contribution.inflow.vals(), func (flow) = flow.1),
+        contribution.mints.vals()
+      );
+      let tokenAbatements: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
+        Iter.map<(T.SubaccountId, T.Asset), T.Asset>(contribution.outflow.vals(), func (flow) = flow.1),
+        contribution.burns.vals()
+      );
+      for (asset in tokenSupplements) {
         switch asset {
           case (#ft (id, quantity)) {
             if (quantity > C.flowMaxFtQuantity) {
@@ -80,7 +89,7 @@ module {
           };
         };
       };
-      for ((subaccountId, asset) in contribution.outflow.vals()) {
+      for (asset in tokenAbatements) {
         switch asset {
           case (#ft (id, quantity)) {
             if (quantity > C.flowMaxFtQuantity) {

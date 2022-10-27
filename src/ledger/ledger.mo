@@ -22,11 +22,9 @@ module {
 
   public type SubaccountState = { asset: Asset };
   public type TxValidationError = v.TxValidationError;
-  public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; #WrongAssetId; };
+  public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; #WrongAssetId; #NotAController; };
   public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
   public type CreateFtError = { #NoSpace; #FeeError };
-  public type MintFtError = { #NotAController; #SubaccountNotFound; #WrongAssetId };
-  public type BurnFtError = MintFtError or { #InsufficientFunds };
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (= owner ids) are issued consecutively
   public type OwnerId = Nat;
@@ -117,37 +115,6 @@ module {
       #ok(assetId);
     };
 
-    public func mintFungibleToken(caller: Principal, sid: SubaccountId, asset: Asset) : Result<(), MintFtError> {
-      switch (asset) {
-        case (#ft ft) {
-          if (caller != ftControllers[ft.0]) {
-            return #err(#NotAController);
-          };
-        };
-        case _ return #err(#WrongAssetId);
-      };
-    // check if sid exists
-    // check if asset id to mint matches asset id in subaccount
-    // add asset to subaccount
-      #ok();
-    };
-
-    public func burnFungibleToken(caller: Principal, sid: SubaccountId, asset: Asset) : Result<(), BurnFtError> {
-      switch (asset) {
-        case (#ft ft) {
-          if (caller != ftControllers[ft.0]) {
-            return #err(#NotAController);
-          };
-        };
-        case _ return #err(#WrongAssetId);
-      };
-        // check if sid exists
-        // check if asset id to burn matches asset id in subaccount
-        // check if available quantity is sufficient
-        // subtract asset from subaccount
-      #ok();
-    };
-
     public func openNewAccounts(p: Principal, n: Nat, assetId: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #WrongAssetId }> {
       if (assetId >= ftControllers.size()) {
         return #err(#WrongAssetId);
@@ -229,6 +196,23 @@ module {
         // pass #1: validation
         for (j in tx.map.keys()) {
           let (contribution, oid) = (tx.map[j], ownersCache[j]);
+          // mints/burns should be only validated, they do not affect any subaccounts
+          for (mintBurnAsset in u.iterConcat(contribution.mints.vals(), contribution.burns.vals())) {
+            switch (mintBurnAsset) {
+              case (#ft ft) {
+                if (contribution.owner != ftControllers[ft.0]) {
+                  results[i] := #err(#NotAController);
+                  nTxFailed_ += 1;
+                  continue nextTx;
+                };
+              };
+              case _ {
+                results[i] := #err(#WrongAssetId);
+                nTxFailed_ += 1;
+                continue nextTx;
+              };
+            };
+          };
           for ((subaccountId, flowAsset, isInflow) in u.iterConcat(
             Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
             Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),

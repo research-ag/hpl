@@ -53,7 +53,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
 
   public query func createTestBatch(committer: Principal, owner: Principal, txAmount: Nat): async [T.Tx] {
     let tx: T.Tx = {
-      map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; memo = null }];
+      map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; mints = []; burns = []; memo = null }];
       committer = ?committer;
     };
     Array.freeze(Array.init<T.Tx>(txAmount, tx));

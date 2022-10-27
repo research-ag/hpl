@@ -60,16 +60,6 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   // typically the controller will be a canister
   public shared ({caller}) func createFungibleToken() : async Result<Ledger.AssetId, Ledger.CreateFtError> {
     ledger_.createFungibleToken(caller);
-  }; 
-
-  // mint fungible tokens
-  public shared ({caller}) func mintFungibleToken(sid : SubaccountId, asset : Asset) : async Result<(), Ledger.MintFtError> {
-    ledger_.mintFungibleToken(caller, sid, asset);
-  };
-
-  // burn fungible tokens
-  public shared ({caller}) func burnFungibleToken(sid : SubaccountId, asset : Asset) : async Result<(), Ledger.BurnFtError> {
-    ledger_.burnFungibleToken(caller, sid, asset);
   };
 
   // queries

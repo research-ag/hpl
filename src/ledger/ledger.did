@@ -32,6 +32,8 @@ type Contribution =
                   SubaccountId;
                   Asset;
                 };
+   mints: vec Asset;
+   burns: vec Asset;
    memo: opt blob;
  };
 

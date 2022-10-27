@@ -19,6 +19,7 @@ let id = createLedger(vec { aggregator_mock });
 let canister = id.canister_id;
 
 // register one fungible token (asset id)
+identity ftController;
 call canister.createFungibleToken();
 
 // register 40,000 principals, generated from sequent Nat-s (0 - 39,999)
@@ -59,12 +60,16 @@ let n = call canister.profile(vec {
           owner = user1;
           inflow = vec { record { 0; variant { ft = record { 0; 500 } } } };
           outflow = vec { };
+          mints = vec { };
+          burns = vec { };
           memo = null;
         };
         record {
           owner = user2;
           inflow = vec { };
           outflow = vec { record { 0; variant { ft = record { 0; 500 } } } };
+          mints = vec { };
+          burns = vec { };
           memo = null;
         }
     };

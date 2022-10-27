@@ -86,7 +86,7 @@ type Subaccounts_Result =
 type CreateFt_Result =
   variant {
     ok: nat;
-    err: variant {NoSpace; FeeError; NotRegistered}
+    err: variant {NoSpace; FeeError}
   };
 
 

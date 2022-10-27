@@ -24,7 +24,7 @@ module {
   public type TxValidationError = v.TxValidationError;
   public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; #WrongAssetId; #NotAController; };
   public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
-  public type CreateFtError = { #NoSpace; #FeeError };
+  public type CreateFtError = { #NoSpace; #FeeError; #NotRegistered };
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (= owner ids) are issued consecutively
   public type OwnerId = Nat;
@@ -107,6 +107,10 @@ module {
       };
 
     public func createFungibleToken(controller: Principal) : Result<AssetId, CreateFtError> {
+      switch (ownerId(controller)) {
+        case (#ok _) {};
+        case (#err _) return #err(#NotRegistered);
+      };
       let assetId: AssetId = ftControllers.size();
       if (assetId >= C.maxAssetIds) {
         return #err(#NoSpace);

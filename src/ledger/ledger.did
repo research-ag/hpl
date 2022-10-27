@@ -86,16 +86,6 @@ type CreateFt_Result =
     ok: nat;
     err: variant {NoSpace; FeeError}
   };
-type Mint_Result =
-  variant {
-    ok;
-    err: variant {NotController; SubaccountNotFound; WrongAssetId}
-  };
-type Burn_Result =
-  variant {
-    ok;
-    err: variant {NotController; SubaccountNotFound; WrongAssetId; InsufficientFunds}
-  };
 
 
 service : (vec principal) -> {
@@ -137,9 +127,7 @@ service : (vec principal) -> {
 
   // asset interface
 
-  createFungibleToken: () -> (CreateFt_Result); 
-  mint: (SubaccountId, Asset) -> (Mint_Result);
-  burn: (SubaccountId, Asset) -> (Burn_Result);
+  createFungibleToken: () -> (CreateFt_Result);
 
   // debug interface
 

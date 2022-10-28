@@ -124,6 +124,8 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
           owner = sender;
           inflow = [ (receiverSubaccountId, #ft(0, amount)) ];
           outflow = [ (senderSubaccountId, #ft(0, amount)) ];
+          mints = [];
+          burns = [];
           memo = null;
         }];
         committer = null;
@@ -134,11 +136,15 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
           owner = sender;
           inflow = [];
           outflow = [ (senderSubaccountId, #ft(0, amount)) ];
+          mints = [];
+          burns = [];
           memo = null;
         }, {
           owner = receiver;
           inflow = [ (receiverSubaccountId, #ft(0, amount)) ];
           outflow = [];
+          mints = [];
+          burns = [];
           memo = null;
         }];
         committer = null;

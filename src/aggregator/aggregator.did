@@ -14,7 +14,6 @@ type Asset = variant {
     AssetId;
     nat;
   };
-  none;
 };
 
 // A transaction has contributions from multiple parties, each of which is of the following type.
@@ -31,6 +30,8 @@ type Contribution =
                   SubaccountId;
                   Asset;
                 };
+   mints: vec Asset;
+   burns: vec Asset;
    memo: opt blob;
  };
 
@@ -82,7 +83,7 @@ type SubmitError =
    MaxMemoSizeExceeded;
    FlowsNotSorted;
    OwnersNotUnique;
-   WrongAssetType;
+   WrongAssetId;
  };
 
 type Submit_Result = 

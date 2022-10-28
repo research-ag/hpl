@@ -262,7 +262,7 @@ module {
     public func getNextBatchRequests(): [TxRequest] =
       Iter.toArray(object {
         var counter = 0;
-        var availableRequestSpace = 262144 - 70; // 2MB - 70 bytes DIDL prefix and type table
+        var availableRequestSpace = 262074; // 2MB - 70 bytes DIDL prefix and type table
         public func next() : ?TxRequest {
           if (counter >= C.batchSize) {
             return null; // already added `batchSize` requests to the batch: stop iteration;

@@ -12,7 +12,6 @@ type Asset = variant {
     AssetId;
     nat;
   };
-  none;
 };
 
 type SubaccountState = record {
@@ -33,6 +32,8 @@ type Contribution =
                   SubaccountId;
                   Asset;
                 };
+   mints: vec Asset;
+   burns: vec Asset;
    memo: opt blob;
  };
 
@@ -57,7 +58,7 @@ type Batch = vec Tx;
 type SubaccountId_Result = 
  variant {
    ok: SubaccountId;
-   err: variant {NoSpaceForPrincipal;NoSpaceForSubaccount;};
+   err: variant {NoSpaceForPrincipal; NoSpaceForSubaccount; WrongAssetId; };
  };
 type Principal_Result = 
  variant {
@@ -82,6 +83,12 @@ type Subaccounts_Result =
     ok: vec SubaccountState;
     err: variant {NotFound;};
   };
+type CreateFt_Result =
+  variant {
+    ok: nat;
+    err: variant {NoSpace; FeeError}
+  };
+
 
 service : (vec principal) -> {
   // updates
@@ -92,7 +99,7 @@ service : (vec principal) -> {
   return value is the id of the first newly created subaccount
   the remaining ones are consecutively numbered
   */
-  openNewAccounts: (nat) -> (SubaccountId_Result);
+  openNewAccounts: (nat, AssetId) -> (SubaccountId_Result);
  
   // process a batch of transaction, caller must be an aggregator
   processBatch: (Batch) -> ();
@@ -119,6 +126,10 @@ service : (vec principal) -> {
   // admin interface
 
   addAggregator: (principal) -> (nat);
+
+  // asset interface
+
+  createFungibleToken: () -> (CreateFt_Result);
 
   // debug interface
 

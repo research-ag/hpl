@@ -3,6 +3,7 @@ import TrieMap "mo:base/TrieMap";
 import Nat32 "mo:base/Nat32";
 import Nat "mo:base/Nat";
 import Principal "mo:base/Principal";
+import Iter "mo:base/Iter";
 
 import T "types";
 import C "constants";
@@ -11,7 +12,7 @@ import LinkedListSet "linked_list_set";
 
 module {
 
-  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxFtQuantityExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique; #WrongAssetType };
+  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxFtQuantityExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique };
 
   /** transaction request validation function. Returns Tx size in bytes if success */
   public func validateTx(tx: T.Tx, checkPrincipalUniqueness: Bool): R.Result<Nat, TxValidationError> {
@@ -30,7 +31,7 @@ module {
       if (checkPrincipalUniqueness and not ownersSet.put(contribution.owner)) {
         return #err(#OwnersNotUnique);
       };
-      if (contribution.inflow.size() + contribution.outflow.size() > C.maxFlows) {
+      if (contribution.inflow.size() + contribution.outflow.size() + contribution.mints.size() + contribution.burns.size() > C.maxFlows) {
         return #err(#MaxFlowsExceeded);
       };
       switch (contribution.memo) {
@@ -66,7 +67,15 @@ module {
       )) {
         return #err(#FlowsNotSorted);
       };
-      for ((subaccountId, asset) in contribution.inflow.vals()) {
+      let txAssetsIn: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
+        Iter.map<(T.SubaccountId, T.Asset), T.Asset>(contribution.inflow.vals(), func (flow) = flow.1),
+        contribution.burns.vals()
+      );
+      let txAssetsOut: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
+        Iter.map<(T.SubaccountId, T.Asset), T.Asset>(contribution.outflow.vals(), func (flow) = flow.1),
+        contribution.mints.vals()
+      );
+      for (asset in txAssetsIn) {
         switch asset {
           case (#ft (id, quantity)) {
             if (quantity > C.flowMaxFtQuantity) {
@@ -78,10 +87,9 @@ module {
               case (null) assetBalanceMap.put(id, quantity);
             };
           };
-          case (#none _) return #err(#WrongAssetType);
         };
       };
-      for ((subaccountId, asset) in contribution.outflow.vals()) {
+      for (asset in txAssetsOut) {
         switch asset {
           case (#ft (id, quantity)) {
             if (quantity > C.flowMaxFtQuantity) {
@@ -93,7 +101,6 @@ module {
               case (null) assetBalanceMap.put(id, -quantity);
             };
           };
-          case (#none _) assert false; // should never happen
         };
       };
     };

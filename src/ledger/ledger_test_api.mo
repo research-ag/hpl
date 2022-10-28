@@ -23,28 +23,19 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   // updates
   /*
   Open n new subaccounts.
-
-  Note that the owner does not specify a token id. The new subaccounts hold the Asset value none.
-  The token id of a subaccount is determined by the first inflow.
-  After that, the token id cannot be changed anymore with the current API.
-  For any subsequent transaction the inflow has to match the token id of the subaccount or else is rejected.
-
-  If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
-  That will set the Asset value in the subaccount to the wanted token id.
   */
-  public shared({caller}) func openNewAccounts(n: Nat): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> =
-    async ledger_.openNewAccounts(caller, n);
+  public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #WrongAssetId }> =
+    async ledger_.openNewAccounts(caller, n, assetId);
 
   /*
   Process a batch of transactions. Each transaction only executes if the following conditions are met:
   - all outflow subaccounts have matching token id and sufficient balance
-  - all inflow subaccounts have matching token id (or Asset value `none`)
+  - all inflow subaccounts have matching token id
   - on a per-token id basis the sum of all outflows matches all inflows
   There is no return value.
   If the call returns (i.e. no system-level failure) the aggregator knows that the batch has been processed.
   If the aggregator catches a system-level failure then it knows that the batch has not been processed.
   */
-  type ProcessingError = Ledger.TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
   public shared({caller}) func processBatch(batch: Batch): async () {
     let aggId = u.arrayFindIndex(ledger_.aggregators, func (agg: Principal): Bool = agg == caller);
     switch (aggId) {
@@ -62,7 +53,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
 
   public query func createTestBatch(committer: Principal, owner: Principal, txAmount: Nat): async [T.Tx] {
     let tx: T.Tx = {
-      map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; memo = null }];
+      map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; mints = []; burns = []; memo = null }];
       committer = ?committer;
     };
     Array.freeze(Array.init<T.Tx>(txAmount, tx));
@@ -86,7 +77,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   // add one aggregator principal
   public func addAggregator(p : Principal) : async AggregatorId = async ledger_.addAggregator(p);
 
-  public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Ledger.Asset) : async Result<Ledger.SubaccountState,ProcessingError> {
+  public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Ledger.Asset) : async Result<Ledger.SubaccountState,Ledger.ProcessingError> {
     switch (ledger_.ownerId(userPrincipal)) {
       case (#err _) #err(#WrongOwnerId);
       case (#ok oid) {
@@ -94,6 +85,10 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
         #ok(ledger_.accounts[oid][subaccountId]);
       };
     };
+  };
+
+  public shared ({caller}) func createFungibleToken() : async Result<Ledger.AssetId, Ledger.CreateFtError> {
+    ledger_.createFungibleToken(caller);
   };
 
   // debug interface

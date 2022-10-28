@@ -10,7 +10,6 @@ import C "../shared/constants";
 import v "../shared/validators";
 import u "../shared/utils";
 import CircularBuffer "../shared/circular_buffer";
-// import LinkedListSet "../shared/linked_list_set";
 
 module {
 
@@ -19,11 +18,13 @@ module {
   public type AggregatorId = T.AggregatorId;
   public type SubaccountId = T.SubaccountId;
   public type Asset = T.Asset;
+  public type AssetId = T.AssetId;
 
   public type SubaccountState = { asset: Asset };
   public type TxValidationError = v.TxValidationError;
-  public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; };
+  public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; #WrongAssetId; #NotAController; };
   public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
+  public type CreateFtError = { #NoSpace; #FeeError };
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (= owner ids) are issued consecutively
   public type OwnerId = Nat;
@@ -105,7 +106,21 @@ module {
         };
       };
 
-    public func openNewAccounts(p: Principal, n: Nat): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount }> {
+    public func createFungibleToken(controller: Principal) : Result<AssetId, CreateFtError> {
+      // register controller, if not registered yet
+      let _ = getOwnerId(controller, true);
+      let assetId: AssetId = ftControllers.size();
+      if (assetId >= C.maxAssetIds) {
+        return #err(#NoSpace);
+      };
+      ftControllers := Array.append(ftControllers, [controller]);
+      #ok(assetId);
+    };
+
+    public func openNewAccounts(p: Principal, n: Nat, assetId: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #WrongAssetId }> {
+      if (assetId >= ftControllers.size()) {
+        return #err(#WrongAssetId);
+      };
       switch (getOwnerId(p, true)) {
         case (#err _) #err(#NoSpaceForPrincipal);
         case (#ok oid) {
@@ -117,7 +132,7 @@ module {
           accounts[oid] := Array.tabulateVar<SubaccountState>(oldSize + n, func (n: Nat) =
             switch (n < oldSize) {
               case (true) accounts[oid][n];
-              case (_) ({ asset = #none });
+              case (_) ({ asset = #ft(assetId, 0) });
             });
           #ok(oldSize);
         };
@@ -131,7 +146,7 @@ module {
       };
       owners.put(principal, ownerId);
       ownersAmount += 1;
-      accounts[ownerId] := Array.init<SubaccountState>(0, { asset = #none; });
+      accounts[ownerId] := [var];
       #ok(ownerId);
     };
 
@@ -183,6 +198,23 @@ module {
         // pass #1: validation
         for (j in tx.map.keys()) {
           let (contribution, oid) = (tx.map[j], ownersCache[j]);
+          // mints/burns should be only validated, they do not affect any subaccounts
+          for (mintBurnAsset in u.iterConcat(contribution.mints.vals(), contribution.burns.vals())) {
+            switch (mintBurnAsset) {
+              case (#ft ft) {
+                if (contribution.owner != ftControllers[ft.0]) {
+                  results[i] := #err(#NotAController);
+                  nTxFailed_ += 1;
+                  continue nextTx;
+                };
+              };
+              case _ {
+                results[i] := #err(#WrongAssetId);
+                nTxFailed_ += 1;
+                continue nextTx;
+              };
+            };
+          };
           for ((subaccountId, flowAsset, isInflow) in u.iterConcat(
             Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
             Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
@@ -214,13 +246,12 @@ module {
       };
       let subaccount = accounts[ownerId][subaccountId];
       switch (flowAsset) {
-        case (#none) return #err(#WrongAssetType);
         case (#ft flowAssetData) {
           switch (subaccount.asset) {
             case (#ft userAssetData) {
               // subaccount has some tokens: check asset type
               if (flowAssetData.0 != userAssetData.0) {
-                return #err(#WrongAssetType);
+                return #err(#WrongAssetId);
               };
               if (isInflow) {
                 return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1) });
@@ -230,13 +261,6 @@ module {
                 return #err(#InsufficientFunds);
               };
               return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 - flowAssetData.1) });
-            };
-            case (#none) {
-              // subaccount not initialized: inflow always valid, outflow cannot be applied
-              if (isInflow) {
-                return #ok({ asset = #ft(flowAssetData.0, flowAssetData.1) });
-              };
-              return #err(#InsufficientFunds);
             };
           };
         };
@@ -270,6 +294,9 @@ module {
 
     /* history of last processed transactions */
     let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(C.batchHistoryLength);
+
+    // asset ids
+    public var ftControllers: [Principal] = [];
 
     // debug counters
     var nBatchTotal_: Nat = 0;

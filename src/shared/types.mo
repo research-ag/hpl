@@ -10,13 +10,14 @@ module {
 
   public type Asset = { 
     #ft : (id : AssetId, quantity : Nat);
-    #none;
   };
 
   public type Contribution = {
     owner : Principal;
     inflow : [(SubaccountId, Asset)];
     outflow : [(SubaccountId, Asset)];
+    mints : [Asset];
+    burns : [Asset];
     memo : ?Blob
   };
   // inflow/outflow encodes a map subaccount -> asset list

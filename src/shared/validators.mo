@@ -67,15 +67,15 @@ module {
       )) {
         return #err(#FlowsNotSorted);
       };
-      let tokenSupplements: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
+      let txAssetsIn: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
         Iter.map<(T.SubaccountId, T.Asset), T.Asset>(contribution.inflow.vals(), func (flow) = flow.1),
-        contribution.mints.vals()
-      );
-      let tokenAbatements: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
-        Iter.map<(T.SubaccountId, T.Asset), T.Asset>(contribution.outflow.vals(), func (flow) = flow.1),
         contribution.burns.vals()
       );
-      for (asset in tokenSupplements) {
+      let txAssetsOut: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
+        Iter.map<(T.SubaccountId, T.Asset), T.Asset>(contribution.outflow.vals(), func (flow) = flow.1),
+        contribution.mints.vals()
+      );
+      for (asset in txAssetsIn) {
         switch asset {
           case (#ft (id, quantity)) {
             if (quantity > C.flowMaxFtQuantity) {
@@ -89,7 +89,7 @@ module {
           };
         };
       };
-      for (asset in tokenAbatements) {
+      for (asset in txAssetsOut) {
         switch asset {
           case (#ft (id, quantity)) {
             if (quantity > C.flowMaxFtQuantity) {

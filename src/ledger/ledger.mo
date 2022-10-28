@@ -146,7 +146,7 @@ module {
       };
       owners.put(principal, ownerId);
       ownersAmount += 1;
-      accounts[ownerId] := Array.init<SubaccountState>(0, { asset = #ft(0, 0); });
+      accounts[ownerId] := [var];
       #ok(ownerId);
     };
 

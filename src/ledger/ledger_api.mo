@@ -55,7 +55,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   // in the future, calling this will cost a fee in ICP or cycles
   // an error occurs when the maximum number of asset ids is reached
   // an error occurs when the call does not carry a valid fee payment
-  // the caller will become the "controller" if the asset id
+  // the caller will become the "controller" of the asset id
   // the controller is the sole principal that can mint and burn tokens
   // typically the controller will be a canister
   public shared ({caller}) func createFungibleToken() : async Result<Ledger.AssetId, Ledger.CreateFtError> {

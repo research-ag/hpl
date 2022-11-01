@@ -22,7 +22,7 @@ module {
 
   public type SubaccountState = { asset: Asset };
   public type TxValidationError = v.TxValidationError;
-  public type ProcessingError = TxValidationError or { #UnknownOwnerId; #UnknownSubaccountId; #InsufficientFunds; #UnknownAssetId; #NotAController; };
+  public type ProcessingError = TxValidationError or { #OwnerIdUnknown; #SubaccountIdUnknown; #InsufficientFunds; #AssetIdUnknown; #AssetIdMismatch; #NotAController; };
   public type ImmediateTxError = ProcessingError or { #TxHasToBeApproved; };
   public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
   public type CreateFtError = { #NoSpace; #FeeError };
@@ -119,9 +119,9 @@ module {
       #ok(assetId);
     };
 
-    public func openNewAccounts(p: Principal, n: Nat, assetId: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownAssetId }> {
+    public func openNewAccounts(p: Principal, n: Nat, assetId: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #AssetIdUnknown }> {
       if (assetId >= ftControllers.size()) {
-        return #err(#UnknownAssetId);
+        return #err(#AssetIdUnknown);
       };
       switch (getOwnerId(p, true)) {
         case (#err _) #err(#NoSpaceForPrincipal);
@@ -198,7 +198,7 @@ module {
         switch (owners.get(tx.map[j].owner)) {
           case (null) {
             nTxFailed_ += 1;
-            return #err(#UnknownOwnerId);
+            return #err(#OwnerIdUnknown);
           };
           case (?oid) {
             // if (not ownerIdsSet.put(oid)) {
@@ -225,7 +225,7 @@ module {
             };
             case _ {
               nTxFailed_ += 1;
-              return #err(#UnknownAssetId);
+              return #err(#AssetIdMismatch);
             };
           };
         };
@@ -253,7 +253,7 @@ module {
 
     private func processFlow(ownerId: OwnerId, subaccountId: T.SubaccountId, flowAsset: T.Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
       if (subaccountId >= accounts[ownerId].size()) {
-        return #err(#UnknownSubaccountId);
+        return #err(#SubaccountIdUnknown);
       };
       let subaccount = accounts[ownerId][subaccountId];
       switch (flowAsset) {
@@ -262,7 +262,7 @@ module {
             case (#ft userAssetData) {
               // subaccount has some tokens: check asset type
               if (flowAssetData.0 != userAssetData.0) {
-                return #err(#UnknownAssetId);
+                return #err(#AssetIdMismatch);
               };
               if (isInflow) {
                 return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1) });

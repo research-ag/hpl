@@ -58,7 +58,7 @@ type Batch = vec Tx;
 type SubaccountId_Result = 
  variant {
    ok: SubaccountId;
-   err: variant {NoSpaceForPrincipal; NoSpaceForSubaccount; UnknownAssetId; };
+   err: variant {NoSpaceForPrincipal; NoSpaceForSubaccount; AssetIdUnknown; };
  };
 type Principal_Result = 
  variant {
@@ -99,10 +99,11 @@ type ProcessImmediateTx_Result =
       MaxMemoSizeExceeded;
       FlowsNotSorted;
       OwnersNotUnique;
-      UnknownOwnerId;
-      UnknownSubaccountId;
+      OwnerIdUnknown;
+      SubaccountIdUnknown;
       InsufficientFunds;
-      UnknownAssetId;
+      AssetIdUnknown;
+      AssetIdMismatch;
       NotAController;
       TxHasToBeApproved;
     }

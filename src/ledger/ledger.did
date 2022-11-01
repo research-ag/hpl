@@ -90,7 +90,7 @@ type CreateFt_Result =
   };
 type ProcessImmediateTx_Result =
   variant {
-    ok: empty;
+    ok: null;
     err: variant {
       FlowsNotBroughtToZero;
       MaxContributionsExceeded;

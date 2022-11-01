@@ -85,6 +85,7 @@ jobs:
         with:
           file_pattern: '*_stats.txt'
           commit_message: '[skip ci] update stats'
+          push_options: --force
 
       - name: Stop local dfx
         run: |

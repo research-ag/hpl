@@ -163,13 +163,15 @@ module {
     };
 
     public func processImmediateTx(caller: Principal, tx: Tx): Result<(), ImmediateTxError> {
-      if (tx.map.size() > 1 or tx.map[0].owner != caller) {
-        return #err(#TxHasToBeApproved);
-      };
       let validationResult = v.validateTx(tx, false);
       switch (validationResult) {
         case (#err error) return #err(error);
         case (#ok _) {};
+      };
+      for (c in tx.map.vals()) {
+        if (c.owner != caller and c.outflow.size() > 0) {
+          return #err(#TxHasToBeApproved);
+        };
       };
       processTx(tx);
     };

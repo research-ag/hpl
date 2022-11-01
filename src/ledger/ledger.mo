@@ -169,7 +169,7 @@ module {
         case (#ok _) {};
       };
       for (c in tx.map.vals()) {
-        if (c.owner != caller and (c.outflow.size() > 0 or c.mints.size() > 0)) {
+        if (c.owner != caller and (c.outflow.size() > 0 or c.mints.size() > 0 or c.burns.size() > 0)) {
           return #err(#TxHasToBeApproved);
         };
       };

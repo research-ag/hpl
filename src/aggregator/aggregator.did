@@ -83,7 +83,7 @@ type SubmitError =
    MaxMemoSizeExceeded;
    FlowsNotSorted;
    OwnersNotUnique;
-   WrongAssetId;
+   AssetIdUnknown;
  };
 
 type Submit_Result = 

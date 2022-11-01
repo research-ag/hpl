@@ -58,7 +58,7 @@ type Batch = vec Tx;
 type SubaccountId_Result = 
  variant {
    ok: SubaccountId;
-   err: variant {NoSpaceForPrincipal; NoSpaceForSubaccount; WrongAssetId; };
+   err: variant {NoSpaceForPrincipal; NoSpaceForSubaccount; AssetIdUnknown; };
  };
 type Principal_Result = 
  variant {
@@ -88,6 +88,26 @@ type CreateFt_Result =
     ok: nat;
     err: variant {NoSpace; FeeError}
   };
+type ProcessImmediateTx_Result =
+  variant {
+    ok: null;
+    err: variant {
+      FlowsNotBroughtToZero;
+      MaxContributionsExceeded;
+      MaxFlowsExceeded;
+      MaxFtQuantityExceeded;
+      MaxMemoSizeExceeded;
+      FlowsNotSorted;
+      OwnersNotUnique;
+      OwnerIdUnknown;
+      SubaccountIdUnknown;
+      InsufficientFunds;
+      AssetIdUnknown;
+      AssetIdMismatch;
+      NotAController;
+      TxHasToBeApproved;
+    }
+  };
 
 
 service : (vec principal) -> {
@@ -100,9 +120,12 @@ service : (vec principal) -> {
   the remaining ones are consecutively numbered
   */
   openNewAccounts: (nat, AssetId) -> (SubaccountId_Result);
- 
+
   // process a batch of transaction, caller must be an aggregator
   processBatch: (Batch) -> ();
+
+  // process one Tx immediately. Works only for Tx with single contribution, owned by caller
+  processImmediateTx: (Tx) -> (ProcessImmediateTx_Result);
 
   // queries
 

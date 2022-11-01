@@ -24,7 +24,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   /*
   Open n new subaccounts.
   */
-  public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #WrongAssetId }> =
+  public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #AssetIdUnknown }> =
     async ledger_.openNewAccounts(caller, n, assetId);
 
   /*
@@ -79,7 +79,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
 
   public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Ledger.Asset) : async Result<Ledger.SubaccountState,Ledger.ProcessingError> {
     switch (ledger_.ownerId(userPrincipal)) {
-      case (#err _) #err(#WrongOwnerId);
+      case (#err _) #err(#OwnerIdUnknown);
       case (#ok oid) {
         ledger_.accounts[oid][subaccountId] := { asset = asset };
         #ok(ledger_.accounts[oid][subaccountId]);

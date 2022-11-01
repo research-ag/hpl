@@ -146,7 +146,6 @@ module {
       };
       owners.put(principal, ownerId);
       ownersAmount += 1;
-      accounts[ownerId] := [var];
       #ok(ownerId);
     };
 

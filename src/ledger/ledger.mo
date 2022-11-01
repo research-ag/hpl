@@ -23,11 +23,13 @@ module {
   public type SubaccountState = { asset: Asset };
   public type TxValidationError = v.TxValidationError;
   public type ProcessingError = TxValidationError or { #WrongOwnerId; #WrongSubaccountId; #InsufficientFunds; #WrongAssetId; #NotAController; };
+  public type ImmediateTxError = ProcessingError or { #TxHasToBeApproved; };
   public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
   public type CreateFtError = { #NoSpace; #FeeError };
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (= owner ids) are issued consecutively
   public type OwnerId = Nat;
+  public type Tx = T.Tx;
 
   public class Ledger(initialAggregators : [Principal]) {
 
@@ -152,91 +154,99 @@ module {
     // ================================ PROCESSING ================================
     public func processBatch(aggregatorIndex: Nat, batch: Batch): () {
       let results: [var Result<(), ProcessingError>] = Array.init<Result<(), ProcessingError>>(batch.size(), #ok());
-      label nextTx
       for (i in batch.keys()) {
-        nTxTotal_ += 1;
-        let tx = batch[i];
-
-        // disabled validation, performed on the aggregator side. The ledger still validates:
-        // - owner Id-s
-        // - subaccount Id-s
-        // - auto-approve flag
-        // - asset type
-        // - is balance sufficient
-
-        // let validationResult = v.validateTx(tx, false);
-        // if (R.isErr(validationResult)) {
-        //     results[i] := validationResult;
-        //     nTxFailed_ += 1;
-        //     continue nextTx;
-        // };
-
-        // cache owner ids per contribution. If some owner ID is wrong - return error
-        let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
-        // checking uniqueness (disabled now, since aggregator alredy checked principal uniqueness)
-        // let ownerIdsSet = LinkedListSet.LinkedListSet<Nat>(Nat.equal);
-        for (j in ownersCache.keys()) {
-          switch (owners.get(tx.map[j].owner)) {
-            case (null) {
-              results[i] := #err(#WrongOwnerId);
-                nTxFailed_ += 1;
-              continue nextTx;
-            };
-            case (?oid) {
-              // if (not ownerIdsSet.put(oid)) {
-              //   results[i] := #err(#OwnersNotUnique);
-              //   nTxFailed_ += 1;
-              //   continue nextTx;
-              // };
-              ownersCache[j] := oid;
-            };
-          };
-        };
-        // list of new subaccounts to be written after full validation
-        var newSubaccounts = List.nil<(OwnerId, T.SubaccountId, SubaccountState)>();
-        // pass #1: validation
-        for (j in tx.map.keys()) {
-          let (contribution, oid) = (tx.map[j], ownersCache[j]);
-          // mints/burns should be only validated, they do not affect any subaccounts
-          for (mintBurnAsset in u.iterConcat(contribution.mints.vals(), contribution.burns.vals())) {
-            switch (mintBurnAsset) {
-              case (#ft ft) {
-                if (contribution.owner != ftControllers[ft.0]) {
-                  results[i] := #err(#NotAController);
-                  nTxFailed_ += 1;
-                  continue nextTx;
-                };
-              };
-              case _ {
-                results[i] := #err(#WrongAssetId);
-                nTxFailed_ += 1;
-                continue nextTx;
-              };
-            };
-          };
-          for ((subaccountId, flowAsset, isInflow) in u.iterConcat(
-            Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
-            Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
-          )) {
-            switch (processFlow(oid, subaccountId, flowAsset, isInflow)) {
-              case (#err err) {
-                results[i] := #err(err);
-                nTxFailed_ += 1;
-                continue nextTx;
-              };
-              case (#ok newState) newSubaccounts := List.push((oid, subaccountId, newState), newSubaccounts);
-            };
-          };
-        };
-        // pass #2: applying
-        for ((oid, subaccountId, newSubaccount) in List.toIter(newSubaccounts)) {
-          accounts[oid][subaccountId] := newSubaccount;
-        };
-        nTxSucceeded_ += 1;
+        results[i] := processTx(batch[i]);
       };
       batchHistory.put({ batchNumber = nBatchTotal_; precedingTotalTxAmount = nTxTotal_ - results.size(); results = Array.freeze(results) });
       nBatchPerAggregator_[aggregatorIndex] += 1;
       nBatchTotal_ += 1;
+    };
+
+    public func processImmediateTx(caller: Principal, tx: Tx): Result<(), ImmediateTxError> {
+      if (tx.map.size() > 1 or tx.map[0].owner != caller) {
+        return #err(#TxHasToBeApproved);
+      };
+      let validationResult = v.validateTx(tx, false);
+      switch (validationResult) {
+        case (#err error) return #err(error);
+        case (#ok _) {};
+      };
+      processTx(tx);
+    };
+
+    private func processTx(tx: Tx): Result<(), ProcessingError> {
+      // disabled validation, performed on the aggregator side. The ledger still validates:
+      // - owner Id-s
+      // - subaccount Id-s
+      // - auto-approve flag
+      // - asset type
+      // - is balance sufficient
+
+      // let validationResult = v.validateTx(tx, false);
+      // if (R.isErr(validationResult)) {
+      //     nTxFailed_ += 1;
+      //     return validationResult;
+      // };
+
+      // cache owner ids per contribution. If some owner ID is wrong - return error
+      let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
+      // checking uniqueness (disabled now, since aggregator alredy checked principal uniqueness)
+      // let ownerIdsSet = LinkedListSet.LinkedListSet<Nat>(Nat.equal);
+      for (j in ownersCache.keys()) {
+        switch (owners.get(tx.map[j].owner)) {
+          case (null) {
+            nTxFailed_ += 1;
+            return #err(#WrongOwnerId);
+          };
+          case (?oid) {
+            // if (not ownerIdsSet.put(oid)) {
+            //   nTxFailed_ += 1;
+            //   return #err(#OwnersNotUnique);
+            // };
+            ownersCache[j] := oid;
+          };
+        };
+      };
+      // list of new subaccounts to be written after full validation
+      var newSubaccounts = List.nil<(OwnerId, T.SubaccountId, SubaccountState)>();
+      // pass #1: validation
+      for (j in tx.map.keys()) {
+        let (contribution, oid) = (tx.map[j], ownersCache[j]);
+        // mints/burns should be only validated, they do not affect any subaccounts
+        for (mintBurnAsset in u.iterConcat(contribution.mints.vals(), contribution.burns.vals())) {
+          switch (mintBurnAsset) {
+            case (#ft ft) {
+              if (contribution.owner != ftControllers[ft.0]) {
+                nTxFailed_ += 1;
+                return #err(#NotAController);
+              };
+            };
+            case _ {
+              nTxFailed_ += 1;
+              return #err(#WrongAssetId);
+            };
+          };
+        };
+        for ((subaccountId, flowAsset, isInflow) in u.iterConcat(
+          Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
+          Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
+        )) {
+          switch (processFlow(oid, subaccountId, flowAsset, isInflow)) {
+            case (#err err) {
+              nTxFailed_ += 1;
+              return #err(err);
+            };
+            case (#ok newState) newSubaccounts := List.push((oid, subaccountId, newState), newSubaccounts);
+          };
+        };
+      };
+      // pass #2: applying
+      for ((oid, subaccountId, newSubaccount) in List.toIter(newSubaccounts)) {
+        accounts[oid][subaccountId] := newSubaccount;
+      };
+      nTxSucceeded_ += 1;
+      nTxTotal_ += 1;
+      #ok();
     };
 
     private func processFlow(ownerId: OwnerId, subaccountId: T.SubaccountId, flowAsset: T.Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {

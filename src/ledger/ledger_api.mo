@@ -50,6 +50,11 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
     };
   };
 
+  /*
+  Process one Tx immediately. Works only for Tx with single contribution, owned by caller
+  */
+  public shared({caller}) func processImmediateTx(tx: Ledger.Tx): async Result<(), Ledger.ImmediateTxError> = async ledger_.processImmediateTx(caller, tx);
+
   // asset interface
   // create a new fungible token and get the asset id
   // in the future, calling this will cost a fee in ICP or cycles

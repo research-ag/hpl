@@ -261,11 +261,11 @@ module {
 
     let batchIter = object {
       var counter = 0;
-      var availableRequestSpace = 0;
+      var remainingBytes = 0;
       public func reset() : () {
         // 2MB - 70 bytes DIDL prefix and type table
         counter := 0;
-        availableRequestSpace := 262074
+        remainingBytes := 262074
       };
       public func next() : ?TxRequest {
         // number of requests is limited to `batchSize`
@@ -277,19 +277,20 @@ module {
         switch (approvedTxs.peek()) {
           case (?lid) {
             // get the txreq from the lookup table 
-            let cell = lookup.get(lid);
-            switch (cell) {
-              case (?c) {
+            switch (lookup.get(lid)) {
+              case (?cell) {
+                let txreq = cell.value;
                 // check if enough space for the txreq
-                if (availableRequestSpace <= c.value.size) {  
+                let bytesNeeded = txreq.size + 1;
+                if (remainingBytes < bytesNeeded) {  
                   return null // stop iteration
                 } else { 
                   // pop lid from queue and return the txreq
                   ignore approvedTxs.dequeue(); 
-                  availableRequestSpace -= 1 + c.value.size;
+                  remainingBytes -= bytesNeeded;
                   counter += 1;
-                  c.value.status := #pending;
-                  return ?c.value 
+                  txreq.status := #pending;
+                  return ?txreq 
                 }
               };
               case (null) {

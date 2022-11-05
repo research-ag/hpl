@@ -260,17 +260,16 @@ module {
     };
 
     let batchIter = object {
-      var counter = 0;
+      var remainingRequests = 0;
       var remainingBytes = 0;
       public func reset() : () {
-        // 2MB - 70 bytes DIDL prefix and type table
-        counter := 0;
-        remainingBytes := 262074
+        remainingRequests := C.maxBatchRequests;
+        remainingBytes := C.maxBatchBytes;
       };
       public func next() : ?TxRequest {
         // number of requests is limited to `batchSize`
         // if reached then stop iteratortion
-        if (counter >= C.batchSize) { 
+        if (remainingRequests == 0) { 
           return null 
         };
         // get the local id at the head of the queue
@@ -288,7 +287,7 @@ module {
                   // pop lid from queue and return the txreq
                   ignore approvedTxs.dequeue(); 
                   remainingBytes -= bytesNeeded;
-                  counter += 1;
+                  remainingRequests -= 1;
                   txreq.status := #pending;
                   return ?txreq 
                 }

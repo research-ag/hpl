@@ -1,6 +1,10 @@
 module {
-  // the amount of transactions in one batch
-  public let batchSize = 256;
+  // the number of transactions in one batch
+  public let maxBatchRequests = 256;
+
+  // the size of a batch in bytes
+  // 2MB - 70 bytes for DIDL prefix and type table
+  public let maxBatchBytes = 262074;
 
   // maximal memo size is 256 bytes
   public let maxMemoSize = 256;

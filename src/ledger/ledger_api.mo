@@ -70,7 +70,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   // queries
   public query func nAggregators(): async Nat = async ledger_.nAggregators();
   public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async ledger_.aggregatorPrincipal(aid);
-  public shared query ({caller}) func nAccounts(): async Result<Nat, { #NotFound; }> = async ledger_.nAccounts(caller);
+  public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
   public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #NotFound; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
 
   // admin interface

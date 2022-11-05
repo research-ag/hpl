@@ -234,6 +234,11 @@ module {
     /** heartbeat function */
     public func heartbeat() : async () {
       let requestsToSend = getNextBatchRequests();
+      // if the batch is empty then stop
+      // we don't send an empty batch
+      if (requestsToSend.size() == 0) {
+        return
+      };
       try {
         await Ledger_actor.processBatch(Array.map(requestsToSend, func (req: TxRequest): Tx = req.tx));
         // the batch has been processed

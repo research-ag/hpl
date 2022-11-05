@@ -22,9 +22,8 @@ module {
 
   public type SubaccountState = { asset: Asset };
   public type TxValidationError = v.TxValidationError;
-  public type ProcessingError = TxValidationError or { #OwnerIdUnknown; #SubaccountIdUnknown; #InsufficientFunds; #AssetIdUnknown; #AssetIdMismatch; #NotAController; };
-  public type ImmediateTxError = ProcessingError or { #TxHasToBeApproved; };
-  public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
+  public type ProcessingError = TxValidationError or { #UnknownPrincipal; #SubaccountIdUnknown; #InsufficientFunds; #AssetIdUnknown; #AssetIdMismatch; #NotAController; };
+  public type ImmediateTxError = ProcessingError or { #TxHasToBeApproved; }; public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
   public type CreateFtError = { #NoSpace; #FeeError };
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (= owner ids) are issued consecutively
@@ -43,13 +42,13 @@ module {
         case (_) #err(#NotFound);
       };
 
-    public func ownerId(p: Principal): Result<OwnerId, { #NotFound; }> =
+    public func ownerId(p: Principal): Result<OwnerId, { #UnknownPrincipal }> =
       switch (owners.get(p)) {
         case (?oid) #ok(oid);
-        case (_) #err(#NotFound);
+        case (_) #err(#UnknownPrincipal);
       };
 
-    public func nAccounts(p: Principal): Result<Nat, { #NotFound; }> =
+    public func nAccounts(p: Principal): Result<Nat, { #UnknownPrincipal }> =
       switch (ownerId(p)) {
         case (#ok oid) #ok(accounts[oid].size());
         case (#err err) #err(err);
@@ -198,7 +197,7 @@ module {
         switch (owners.get(tx.map[j].owner)) {
           case (null) {
             nTxFailed_ += 1;
-            return #err(#OwnerIdUnknown);
+            return #err(#UnknownPrincipal);
           };
           case (?oid) {
             // if (not ownerIdsSet.put(oid)) {

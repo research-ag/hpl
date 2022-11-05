@@ -100,23 +100,27 @@ module {
       aggregators.size() - 1;
     };
 
-    public func getOrCreateOwnerId(p: Principal): Result<OwnerId, { #NoSpaceForPrincipal }> =
-      switch (ownerId(p)) {
-        case (#ok oid) { #ok oid };
-        case (#err _) {
-          if (ownersAmount >= C.maxPrincipals) {
-            return #err(#NoSpaceForPrincipal);
-          };
-          let newOwnerId = ownersAmount;
-          owners.put(p, newOwnerId);
+    // only public for the test api
+    public func getOrCreateOwnerId(p: Principal): ?OwnerId =
+      switch (ownerId(p), ownersAmount >= C.maxPrincipals) {
+        case (#ok oid, _) { ?oid };
+        case (#err _, true) { null }; // no space
+        case (#err _, false) {
+          let newId = ownersAmount;
+          owners.put(p, newId);
           ownersAmount += 1;
-          #ok(newOwnerId);
+          ?newId;
         };
       };
 
     public func createFungibleToken(controller: Principal) : Result<AssetId, CreateFtError> {
-      // register controller, if not registered yet
-      ignore getOrCreateOwnerId(controller);
+      // We ignore errors about the controller in which the controller cannot
+      // create any accounts for the new token. This could happen if the
+      // controller:
+      // - cannot be registered (owner ids are exhausted)
+      // - cannot open new subaccounts (has reached maxSubaccounts)
+      // If any of this happens then the controller can still approve
+      // transactions for the new token. He just cannot hold them himself.
       let assetId: AssetId = ftControllers.size();
       if (assetId >= C.maxAssetIds) {
         return #err(#NoSpace);
@@ -130,8 +134,8 @@ module {
         return #err(#AssetIdUnknown);
       };
       switch (getOrCreateOwnerId(p)) {
-        case (#err _) #err(#NoSpaceForPrincipal);
-        case (#ok oid) {
+        case (null) #err(#NoSpaceForPrincipal);
+        case (?oid) {
           let oldSize = accounts[oid].size();
           if (oldSize + n > C.maxSubaccounts) {
             return #err(#NoSpaceForSubaccount);

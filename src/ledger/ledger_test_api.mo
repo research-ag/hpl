@@ -67,8 +67,8 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
     let initialAsset = { asset = #ft(0, initialBalance) };
     for (p in Iter.map<Nat, Principal>(Iter.range(startPrincipalNumber, startPrincipalNumber + amount), func (i: Nat) : Principal = TestUtils.principalFromNat(i))) {
       switch (ledger_.getOrCreateOwnerId(p)) {
-        case (#err _) ();
-        case (#ok oid) ledger_.accounts[oid] := Array.init<Ledger.SubaccountState>(subaccountsAmount, initialAsset);
+        case (null) ();
+        case (?oid) ledger_.accounts[oid] := Array.init<Ledger.SubaccountState>(subaccountsAmount, initialAsset);
       };
     };
   };

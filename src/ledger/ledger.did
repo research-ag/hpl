@@ -68,20 +68,20 @@ type Principal_Result =
 type Nat_Result = 
  variant {
    ok: nat;
-   err: variant {NotFound;};
+   err: variant {UnknownPrincipal;};
  };
 type Subaccount_Result =
  variant {
    ok: SubaccountState;
    err: variant {
-     NotFound;
+     UnknownPrincipal;
      SubaccountNotFound;
    };
  };
 type Subaccounts_Result =
   variant {
     ok: vec SubaccountState;
-    err: variant {NotFound;};
+    err: variant {UnknownPrincipal;};
   };
 type CreateFt_Result =
   variant {
@@ -99,13 +99,13 @@ type ProcessImmediateTx_Result =
       MaxMemoSizeExceeded;
       FlowsNotSorted;
       OwnersNotUnique;
-      OwnerIdUnknown;
       SubaccountIdUnknown;
       InsufficientFunds;
       AssetIdUnknown;
       AssetIdMismatch;
       NotAController;
       TxHasToBeApproved;
+      UnknownPrincipal;
     }
   };
 
@@ -138,11 +138,11 @@ service : (vec principal) -> {
 
   // return the number of subaccounts maintained by the caller
   // 0 if caller is registered but has no subaccounts
-  // NotFound if caller is not registered 
+  // UnknownPrincipal if caller is not registered 
   nAccounts: () -> (Nat_Result) query;
 
   // return the asset in the n-th subaccount of the caller
-  // NotFound if the caller isn't registered
+  // UnknownPrincipal if the caller isn't registered
   // SubaccountNotFound if the caller is registered but does not have n accounts
   asset: (SubaccountId) -> (Subaccount_Result) query;
 
@@ -157,6 +157,6 @@ service : (vec principal) -> {
   // debug interface
 
   // return all assets (i.e. all subaccounts) of the given owner
-  // NotFound if the given owner is not registered
+  // UnknownPrincipal if the given owner is not registered
   allAssets: (principal) -> (Subaccounts_Result) query;
 }

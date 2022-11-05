@@ -34,6 +34,7 @@ module {
 
 
     // ================================ ACCESSORS =================================
+    // TODO: move this to stats()
     public func nAggregators(): Nat = aggregators.size();
 
     public func aggregatorPrincipal(aid: AggregatorId): Result<Principal, { #NotFound; }> =

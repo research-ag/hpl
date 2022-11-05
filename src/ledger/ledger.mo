@@ -221,11 +221,7 @@ module {
                 nTxFailed_ += 1;
                 return #err(#NotAController);
               };
-            };
-            case _ {
-              nTxFailed_ += 1;
-              return #err(#AssetIdMismatch);
-            };
+            }
           };
         };
         for ((subaccountId, flowAsset, isInflow) in u.iterConcat(

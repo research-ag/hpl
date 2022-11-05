@@ -66,7 +66,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   public func registerPrincipals(startPrincipalNumber: Nat, amount: Nat, subaccountsAmount: Nat, initialBalance: Nat): async () {
     let initialAsset = { asset = #ft(0, initialBalance) };
     for (p in Iter.map<Nat, Principal>(Iter.range(startPrincipalNumber, startPrincipalNumber + amount), func (i: Nat) : Principal = TestUtils.principalFromNat(i))) {
-      switch (ledger_.getOwnerId(p, true)) {
+      switch (ledger_.getOrCreateOwnerId(p)) {
         case (#err _) ();
         case (#ok oid) ledger_.accounts[oid] := Array.init<Ledger.SubaccountState>(subaccountsAmount, initialAsset);
       };
@@ -77,6 +77,8 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   // add one aggregator principal
   public func addAggregator(p : Principal) : async AggregatorId = async ledger_.addAggregator(p);
 
+  // TODO: the following function checks if principal exists but not if subaccount exists
+  // TODO: can the following function run a mint transaction instead? 
   public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Ledger.Asset) : async Result<Ledger.SubaccountState,Ledger.ProcessingError> {
     switch (ledger_.ownerId(userPrincipal)) {
       case (#err _) #err(#UnknownPrincipal);

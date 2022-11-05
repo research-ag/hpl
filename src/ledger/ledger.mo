@@ -61,7 +61,6 @@ module {
 
     // public accessors based on principal
 
-    // TODO: does this need to be public?
     public func ownerId(p: Principal): Result<OwnerId, { #UnknownPrincipal }> =
       R.fromOption(owners.get(p), #UnknownPrincipal); 
 
@@ -101,19 +100,23 @@ module {
       aggregators.size() - 1;
     };
 
-    public func getOwnerId(p: Principal, autoRegister: Bool): Result<OwnerId, { #NoSpaceForPrincipal; #NotFound }> =
+    public func getOrCreateOwnerId(p: Principal): Result<OwnerId, { #NoSpaceForPrincipal }> =
       switch (ownerId(p)) {
-        case (#ok(oid)) #ok(oid);
-        case (#err(_))
-          switch (autoRegister) {
-            case (true) registerAccount(p);
-            case (_) #err(#NotFound);
+        case (#ok oid) { #ok oid };
+        case (#err _) {
+          if (ownersAmount >= C.maxPrincipals) {
+            return #err(#NoSpaceForPrincipal);
+          };
+          let newOwnerId = ownersAmount;
+          owners.put(p, newOwnerId);
+          ownersAmount += 1;
+          #ok(newOwnerId);
         };
       };
 
     public func createFungibleToken(controller: Principal) : Result<AssetId, CreateFtError> {
       // register controller, if not registered yet
-      ignore getOwnerId(controller, true);
+      ignore getOrCreateOwnerId(controller);
       let assetId: AssetId = ftControllers.size();
       if (assetId >= C.maxAssetIds) {
         return #err(#NoSpace);
@@ -126,7 +129,7 @@ module {
       if (assetId >= ftControllers.size()) {
         return #err(#AssetIdUnknown);
       };
-      switch (getOwnerId(p, true)) {
+      switch (getOrCreateOwnerId(p)) {
         case (#err _) #err(#NoSpaceForPrincipal);
         case (#ok oid) {
           let oldSize = accounts[oid].size();
@@ -142,16 +145,6 @@ module {
           #ok(oldSize);
         };
       };
-    };
-
-    private func registerAccount(principal: Principal) : Result<OwnerId, { #NoSpaceForPrincipal }> {
-      let ownerId = ownersAmount;
-      if (ownerId >= C.maxPrincipals) {
-        return #err(#NoSpaceForPrincipal);
-      };
-      owners.put(principal, ownerId);
-      ownersAmount += 1;
-      #ok(ownerId);
     };
 
     // ================================ PROCESSING ================================

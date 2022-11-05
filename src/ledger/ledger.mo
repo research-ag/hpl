@@ -73,13 +73,14 @@ module {
     public func allAssets(p : Principal) : Result<[SubaccountState], { #UnknownPrincipal }> =
       R.mapOk(ownerId(p), allAssets_);
 
-    public func counters() : { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat } =
+    public func counters() : { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat; nAssets: Nat } =
       {
         nBatchTotal = nBatchTotal_;
         nBatchPerAggregator = Array.freeze<Nat>(nBatchPerAggregator_);
         nTxTotal = nTxTotal_;
         nTxFailed = nTxFailed_;
         nTxSucceeded = nTxSucceeded_;
+        nAssets = ftControllers.size();
       };
 
     public func batchesHistory(startIndex: Nat, endIndex: Nat) : [BatchHistoryEntry] = batchHistory.slice(startIndex, endIndex);
@@ -121,7 +122,7 @@ module {
       // - cannot open new subaccounts (has reached maxSubaccounts)
       // If any of this happens then the controller can still approve
       // transactions for the new token. He just cannot hold them himself.
-      let assetId: AssetId = ftControllers.size();
+      let assetId : AssetId = ftControllers.size();
       if (assetId >= C.maxAssetIds) {
         return #err(#NoSpace);
       };

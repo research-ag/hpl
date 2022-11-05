@@ -42,33 +42,37 @@ module {
         case (_) #err(#NotFound);
       };
 
-    public func ownerId(p: Principal): Result<OwnerId, { #UnknownPrincipal }> =
-      switch (owners.get(p)) {
-        case (?oid) #ok(oid);
-        case (_) #err(#UnknownPrincipal);
+    // internal accessors based on owner id
+
+    func nAccounts_(oid : OwnerId) : Nat = 
+      accounts[oid].size();
+
+    func asset_(oid : OwnerId, sid: SubaccountId): Result<SubaccountState, { #SubaccountNotFound }> =
+      switch (accounts[oid].size() > sid) {
+        case (true) #ok(accounts[oid][sid]);
+        case (false) #err(#SubaccountNotFound)
       };
+
+    func assetInSubaccount_(sid: SubaccountId) : OwnerId -> Result<SubaccountState, { #SubaccountNotFound }> =
+      func(oid) = asset_(oid, sid);
+
+    func allAssets_(oid : OwnerId) : [SubaccountState] =
+      Array.freeze(accounts[oid]);
+
+    // public accessors based on principal
+
+    // TODO: does this need to be public?
+    public func ownerId(p: Principal): Result<OwnerId, { #UnknownPrincipal }> =
+      R.fromOption(owners.get(p), #UnknownPrincipal); 
 
     public func nAccounts(p: Principal): Result<Nat, { #UnknownPrincipal }> =
-      switch (ownerId(p)) {
-        case (#ok oid) #ok(accounts[oid].size());
-        case (#err err) #err(err);
-      };
+      R.mapOk(ownerId(p), nAccounts_);
 
-    public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #NotFound; #SubaccountNotFound; }> =
-      switch (owners.get(p)) {
-        case (null) #err(#NotFound);
-        case (?oid)
-          switch (accounts[oid].size() > sid) {
-            case (true) #ok(accounts[oid][sid]);
-            case (_) #err(#SubaccountNotFound);
-          };
-      };
+    public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #UnknownPrincipal; #SubaccountNotFound }> = 
+      R.chain(ownerId(p), assetInSubaccount_(sid));
 
-    public func allAssets(owner : Principal) : Result<[SubaccountState], { #NotFound; }> =
-      switch (owners.get(owner)) {
-        case (null) #err(#NotFound);
-        case (?oid) #ok(Array.freeze(accounts[oid]));
-      };
+    public func allAssets(p : Principal) : Result<[SubaccountState], { #UnknownPrincipal }> =
+      R.mapOk(ownerId(p), allAssets_);
 
     public func counters() : { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat } =
       {
@@ -98,9 +102,9 @@ module {
     };
 
     public func getOwnerId(p: Principal, autoRegister: Bool): Result<OwnerId, { #NoSpaceForPrincipal; #NotFound }> =
-      switch (owners.get(p)) {
-        case (?oid) #ok(oid);
-        case (null)
+      switch (ownerId(p)) {
+        case (#ok(oid)) #ok(oid);
+        case (#err(_))
           switch (autoRegister) {
             case (true) registerAccount(p);
             case (_) #err(#NotFound);
@@ -161,19 +165,18 @@ module {
       nBatchTotal_ += 1;
     };
 
-    public func processImmediateTx(caller: Principal, tx: Tx): Result<(), ImmediateTxError> {
-      let validationResult = v.validateTx(tx, false);
-      switch (validationResult) {
-        case (#err error) return #err(error);
-        case (#ok _) {};
-      };
-      for (c in tx.map.vals()) {
-        if (c.owner != caller and (c.outflow.size() > 0 or c.mints.size() > 0 or c.burns.size() > 0)) {
-          return #err(#TxHasToBeApproved);
+    public func processImmediateTx(caller: Principal, tx: Tx): Result<(), ImmediateTxError> =
+      switch (v.validateTx(tx, false)) {
+        case (#ok _) {
+          for (c in tx.map.vals()) {
+            if (c.owner != caller and (c.outflow.size() > 0 or c.mints.size() > 0 or c.burns.size() > 0)) {
+              return #err(#TxHasToBeApproved);
+            };
+          };
+          processTx(tx)
         };
+        case (#err e) { #err e }
       };
-      processTx(tx);
-    };
 
     private func processTx(tx: Tx): Result<(), ProcessingError> {
       // disabled validation, performed on the aggregator side. The ledger still validates:

@@ -71,7 +71,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   public query func nAggregators(): async Nat = async ledger_.nAggregators();
   public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async ledger_.aggregatorPrincipal(aid);
   public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
-  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #NotFound; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
+  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
 
   // admin interface
   // TODO admin-only authorization
@@ -79,7 +79,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   public func addAggregator(p : Principal) : async AggregatorId = async ledger_.addAggregator(p);
 
   // debug interface
-  public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #NotFound; }> = async ledger_.allAssets(owner);
+  public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #UnknownPrincipal }> = async ledger_.allAssets(owner);
   public query func counters() : async { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat } = async ledger_.counters();
   public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async ledger_.batchesHistory(startIndex, endIndex);
 };

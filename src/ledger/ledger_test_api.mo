@@ -49,7 +49,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   public query func nAggregators(): async Nat = async ledger_.nAggregators();
   public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async ledger_.aggregatorPrincipal(aid);
   public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
-  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #NotFound; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
+  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
 
   public query func createTestBatch(committer: Principal, owner: Principal, txAmount: Nat): async [T.Tx] {
     let tx: T.Tx = {
@@ -92,7 +92,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   };
 
   // debug interface
-  public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #NotFound; }> = async ledger_.allAssets(owner);
+  public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #UnknownPrincipal }> = async ledger_.allAssets(owner);
   public query func counters() : async { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat } = async ledger_.counters();
   public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async ledger_.batchesHistory(startIndex, endIndex);
 

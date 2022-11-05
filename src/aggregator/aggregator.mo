@@ -259,38 +259,56 @@ module {
       };
     };
 
-    public func getNextBatchRequests(): [TxRequest] =
-      Iter.toArray(object {
-        var counter = 0;
-        var availableRequestSpace = 262074; // 2MB - 70 bytes DIDL prefix and type table
-        public func next() : ?TxRequest {
-          if (counter >= C.batchSize) {
-            return null; // already added `batchSize` requests to the batch: stop iteration;
-          };
-          let lid = approvedTxs.peek();
-          switch (lid) {
-            case (null) {}; // queue ended: stop iteration;
-            case (?l) {
-              let cell = lookup.get(l);
-              switch (cell) {
-                case (null) assert false; // should never happen: request was overwritten in lookup table
-                case (?c) {
-                  // batch cannot fit this tx
-                  if (availableRequestSpace <= c.value.size) {
-                    return null;
-                  };
-                  let _ = approvedTxs.dequeue();
+    let batchIter = object {
+      var counter = 0;
+      var availableRequestSpace = 0;
+      public func reset() : () {
+        // 2MB - 70 bytes DIDL prefix and type table
+        counter := 0;
+        availableRequestSpace := 262074
+      };
+      public func next() : ?TxRequest {
+        // number of requests is limited to `batchSize`
+        // if reached then stop iteratortion
+        if (counter >= C.batchSize) { 
+          return null 
+        };
+        // get the local id at the head of the queue
+        switch (approvedTxs.peek()) {
+          case (?lid) {
+            // get the txreq from the lookup table 
+            let cell = lookup.get(lid);
+            switch (cell) {
+              case (?c) {
+                // check if enough space for the txreq
+                if (availableRequestSpace <= c.value.size) {  
+                  return null // stop iteration
+                } else { 
+                  // pop lid from queue and return the txreq
+                  ignore approvedTxs.dequeue(); 
                   availableRequestSpace -= 1 + c.value.size;
                   counter += 1;
                   c.value.status := #pending;
-                  return ?c.value;
-                };
+                  return ?c.value 
+                }
               };
+              case (null) {
+                // txreq must have been overwritten in the lookup table
+                // should never happen: trap
+                assert false 
+              }
             };
           };
-          return null;
+          case _ {} // queue was empty: stop iteration
         };
-      });
+        return null;
+      };
+    };
+
+    public func getNextBatchRequests(): [TxRequest] {
+      batchIter.reset();
+      Iter.toArray(batchIter)
+    };
 
     // private functionality
     /** get info about pending request. Returns user-friendly errors */

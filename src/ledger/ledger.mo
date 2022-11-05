@@ -110,7 +110,7 @@ module {
 
     public func createFungibleToken(controller: Principal) : Result<AssetId, CreateFtError> {
       // register controller, if not registered yet
-      let _ = getOwnerId(controller, true);
+      ignore getOwnerId(controller, true);
       let assetId: AssetId = ftControllers.size();
       if (assetId >= C.maxAssetIds) {
         return #err(#NoSpace);

@@ -7,7 +7,7 @@ import R "mo:base/Result";
 
 import T "../shared/types";
 import C "../shared/constants";
-import v "../shared/validators";
+import Tx "../shared/transaction";
 import u "../shared/utils";
 import CircularBuffer "../shared/circular_buffer";
 
@@ -21,17 +21,14 @@ module {
   public type AssetId = T.AssetId;
 
   public type SubaccountState = { asset: Asset };
-  public type TxValidationError = v.TxValidationError;
-  public type ProcessingError = TxValidationError or { #UnknownPrincipal; #SubaccountIdUnknown; #InsufficientFunds; #AssetIdUnknown; #AssetIdMismatch; #NotAController; };
+  public type ProcessingError = Tx.ValidationError or { #UnknownPrincipal; #SubaccountIdUnknown; #InsufficientFunds; #AssetIdUnknown; #AssetIdMismatch; #NotAController; };
   public type ImmediateTxError = ProcessingError or { #TxHasToBeApproved; }; public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
   public type CreateFtError = { #NoSpace; #FeeError };
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (= owner ids) are issued consecutively
   public type OwnerId = Nat;
-  public type Tx = T.Tx;
 
   public class Ledger(initialAggregators : [Principal]) {
-
 
     // ================================ ACCESSORS =================================
     // TODO: move this to stats()
@@ -164,8 +161,8 @@ module {
       nBatchTotal_ += 1;
     };
 
-    public func processImmediateTx(caller: Principal, tx: Tx): Result<(), ImmediateTxError> =
-      switch (v.validateTx(tx, false)) {
+    public func processImmediateTx(caller: Principal, tx: Tx.Tx): Result<(), ImmediateTxError> =
+      switch (Tx.validate(tx, false)) {
         case (#ok _) {
           for (c in tx.map.vals()) {
             if (c.owner != caller and (c.outflow.size() > 0 or c.mints.size() > 0 or c.burns.size() > 0)) {
@@ -177,7 +174,7 @@ module {
         case (#err e) { #err e }
       };
 
-    private func processTx(tx: Tx): Result<(), ProcessingError> {
+    private func processTx(tx: Tx.Tx): Result<(), ProcessingError> {
       // disabled validation, performed on the aggregator side. The ledger still validates:
       // - owner Id-s
       // - subaccount Id-s
@@ -185,7 +182,7 @@ module {
       // - asset type
       // - is balance sufficient
 
-      // let validationResult = v.validateTx(tx, false);
+      // let validationResult = Tx.Tx.validateTx(tx, false);
       // if (R.isErr(validationResult)) {
       //     nTxFailed_ += 1;
       //     return validationResult;

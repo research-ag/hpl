@@ -1,6 +1,7 @@
 import R "mo:base/Result";
 import Error "mo:base/Error";
 import Ledger "ledger";
+import Tx "../shared/transaction";
 
 import u "../shared/utils";
 
@@ -53,7 +54,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   /*
   Process one Tx immediately. Works only for Tx with single contribution, owned by caller
   */
-  public shared({caller}) func processImmediateTx(tx: Ledger.Tx): async Result<(), Ledger.ImmediateTxError> = async ledger_.processImmediateTx(caller, tx);
+  public shared({caller}) func processImmediateTx(tx: Tx.Tx): async Result<(), Ledger.ImmediateTxError> = async ledger_.processImmediateTx(caller, tx);
 
   // asset interface
   // create a new fungible token and get the asset id

@@ -11,11 +11,14 @@ import u "utils";
 import LinkedListSet "linked_list_set";
 
 module {
-
-  public type TxValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxFtQuantityExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique };
+  // type import work-around
+  type Result<X,Y> = R.Result<X,Y>;
+  
+  public type Tx = T.Tx;
+  public type ValidationError = { #FlowsNotBroughtToZero; #MaxContributionsExceeded; #MaxFlowsExceeded; #MaxFtQuantityExceeded; #MaxMemoSizeExceeded; #FlowsNotSorted; #OwnersNotUnique };
 
   /** transaction request validation function. Returns Tx size in bytes if success */
-  public func validateTx(tx: T.Tx, checkPrincipalUniqueness: Bool): R.Result<Nat, TxValidationError> {
+  public func validate(tx: Tx, checkPrincipalUniqueness: Bool): Result<Nat, ValidationError> {
     if (tx.map.size() > C.maxContribution) {
       return #err(#MaxContributionsExceeded);
     };

@@ -9,7 +9,7 @@ import Iter "mo:base/Iter";
 // pattern matching is not available for types (work-around required)
 import T "../shared/types";
 import C "../shared/constants";
-import v "../shared/validators";
+import Tx "../shared/transaction";
 import u "../shared/utils";
 import SlotTable "../shared/slot_table";
 import HPLQueue "../shared/queue";
@@ -19,14 +19,13 @@ module {
 
   // type import work-around
   public type Result<X,Y> = R.Result<X,Y>;
-  public type Tx = T.Tx;
   public type LocalId = T.LocalId;
   public type GlobalId = T.GlobalId;
   public type Batch = T.Batch;
   public type AggregatorId = T.AggregatorId;
   public type AssetId = T.AssetId;
 
-  public type SubmitError = v.TxValidationError or { #NoSpace; };
+  public type SubmitError = Tx.ValidationError or { #NoSpace; };
   public type NotPendingError = { #WrongAggregator; #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
   public type TxError = { #NotFound; };
 
@@ -40,7 +39,7 @@ module {
   public type MutableApprovals = [var Bool];
   public type Approvals = [Bool];
   public type TxReq = {
-    tx : Tx;
+    tx : Tx.Tx;
     submitter : Principal;
     var lid : ?LocalId;
     var status : { #unapproved : MutableApprovals; #approved : Nat; #rejected; #pending; #failed_to_send };
@@ -54,7 +53,7 @@ module {
   - the Nat in variant #approved is not the same. Here, we subtract the value `pop_ctr` to return the queue position.
   */
   public type TxDetails = {
-    tx : Tx;
+    tx : Tx.Tx;
     submitter : Principal;
     gid : GlobalId;
     status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
@@ -117,8 +116,8 @@ module {
     // Create a new transaction request.
     // Here we init it and put to the lookup table.
     // If the lookup table is full, we try to reuse the slot with oldest unapproved request
-    public func submit(caller: Principal, tx: Tx): Result<GlobalId, SubmitError> {
-      let validationResult = v.validateTx(tx, true);
+    public func submit(caller: Principal, tx: Tx.Tx): Result<GlobalId, SubmitError> {
+      let validationResult = Tx.validate(tx, true);
       var txSize = 0;
       switch (validationResult) {
         case (#err error) return #err(error);
@@ -233,7 +232,7 @@ module {
         return
       };
       try {
-        await Ledger_actor.processBatch(Array.map(requestsToSend, func (req: TxReq): Tx = req.tx));
+        await Ledger_actor.processBatch(Array.map(requestsToSend, func (req: TxReq): Tx.Tx = req.tx));
         // the batch has been processed
         // the transactions in b are now explicitly deleted from the lookup table
         // the aggregator has now done its job

@@ -8,6 +8,7 @@ import Blob "mo:base/Blob";
 import R "mo:base/Result";
 import T "../shared/types";
 import C "../shared/constants";
+import Tx "../shared/transaction";
 
 import TestUtils "../shared/test_utils";
 
@@ -41,10 +42,10 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
   * Here we init it and put to the lookup table.
   * If the lookup table is full, we try to reuse the slot with oldest unapproved request
   */
-  public shared({ caller }) func submit(tx: Aggregator.Tx): async Result<Aggregator.GlobalId, Aggregator.SubmitError> {
+  public shared({ caller }) func submit(tx: Tx.Tx): async Result<Aggregator.GlobalId, Aggregator.SubmitError> {
     aggregator_.submit(caller, tx);
   };
-  public shared({ caller }) func profileSubmit(tx: Aggregator.Tx): async (Nat64, Result<Aggregator.GlobalId, Aggregator.SubmitError>) {
+  public shared({ caller }) func profileSubmit(tx: Tx.Tx): async (Nat64, Result<Aggregator.GlobalId, Aggregator.SubmitError>) {
     var result: Result<Aggregator.GlobalId, Aggregator.SubmitError> = #err(#NoSpace);
     let instructions: Nat64 = E.countInstructions(func foo() {
       result := aggregator_.submit(caller, tx);
@@ -99,17 +100,17 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
   };
 
   public func getNextBatch() : async Aggregator.Batch {
-    Array.map(aggregator_.getNextBatchRequests(), func (req: Aggregator.TxReq): Aggregator.Tx = req.tx);
+    Array.map(aggregator_.getNextBatchRequests(), func (req: Aggregator.TxReq): Tx.Tx = req.tx);
   };
   public func profileGetNextBatch() : async (Nat64, Aggregator.Batch) {
     var result: [Aggregator.TxReq] = [];
     let instructions: Nat64 = E.countInstructions(func foo() {
       result := aggregator_.getNextBatchRequests();
     });
-    (instructions, Array.map(result, func (req: Aggregator.TxReq): Aggregator.Tx = req.tx));
+    (instructions, Array.map(result, func (req: Aggregator.TxReq): Tx.Tx = req.tx));
   };
 
-  public query func generateSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): async Aggregator.Tx {
+  public query func generateSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): async Tx.Tx {
     createSimpleTx(sender, senderSubaccountId, receiver, receiverSubaccountId, amount);
   };
 
@@ -117,7 +118,7 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
     TestUtils.generateHeavyTx(startPrincipalNumber);
   };
 
-  func createSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): Aggregator.Tx {
+  func createSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): Tx.Tx {
     if (sender == receiver) {
       {
         map = [{

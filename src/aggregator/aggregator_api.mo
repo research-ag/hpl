@@ -2,6 +2,7 @@ import Principal "mo:base/Principal";
 import Aggregator "./aggregator";
 import LedgerAPI "../ledger/ledger_api";
 import R "mo:base/Result";
+import Tx "../shared/transaction";
 
 // aggregator
 // the constructor arguments are:
@@ -30,7 +31,7 @@ actor class AggregatorAPI(ledger_ : Principal, ownId : Aggregator.AggregatorId, 
   * Here we init it and put to the lookup table.
   * If the lookup table is full, we try to reuse the slot with oldest unapproved request
   */
-  public shared({ caller }) func submit(tx: Aggregator.Tx): async Result<Aggregator.GlobalId, Aggregator.SubmitError> {
+  public shared({ caller }) func submit(tx: Tx.Tx): async Result<Aggregator.GlobalId, Aggregator.SubmitError> {
     aggregator_.submit(caller, tx);
   };
 

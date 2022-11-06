@@ -117,12 +117,11 @@ module {
     // Here we init it and put to the lookup table.
     // If the lookup table is full, we try to reuse the slot with oldest unapproved request
     public func submit(caller: Principal, tx: Tx.Tx): Result<GlobalId, SubmitError> {
-      let validationResult = Tx.validate(tx, true);
-      var txSize = 0;
-      switch (validationResult) {
-        case (#err error) return #err(error);
-        case (#ok size) txSize := size;
+      switch (Tx.validate(tx, true)) {
+        case (#err error) { return #err(error) };
+        case (_) {}
       };
+      let txSize = Tx.size(tx);
       ctr.submitted += 1;
       let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].owner == caller or (tx.map[i].outflow.size() == 0 and tx.map[i].mints.size() == 0 and tx.map[i].burns.size() == 0));
       let txRequest : TxReq = {

@@ -31,10 +31,11 @@ module {
   public type TxError = { #NotFound; };
 
   /*
-  Here is the information that makes up a transaction request.
+  Here is the information that makes up a transaction request (txreq).
   `Approvals` is a vector that captures the information who has already approved the transaction.
   The vector's length equals the number of contributors to the transactions.
-  When a tx is approved (i.e. queued) then the value `push_ctr` is stored in the #approved field in the status variant.
+  When a txreq is fully approved then it is queued for being sent to the ledger and its status changes to #approved.
+  The `push_ctr` value of the queue is stored in the #approved variant.
   */
   public type MutableApprovals = [var Bool];
   public type Approvals = [Bool];
@@ -59,14 +60,7 @@ module {
     status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
 
-  public class Aggregator(ledger_ : Principal, ownId : T.AggregatorId, lookupTableCapacity: Nat) {
-    /* store the init arguments:
-        - canister id of the ledger canister
-        - own unique identifier of this aggregator
-    */
-    let ledger : Principal = ledger_;
-    let selfAggregatorIndex: AggregatorId = ownId;
-
+  public class Aggregator(ledger : Principal, ownId : T.AggregatorId, lookupTableCapacity: Nat) {
     // define the ledger actor
     let Ledger_actor = actor (Principal.toText(ledger)) : LedgerAPI.LedgerAPI;
 
@@ -145,7 +139,7 @@ module {
       switch (txRequest.lid) {
         case (?lid) {
           checkIsApprovedAndEnqueue(txRequest, lid, Array.freeze(approvals));
-          #ok(selfAggregatorIndex, lid);
+          #ok(ownId, lid);
         };
         case (null) {
           // try to reuse oldest unapproved
@@ -164,7 +158,7 @@ module {
               switch (txRequest.lid) {
                 case (?lid) {
                   checkIsApprovedAndEnqueue(txRequest, lid, Array.freeze(approvals));
-                  #ok(selfAggregatorIndex, lid);
+                  #ok(ownId, lid);
                 };
                 case (null) {
                   cell.removeFromList();
@@ -289,7 +283,7 @@ module {
                 if (remainingBytes < bytesNeeded) {  
                   return null // stop iteration
                 } else { 
-                  // pop lid from queue and return the txreq
+                  // pop local id from queue and return the txreq
                   ignore approvedTxs.dequeue(); 
                   remainingBytes -= bytesNeeded;
                   remainingRequests -= 1;

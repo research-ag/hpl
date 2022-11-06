@@ -99,14 +99,14 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
   };
 
   public func getNextBatch() : async Aggregator.Batch {
-    Array.map(aggregator_.getNextBatchRequests(), func (req: Aggregator.TxRequest): Aggregator.Tx = req.tx);
+    Array.map(aggregator_.getNextBatchRequests(), func (req: Aggregator.TxReq): Aggregator.Tx = req.tx);
   };
   public func profileGetNextBatch() : async (Nat64, Aggregator.Batch) {
-    var result: [Aggregator.TxRequest] = [];
+    var result: [Aggregator.TxReq] = [];
     let instructions: Nat64 = E.countInstructions(func foo() {
       result := aggregator_.getNextBatchRequests();
     });
-    (instructions, Array.map(result, func (req: Aggregator.TxRequest): Aggregator.Tx = req.tx));
+    (instructions, Array.map(result, func (req: Aggregator.TxReq): Aggregator.Tx = req.tx));
   };
 
   public query func generateSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): async Aggregator.Tx {

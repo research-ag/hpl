@@ -39,7 +39,7 @@ module {
   */
   public type MutableApprovals = [var Bool];
   public type Approvals = [Bool];
-  public type TxRequest = {
+  public type TxReq = {
     tx : Tx;
     submitter : Principal;
     var lid : ?LocalId;
@@ -49,7 +49,7 @@ module {
 
   /*
   Here is the information we return to the user when the user queries for tx details.
-  The difference to the internally stored TxRequest is:
+  The difference to the internally stored TxReq is:
   - global id instead of local id
   - the Nat in variant #approved is not the same. Here, we subtract the value `pop_ctr` to return the queue position.
   */
@@ -102,23 +102,21 @@ module {
     delivery failures occur. We currently do not implement it.
     */
 
-    /*
-    debug counter
-    number of tx requests ever submitted
-    */
-    var submitted : Nat = 0;
+    // global counters
+    let ctr = {
+      var submitted : Nat = 0 // number of tx requests ever submitted
+    };
 
     // lookup table
-    var lookup : SlotTable.SlotTable<DLL.Cell<TxRequest>> = SlotTable.SlotTable<DLL.Cell<TxRequest>>(lookupTableCapacity);
-    // chain of all used slots with a unapproved tx request
-    var unapproved : DLL.DoublyLinkedList<TxRequest> = DLL.DoublyLinkedList<TxRequest>();
+    var lookup : SlotTable.SlotTable<DLL.Cell<TxReq>> = SlotTable.SlotTable<DLL.Cell<TxReq>>(lookupTableCapacity);
+    // chain of all used slots with an unapproved tx request
+    var unapproved : DLL.DoublyLinkedList<TxReq> = DLL.DoublyLinkedList<TxReq>();
     // the queue of approved requests for batching
     var approvedTxs = HPLQueue.HPLQueue<LocalId>();
 
-    /** Create a new transaction request.
-    * Here we init it and put to the lookup table.
-    * If the lookup table is full, we try to reuse the slot with oldest unapproved request
-    */
+    // Create a new transaction request.
+    // Here we init it and put to the lookup table.
+    // If the lookup table is full, we try to reuse the slot with oldest unapproved request
     public func submit(caller: Principal, tx: Tx): Result<GlobalId, SubmitError> {
       let validationResult = v.validateTx(tx, true);
       var txSize = 0;
@@ -126,8 +124,9 @@ module {
         case (#err error) return #err(error);
         case (#ok size) txSize := size;
       };
+      ctr.submitted += 1;
       let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].owner == caller or (tx.map[i].outflow.size() == 0 and tx.map[i].mints.size() == 0 and tx.map[i].burns.size() == 0));
-      let txRequest : TxRequest = {
+      let txRequest : TxReq = {
         tx = tx;
         submitter = caller;
         var lid = null;
@@ -234,7 +233,7 @@ module {
         return
       };
       try {
-        await Ledger_actor.processBatch(Array.map(requestsToSend, func (req: TxRequest): Tx = req.tx));
+        await Ledger_actor.processBatch(Array.map(requestsToSend, func (req: TxReq): Tx = req.tx));
         // the batch has been processed
         // the transactions in b are now explicitly deleted from the lookup table
         // the aggregator has now done its job
@@ -265,7 +264,7 @@ module {
         remainingRequests := C.maxBatchRequests;
         remainingBytes := C.maxBatchBytes;
       };
-      public func next() : ?TxRequest {
+      public func next() : ?TxReq {
         // number of requests is limited to `batchSize`
         // if reached then stop iteratortion
         if (remainingRequests == 0) { 
@@ -304,14 +303,14 @@ module {
       };
     };
 
-    public func getNextBatchRequests(): [TxRequest] {
+    public func getNextBatchRequests(): [TxReq] {
       batchIter.reset();
       Iter.toArray(batchIter)
     };
 
     // private functionality
     /** get info about pending request. Returns user-friendly errors */
-    private func getPendingTxRequest(txId: GlobalId, caller: Principal): Result<( txRequest: TxRequest, approvals: MutableApprovals, index: Nat ),NotPendingError> {
+    private func getPendingTxRequest(txId: GlobalId, caller: Principal): Result<( txRequest: TxReq, approvals: MutableApprovals, index: Nat ),NotPendingError> {
       let (aggregator, local_id) = txId;
       if (aggregator != ownId) {
         return #err(#WrongAggregator);
@@ -341,7 +340,7 @@ module {
     };
 
     /** cleanup oldest unapproved request */
-    private func cleanupOldest(chain: DLL.DoublyLinkedList<TxRequest>) : Bool {
+    private func cleanupOldest(chain: DLL.DoublyLinkedList<TxReq>) : Bool {
       let oldestTrRequest = chain.popFront();
       switch (oldestTrRequest) {
         case (null) false;
@@ -359,7 +358,7 @@ module {
     };
 
     /** check if transaction is fully approved and enqueue it to the batch */
-    private func checkIsApprovedAndEnqueue(tr: TxRequest, lid: LocalId, approvals: Approvals) {
+    private func checkIsApprovedAndEnqueue(tr: TxReq, lid: LocalId, approvals: Approvals) {
       if (Array.foldRight(approvals, true, Bool.logand)) {
         let cell = lookup.get(lid);
         // remove from unapproved list

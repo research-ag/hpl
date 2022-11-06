@@ -52,55 +52,84 @@ module {
     true
   };
 
+  func isStrictlyIncreasing(l : [Nat]) : Bool {
+    var i = 1;
+    while (i < l.size()) {
+      if (l[i] <= l[i-1]) {
+        return false
+      }
+    }; 
+    true
+  };
+
+  /** check that items in two sorted arrays with unique values are unique between each other
+  Example: isSortedArraysUnique<Nat>([0, 2, 4], [1, 3, 6, 7, 8], Nat.compare); => true
+  Example: isSortedArraysUnique<Nat>([0, 2, 4], [1, 3, 4, 7, 8], Nat.compare); => false
+  */
+  func isUniqueInBoth(a: [Nat], b: [Nat]) : Bool {
+    var i = 0;
+    var j = 0;
+    while (i < a.size() and j < b.size()) {
+      switch (Nat.compare(a[i],b[j])) {
+        case (#equal) return false;
+        case (#less) i += 1;
+        case (#greater) j += 1
+      }
+    };
+    true
+  };
+
+  func validateContribution(c : T.Contribution) : Result<(), ValidationError> {
+    // memo size
+    switch (c.memo) {
+      case (?m) {
+        if (m.size() > C.maxMemoSize) {
+          return #err(#MaxMemoSizeExceeded);
+        };
+      };
+      case (_) {};
+    };
+    // number of flows
+    if (nFlows(c) > C.maxFlows) {
+      return #err(#MaxFlowsExceeded);
+    };
+    // sorting of subaccount ids in inflow and outflow
+    let ids1 = Array.map<(Nat, T.Asset),Nat>(c.inflow, func(x) {x.0});
+    let ids2 = Array.map<(Nat, T.Asset),Nat>(c.outflow, func(x) {x.0});
+    if (not isStrictlyIncreasing(ids1) or not isStrictlyIncreasing(ids2)) {
+      return #err(#FlowsNotSorted)
+    };
+    // uniqueness of subaccount ids across inflow and outflow
+    // this algorithm works only because subaccount ids are strictly increasing in both arrays
+    if (not isUniqueInBoth(ids1, ids2)) {
+      return #err(#FlowsNotSorted);
+    };
+    #ok
+  };
+
   // validate tx, error describes why it is not valid
   public func validate(tx: Tx, checkPrincipalUniqueness: Bool): Result<(), ValidationError> {
+    // number of contributions
     if (tx.map.size() > C.maxContribution) {
       return #err(#MaxContributionsExceeded);
     };
-    // checking owners uniqueness
+
+    // uniqueness of owners
     if (checkPrincipalUniqueness and not isUnique(owners(tx))) {
         return #err(#OwnersNotUnique)
     };
 
-    // checking balances equilibrium
+    // validate each contribution in isolation
+    for (c in tx.map.vals()) {
+      switch (validateContribution(c)) {
+        case (#err e) { return #err(e) };
+        case (_) {}
+      }
+    };
+
+    // equilibrium of flows
     let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) });
-    // main loop
     for (contribution in tx.map.vals()) {
-      if (contribution.inflow.size() + contribution.outflow.size() + contribution.mints.size() + contribution.burns.size() > C.maxFlows) {
-        return #err(#MaxFlowsExceeded);
-      };
-      switch (contribution.memo) {
-        case (?m) {
-          if (m.size() > C.maxMemoSize) {
-            return #err(#MaxMemoSizeExceeded);
-          };
-        };
-        case (null) {};
-      };
-      // checking flows sorting
-      for (flows in [contribution.inflow, contribution.outflow].vals()) {
-        var lastSubaccountId : { #empty; #val: Nat } = #empty;
-        for ((subaccountId, asset) in flows.vals()) {
-          switch (lastSubaccountId) {
-            case (#val lsid) {
-              if (subaccountId <= lsid) {
-                return #err(#FlowsNotSorted);
-              };
-            };
-            case (#empty) {};
-          };
-          lastSubaccountId := #val(subaccountId);
-        };
-      };
-      // check that subaccounts are unique in inflow + outflow
-      // this algorithm works only if subaccounts are unique and sorted in both arrays, which is true here
-      if (not u.isSortedArraysUnique<(T.SubaccountId, T.Asset)>(
-        contribution.inflow,
-        contribution.outflow,
-        func (flowA, flowB) : {#equal; #greater; #less} = Nat.compare(flowA.0, flowB.0),
-      )) {
-        return #err(#FlowsNotSorted);
-      };
       let txAssetsIn: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
         Iter.map<(T.SubaccountId, T.Asset), T.Asset>(contribution.inflow.vals(), func (flow) = flow.1),
         contribution.burns.vals()

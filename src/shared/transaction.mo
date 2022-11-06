@@ -4,6 +4,7 @@ import Nat32 "mo:base/Nat32";
 import Nat "mo:base/Nat";
 import Principal "mo:base/Principal";
 import Iter "mo:base/Iter";
+import Array "mo:base/Array";
 
 import T "types";
 import C "constants";
@@ -28,6 +29,7 @@ module {
   func nFlows(c : T.Contribution) : Nat =
     c.mints.size() + c.burns.size() + c.inflow.size() + c.outflow.size();
 
+  // Tx size in bytes
   public func size(tx : Tx) : Nat {
     let contributions = tx.map.size(); 
     var flows = 0;
@@ -37,20 +39,33 @@ module {
     contributions * 34 + flows * 29
   }; 
 
-  /** transaction request validation function. Returns Tx size in bytes if success */
+  func owners(tx : Tx) : [Principal] = 
+    Array.map(tx.map, func(c : T.Contribution) : Principal {c.owner});
+
+  func isUnique(list : [Principal]) : Bool {
+    let set = LinkedListSet.LinkedListSet<Principal>(Principal.equal);
+    for (x in list.vals()) {
+      if (not set.put(x)) {
+        return false
+      }
+    };
+    true
+  };
+
+  // validate tx, error describes why it is not valid
   public func validate(tx: Tx, checkPrincipalUniqueness: Bool): Result<(), ValidationError> {
     if (tx.map.size() > C.maxContribution) {
       return #err(#MaxContributionsExceeded);
     };
+    // checking owners uniqueness
+    if (checkPrincipalUniqueness and not isUnique(owners(tx))) {
+        return #err(#OwnersNotUnique)
+    };
+
     // checking balances equilibrium
     let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) });
-    // checking owners uniqueness
-    let ownersSet = LinkedListSet.LinkedListSet<Principal>(Principal.equal);
     // main loop
     for (contribution in tx.map.vals()) {
-      if (checkPrincipalUniqueness and not ownersSet.put(contribution.owner)) {
-        return #err(#OwnersNotUnique);
-      };
       if (contribution.inflow.size() + contribution.outflow.size() + contribution.mints.size() + contribution.burns.size() > C.maxFlows) {
         return #err(#MaxFlowsExceeded);
       };

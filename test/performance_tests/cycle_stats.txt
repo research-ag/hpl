@@ -10,3 +10,21 @@
 [AGG] approve + equeue simple Tx: 731
 [AGG] reject simple Tx: 728
 [AGG] prepare big batch: 801924
+[AGG] submit simple Tx: 23531
+[AGG] submit + auto-enqueue simple Tx: 18421
+[AGG] submit heavy tx: 277906927
+[AGG] approve + equeue simple Tx: 731
+[AGG] reject simple Tx: 728
+[AGG] prepare big batch: 801924
+[AGG] submit simple Tx: 23531
+[AGG] submit + auto-enqueue simple Tx: 18421
+[AGG] submit heavy tx: 277907115
+[AGG] approve + equeue simple Tx: 731
+[AGG] reject simple Tx: 728
+[AGG] prepare big batch: 796602
+[AGG] submit simple Tx: 23531
+[AGG] submit + auto-enqueue simple Tx: 18421
+[AGG] submit heavy tx: 277895862
+[AGG] approve + equeue simple Tx: 731
+[AGG] reject simple Tx: 728
+[AGG] prepare big batch: 773555

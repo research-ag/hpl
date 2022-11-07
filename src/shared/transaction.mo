@@ -3,14 +3,11 @@ import TrieMap "mo:base/TrieMap";
 import Nat32 "mo:base/Nat32";
 import Nat "mo:base/Nat";
 import Principal "mo:base/Principal";
-import Iter "mo:base/Iter";
 import Array "mo:base/Array";
 import Option "mo:base/Option";
 
 import T "types";
 import C "constants";
-import u "utils";
-import LinkedListSet "linked_list_set";
 
 module {
   public type Tx = T.Tx;
@@ -44,12 +41,17 @@ module {
     Array.map(tx.map, func(c : T.Contribution) : Principal {c.owner});
 
   func isUnique(list : [Principal]) : Bool {
-    let set = LinkedListSet.LinkedListSet<Principal>(Principal.equal);
-    for (x in list.vals()) {
-      if (not set.put(x)) {
-        return false
-      }
-    };
+    var i = 1;
+    while (i < list.size()) {
+      var j = 0;
+      while (j < i) {
+        if (list[i] == list[j]) {
+          return false
+        };
+        j += 1; 
+      };
+      i += 1;
+    }; 
     true
   };
 

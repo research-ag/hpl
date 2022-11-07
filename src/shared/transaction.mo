@@ -5,6 +5,8 @@ import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Option "mo:base/Option";
 
+import C "../shared/constants";
+
 module {
   // the following constants are defined as a means of DoS-protection
   public let constants = {
@@ -18,16 +20,14 @@ module {
     // maximum allowed memo size in bytes
     maxMemoBytes = 256;
     
-    // maximum value for the subaccount id allowed in a flow, equals 2**16-1
-    // Note: must be >= the largest subaccount id that the ledger can handle
-    maxSubaccountId = 65535;
+    // maximum value for the subaccount id allowed in a flow
+    maxSubaccounts = C.maxSubaccounts;
 
-    // maxmium value for the asset id allowed in an #ft flow, equals 2**24-1
-    // Note: must be >= the largest asset id that the ledger can handle
-    maxAssetId = 16777215; 
+    // maxmium value for the asset id allowed in an #ft flow
+    maxAssets = C.maxAssets;
 
-    // maximum value for the quantity allowed in an #ft flow, equals 2**128-1
-    maxFtQuantity = 340282366920938463463374607431768211455;
+    // maximum value for the quantity allowed in an #ft flow, equals 2**128
+    maxFtUnits = 340282366920938463463374607431768211456;
   };
 
   public type SubaccountId = Nat;
@@ -138,10 +138,10 @@ module {
   func validateAsset(a : Asset) : Result<(), AssetError> {
     switch a {
       case (#ft(id, quantity)) {
-        if (id > constants.maxAssetId) {
+        if (id >= constants.maxAssets) {
           return #err(#AssetIdTooLarge)
         };
-        if (quantity > constants.maxFtQuantity) {
+        if (quantity >= constants.maxFtUnits) {
           return #err(#FtQuantityTooLarge)
         }
       }
@@ -150,7 +150,7 @@ module {
   };
 
   func validateFlow(f : (SubaccountId, Asset)) : Result<(), FlowError> {
-    if (f.0 > constants.maxSubaccountId) {
+    if (f.0 >= constants.maxSubaccounts) {
       return #err(#SubaccountIdTooLarge)
     };
     validateAsset(f.1);

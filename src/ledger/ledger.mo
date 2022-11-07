@@ -8,6 +8,7 @@ import R "mo:base/Result";
 import Tx "../shared/transaction";
 import u "../shared/utils";
 import CircularBuffer "../shared/circular_buffer";
+import C "../shared/constants";
 
 module {
   public type Result<X,Y> = R.Result<X,Y>;
@@ -42,10 +43,10 @@ module {
 
   public let constants = {
     // maximum number of asset ids that the ledger can register
-    maxAssetIds = 16777216; // 2**24
+    maxAssets = C.maxAssets; 
 
     // maximum number of subaccounts per owner
-    maxSubaccounts = 65536; // 2**16
+    maxSubaccounts = C.maxSubaccounts; 
 
     // maximum number of stored latest processed batches on the ledger
     batchHistoryLength = 1024;
@@ -146,7 +147,7 @@ module {
       // - cannot open new subaccounts (has reached maxSubaccounts)
       // If any of this happens then the controller can still approve
       // transactions for the new token. He just cannot hold them himself.
-      if (ftControllers.size() >= constants.maxAssetIds) {
+      if (ftControllers.size() >= constants.maxAssets) {
         return #err(#NoSpace);
       };
       let assetId : AssetId = ftControllers.size();

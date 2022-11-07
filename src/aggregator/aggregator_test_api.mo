@@ -4,11 +4,10 @@ import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Iter "mo:base/Iter";
 import Blob "mo:base/Blob";
-
 import R "mo:base/Result";
+
 import C "../shared/constants";
 import Tx "../shared/transaction";
-
 import TestUtils "../shared/test_utils";
 
 import Aggregator "./aggregator";

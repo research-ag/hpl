@@ -5,16 +5,14 @@ import { compare } "mo:base/Principal";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
 
-import T "../shared/types";
 import C "../shared/constants";
 import Tx "../shared/transaction";
 import u "../shared/utils";
 import CircularBuffer "../shared/circular_buffer";
 
 module {
-
   public type Result<X,Y> = R.Result<X,Y>;
-  public type AggregatorId = T.AggregatorId;
+  public type AggregatorId = Nat;
 
   public type SubaccountId = Tx.SubaccountId;
   public type Asset = Tx.Asset;

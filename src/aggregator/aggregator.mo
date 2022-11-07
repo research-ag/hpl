@@ -7,7 +7,6 @@ import Iter "mo:base/Iter";
 
 // type imports
 // pattern matching is not available for types (work-around required)
-import T "../shared/types";
 import C "../shared/constants";
 import Tx "../shared/transaction";
 import u "../shared/utils";
@@ -16,12 +15,13 @@ import HPLQueue "../shared/queue";
 import DLL "../shared/dll";
 
 module {
+  public type AggregatorId = Nat;
+  public type LocalId = Nat;
+  public type GlobalId = ( aggregator: AggregatorId, local_id: LocalId );
+  // public type GlobalId = T.GlobalId;
 
   // type import work-around
   public type Result<X,Y> = R.Result<X,Y>;
-  public type LocalId = T.LocalId;
-  public type GlobalId = T.GlobalId;
-  public type AggregatorId = T.AggregatorId;
 
   public type Batch = Tx.Batch;
   public type AssetId = Tx.AssetId;

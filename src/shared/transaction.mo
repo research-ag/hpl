@@ -5,9 +5,31 @@ import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Option "mo:base/Option";
 
-import C "constants";
-
 module {
+  // the following constants are defined as a means of DoS-protection
+  public let constants = {
+    // maximum number of contributions allowed per tx
+    maxContributions = 256;
+
+    // maximum number of inflows and outflows allowed per contribution 
+    // TODO: think of limiting only total flows per tx, not per contribution
+    maxFlows = 256;
+
+    // maximum allowed memo size in bytes
+    maxMemoBytes = 256;
+    
+    // maximum value for the subaccount id allowed in a flow, equals 2**16-1
+    // Note: must be >= the largest subaccount id that the ledger can handle
+    maxSubaccountId = 65535;
+
+    // maxmium value for the asset id allowed in an #ft flow, equals 2**24-1
+    // Note: must be >= the largest asset id that the ledger can handle
+    maxAssetId = 16777215; 
+
+    // maximum value for the quantity allowed in an #ft flow, equals 2**128-1
+    maxFtQuantity = 340282366920938463463374607431768211455;
+  };
+
   public type SubaccountId = Nat;
   public type AssetId = Nat;
   public type Asset = { 
@@ -33,14 +55,22 @@ module {
   };
 
   public type Batch = [Tx];
-  public type ValidationError = { 
-    #FlowsNotBroughtToZero; 
-    #MaxContributionsExceeded; 
-    #MaxFlowsExceeded; 
-    #MaxFtQuantityExceeded; 
-    #MaxMemoSizeExceeded; 
-    #FlowsNotSorted; 
-    #OwnersNotUnique 
+  public type AssetError = {
+    #AssetIdTooLarge;
+    #FtQuantityTooLarge
+  };
+  public type FlowError = AssetError or {
+    #SubaccountIdTooLarge
+  };
+  public type ContributionError = FlowError or {
+    #MemoTooLarge;
+    #TooManyFlows;
+    #FlowsNotSorted 
+  };
+  public type TxError = ContributionError or { 
+    #TooManyContributions; 
+    #OwnersNotUnique;
+    #NonZeroAssetSum 
   };
 
   // type import work-around
@@ -105,36 +135,66 @@ module {
     true
   };
 
-  func validateContribution(c : Contribution) : Result<(), ValidationError> {
+  func validateAsset(a : Asset) : Result<(), AssetError> {
+    switch a {
+      case (#ft(id, quantity)) {
+        if (id > constants.maxAssetId) {
+          return #err(#AssetIdTooLarge)
+        };
+        if (quantity > constants.maxFtQuantity) {
+          return #err(#FtQuantityTooLarge)
+        }
+      }
+    };
+    return #ok
+  };
+
+  func validateFlow(f : (SubaccountId, Asset)) : Result<(), FlowError> {
+    if (f.0 > constants.maxSubaccountId) {
+      return #err(#SubaccountIdTooLarge)
+    };
+    validateAsset(f.1);
+  };
+
+  func validateContribution(c : Contribution) : Result<(), ContributionError> {
     // memo size
     switch (c.memo) {
       case (?m) {
-        if (m.size() > C.maxMemoSize) {
-          return #err(#MaxMemoSizeExceeded);
-        };
+        if (m.size() > constants.maxMemoBytes) {
+          return #err(#MemoTooLarge)
+        }
       };
-      case (_) {};
+      case (_) {}
     };
     // number of flows
-    if (nFlows(c) > C.maxFlows) {
-      return #err(#MaxFlowsExceeded);
+    if (nFlows(c) > constants.maxFlows) {
+      return #err(#TooManyFlows);
     };
-    // flow quantities
-    func exceeds(a : Asset) : Bool =
-      switch a {
-        case (#ft(_,q)) { q > C.flowMaxFtQuantity }
-      };
+    // validate assets (mint/burn) in isolation
     for (a in c.mints.vals()) {
-      if (exceeds(a)) { return #err(#MaxFtQuantityExceeded) } 
+      switch (validateAsset(a)) {
+        case (#err e) { return #err e };
+        case (_) {}
+      }
     };
     for (a in c.burns.vals()) {
-      if (exceeds(a)) { return #err(#MaxFtQuantityExceeded) } 
+      switch (validateAsset(a)) {
+        case (#err e) { return #err e };
+        case (_) {}
+      }
     };
+    // validate flows (inflow/outflow) in isolation
     for (f in c.inflow.vals()) {
-      if (exceeds(f.1)) { return #err(#MaxFtQuantityExceeded) } 
+      switch (validateFlow(f)) {
+        case (#err e) { return #err e };
+        case (_) {}
+      }
     };
     for (f in c.outflow.vals()) {
-      if (exceeds(f.1)) { return #err(#MaxFtQuantityExceeded) } 
+      switch (validateFlow(f)) {
+        case (#err e) { return #err e };
+        case (_) {}
+      }
     };
     // sorting of subaccount ids in inflow and outflow
     let ids1 = Array.map<(Nat, Asset),Nat>(c.inflow, func(x) {x.0});
@@ -151,10 +211,10 @@ module {
   };
 
   // validate tx, error describes why it is not valid
-  public func validate(tx: Tx, checkPrincipalUniqueness: Bool): Result<(), ValidationError> {
+  public func validate(tx: Tx, checkPrincipalUniqueness: Bool): Result<(), TxError> {
     // number of contributions
-    if (tx.map.size() > C.maxContribution) {
-      return #err(#MaxContributionsExceeded);
+    if (tx.map.size() > constants.maxContributions) {
+      return #err(#TooManyContributions);
     };
 
     // uniqueness of owners
@@ -196,9 +256,9 @@ module {
       for (f in contribution.inflow.vals()) { sub(f.1); };
     };
     // test if map has negative entries
-    func cons(id : Nat, quantity : Int, res : Bool) : Bool = res or (quantity < 0);
+    func cons(_ : Nat, quantity : Int, res : Bool) : Bool = res or (quantity < 0);
     if (AssocList.fold(balanceMap, false, cons)) {
-      return #err(#FlowsNotBroughtToZero);
+      return #err(#NonZeroAssetSum); 
     };
     // everything passed, tx is ok
     #ok

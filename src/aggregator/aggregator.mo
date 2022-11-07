@@ -6,7 +6,6 @@ import Iter "mo:base/Iter";
 
 // type imports
 // pattern matching is not available for types (work-around required)
-import C "../shared/constants";
 import Tx "../shared/transaction";
 import u "../shared/utils";
 import SlotTable "../shared/slot_table";
@@ -25,9 +24,9 @@ module {
   public type Batch = Tx.Batch;
   public type AssetId = Tx.AssetId;
 
-  public type SubmitError = Tx.ValidationError or { #NoSpace; };
+  public type SubmitError = Tx.TxError or { #NoSpace; };
   public type NotPendingError = { #WrongAggregator; #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
-  public type TxError = { #NotFound; };
+  public type GidError = { #NotFound; };
 
   /*
   Here is the information that makes up a transaction request (txreq).
@@ -57,6 +56,15 @@ module {
     submitter : Principal;
     gid : GlobalId;
     status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
+  };
+
+  public let constants = {
+    // the number of transactions in one batch
+    maxBatchRequests = 256;
+
+    // the size of a batch in bytes
+    // 2MB - 70 bytes for DIDL prefix and type table
+    maxBatchBytes = 262074;
   };
 
   public class Aggregator(ledger : Principal, ownId : AggregatorId, lookupTableCapacity: Nat) {
@@ -200,7 +208,7 @@ module {
     };
 
     /** Query transaction request info */
-    public func txDetails(gid: GlobalId): Result<TxDetails, TxError> {
+    public func txDetails(gid: GlobalId): Result<TxDetails, GidError> {
       let txRequest = lookup.get(gid.1);
       switch (txRequest) {
         case (null) #err(#NotFound);
@@ -259,8 +267,8 @@ module {
       var remainingRequests = 0;
       var remainingBytes = 0;
       public func reset() : () {
-        remainingRequests := C.maxBatchRequests;
-        remainingBytes := C.maxBatchBytes;
+        remainingRequests := constants.maxBatchRequests;
+        remainingBytes := constants.maxBatchBytes;
       };
       public func next() : ?TxReq {
         // number of requests is limited to `batchSize`

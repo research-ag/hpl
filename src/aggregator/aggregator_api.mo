@@ -42,7 +42,7 @@ actor class AggregatorAPI(ledger : Principal, ownId : Aggregator.AggregatorId, l
   };
 
   /** Query transaction request info */
-  public query func txDetails(gid: Aggregator.GlobalId): async Result<Aggregator.TxDetails, Aggregator.TxError> {
+  public query func txDetails(gid: Aggregator.GlobalId): async Result<Aggregator.TxDetails, Aggregator.GidError> {
     aggregator_.txDetails(gid);
   };
 

@@ -6,7 +6,6 @@ import Iter "mo:base/Iter";
 import Blob "mo:base/Blob";
 import R "mo:base/Result";
 
-import C "../shared/constants";
 import Tx "../shared/transaction";
 import TestUtils "../shared/test_utils";
 
@@ -83,7 +82,7 @@ actor class AggregatorTestAPI(ledger : Principal, ownId : Aggregator.AggregatorI
   };
 
   /** Query transaction request info */
-  public query func txDetails(gid: Aggregator.GlobalId): async Result<Aggregator.TxDetails, Aggregator.TxError> {
+  public query func txDetails(gid: Aggregator.GlobalId): async Result<Aggregator.TxDetails, Aggregator.GidError> {
     aggregator_.txDetails(gid);
   };
 

@@ -8,7 +8,6 @@ import Error "mo:base/Error";
 import Ledger "ledger";
 
 import Tx "../shared/transaction";
-import C "../shared/constants";
 import u "../shared/utils";
 import TestUtils "../shared/test_utils";
 

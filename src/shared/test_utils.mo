@@ -3,21 +3,20 @@ import Blob "mo:base/Blob";
 import Array "mo:base/Array";
 import Nat8 "mo:base/Nat8";
 import Tx "transaction";
-import C "constants";
 
 module {
 
   public func generateHeavyTx(startPrincipalNumber: Nat): Tx.Tx =
     {
       map = Array.tabulate<Tx.Contribution>(
-        C.maxContribution,
+        Tx.constants.maxContributions,
         func (i: Nat) = {
           owner = principalFromNat(startPrincipalNumber + i);
-          inflow = Array.tabulate<(Tx.SubaccountId, Tx.Asset)>(C.maxFlows / 2, func (j: Nat) = (j, #ft(0, 10)));
-          outflow = Array.tabulate<(Tx.SubaccountId, Tx.Asset)>(C.maxFlows / 2, func (j: Nat) = (j + C.maxFlows / 2, #ft(0, 10)));
+          inflow = Array.tabulate<(Tx.SubaccountId, Tx.Asset)>(Tx.constants.maxFlows / 2, func (j: Nat) = (j, #ft(0, 10)));
+          outflow = Array.tabulate<(Tx.SubaccountId, Tx.Asset)>(Tx.constants.maxFlows / 2, func (j: Nat) = (j + Tx.constants.maxFlows / 2, #ft(0, 10)));
           mints = [];
           burns = [];
-          memo = ?Blob.fromArray(Array.freeze(Array.init<Nat8>(C.maxMemoSize, 12)))
+          memo = ?Blob.fromArray(Array.freeze(Array.init<Nat8>(Tx.constants.maxMemoBytes, 12)))
         },
       );
       committer = null;

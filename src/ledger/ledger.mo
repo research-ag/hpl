@@ -5,7 +5,6 @@ import { compare } "mo:base/Principal";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
 
-import C "../shared/constants";
 import Tx "../shared/transaction";
 import u "../shared/utils";
 import CircularBuffer "../shared/circular_buffer";
@@ -20,12 +19,40 @@ module {
   public type Batch = Tx.Batch;
 
   public type SubaccountState = { asset: Asset };
-  public type ProcessingError = Tx.ValidationError or { #UnknownPrincipal; #SubaccountIdUnknown; #InsufficientFunds; #AssetIdUnknown; #AssetIdMismatch; #NotAController; };
-  public type ImmediateTxError = ProcessingError or { #TxHasToBeApproved; }; public type BatchHistoryEntry = { batchNumber: Nat; precedingTotalTxAmount: Nat; results: [Result<(), ProcessingError>] };
+  public type ProcessingError = Tx.TxError or { 
+    #UnknownPrincipal; 
+    #SubaccountIdUnknown; 
+    #InsufficientFunds; 
+    #AssetIdUnknown; 
+    #AssetIdMismatch; 
+    #NotAController; 
+  };
+  public type ImmediateTxError = ProcessingError or { 
+    #TxHasToBeApproved; 
+  }; 
+  public type BatchHistoryEntry = { 
+    batchNumber: Nat; 
+    precedingTotalTxAmount: Nat; 
+    results: [Result<(), ProcessingError>] 
+  };
   public type CreateFtError = { #NoSpace; #FeeError };
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (= owner ids) are issued consecutively
   public type OwnerId = Nat;
+
+  public let constants = {
+    // maximum number of asset ids that the ledger can register
+    maxAssetIds = 16777216; // 2**24
+
+    // maximum number of subaccounts per owner
+    maxSubaccounts = 65536; // 2**16
+
+    // maximum number of stored latest processed batches on the ledger
+    batchHistoryLength = 1024;
+
+    // maximum number of accounts total in the ledger
+    maxPrincipals = 16777216; // 2**24
+  };
 
   public class Ledger(initialAggregators : [Principal]) {
 
@@ -100,7 +127,7 @@ module {
 
     // only public for the test api
     public func getOrCreateOwnerId(p: Principal): ?OwnerId =
-      switch (ownerId(p), ownersAmount >= C.maxPrincipals) {
+      switch (ownerId(p), ownersAmount >= constants.maxPrincipals) {
         case (#ok oid, _) { ?oid };
         case (#err _, true) { null }; // no space
         case (#err _, false) {
@@ -119,10 +146,10 @@ module {
       // - cannot open new subaccounts (has reached maxSubaccounts)
       // If any of this happens then the controller can still approve
       // transactions for the new token. He just cannot hold them himself.
-      let assetId : AssetId = ftControllers.size();
-      if (assetId >= C.maxAssetIds) {
+      if (ftControllers.size() >= constants.maxAssetIds) {
         return #err(#NoSpace);
       };
+      let assetId : AssetId = ftControllers.size();
       ftControllers := Array.append(ftControllers, [controller]);
       #ok(assetId);
     };
@@ -135,7 +162,7 @@ module {
         case (null) #err(#NoSpaceForPrincipal);
         case (?oid) {
           let oldSize = accounts[oid].size();
-          if (oldSize + n > C.maxSubaccounts) {
+          if (oldSize + n > constants.maxSubaccounts) {
             return #err(#NoSpaceForSubaccount);
           };
           // array.append seems to not work with var type
@@ -294,10 +321,10 @@ module {
     We accept the inefficiency of that implementation until there is a better alternative.
     Since this isn't happening in a loop and happens only once during the canister call it is fine.
     */
-    public let accounts : [var [var SubaccountState]] = Array.init(C.maxPrincipals, [var] : [var SubaccountState]);
+    public let accounts : [var [var SubaccountState]] = Array.init(constants.maxPrincipals, [var] : [var SubaccountState]);
 
     /* history of last processed transactions */
-    let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(C.batchHistoryLength);
+    let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(constants.batchHistoryLength);
 
     // asset ids
     public var ftControllers: [Principal] = [];

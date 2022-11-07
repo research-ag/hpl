@@ -12,20 +12,10 @@ import Tx "../shared/transaction";
 //   dfx deploy --argument='(principal "aaaaa-aa")' aggregator
 // alternatively, the argument can be placed in dfx.json according to this scheme:
 // https://github.com/dfinity/sdk/blob/ca578a30ea27877a7222176baea3a6aa368ca6e8/docs/dfx-json-schema.json#L222-L229
-actor class AggregatorAPI(ledger_ : Principal, ownId : Aggregator.AggregatorId, lookupTableCapacity: Nat) {
-  let aggregator_ = Aggregator.Aggregator(ledger_, ownId, lookupTableCapacity);
+actor class AggregatorAPI(ledger : Principal, ownId : Aggregator.AggregatorId, lookupTableCapacity: Nat) {
+  let aggregator_ = Aggregator.Aggregator(ledger, ownId, lookupTableCapacity);
 
   type Result<X,Y> = R.Result<X,Y>;
-
-  /* store the init arguments:
-       - canister id of the ledger canister
-       - own unique identifier of this aggregator
-  */
-  let ledger : Principal = ledger_;
-  let selfAggregatorIndex: Aggregator.AggregatorId = ownId;
-
-  // define the ledger actor
-  let Ledger_actor = actor (Principal.toText(ledger)) : LedgerAPI.LedgerAPI;
 
   /** Create a new transaction request.
   * Here we init it and put to the lookup table.

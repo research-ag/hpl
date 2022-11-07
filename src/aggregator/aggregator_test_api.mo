@@ -6,7 +6,6 @@ import Iter "mo:base/Iter";
 import Blob "mo:base/Blob";
 
 import R "mo:base/Result";
-import T "../shared/types";
 import C "../shared/constants";
 import Tx "../shared/transaction";
 
@@ -53,7 +52,7 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
     (instructions, result);
   };
   public shared({ caller }) func submitManySimpleTxs(
-    txAmount: Nat, sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat
+    txAmount: Nat, sender: Principal, senderSubaccountId: Tx.SubaccountId, receiver: Principal, receiverSubaccountId: Tx.SubaccountId, amount: Nat
   ): async [Result<Aggregator.GlobalId, Aggregator.SubmitError>] {
     Array.tabulate<Result<Aggregator.GlobalId, Aggregator.SubmitError>>(
       txAmount,
@@ -110,15 +109,15 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
     (instructions, Array.map(result, func (req: Aggregator.TxReq): Tx.Tx = req.tx));
   };
 
-  public query func generateSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): async Tx.Tx {
+  public query func generateSimpleTx(sender: Principal, senderSubaccountId: Tx.SubaccountId, receiver: Principal, receiverSubaccountId: Tx.SubaccountId, amount: Nat): async Tx.Tx {
     createSimpleTx(sender, senderSubaccountId, receiver, receiverSubaccountId, amount);
   };
 
-  public query func generateHeavyTx(startPrincipalNumber: Nat): async T.Tx {
+  public query func generateHeavyTx(startPrincipalNumber: Nat): async Tx.Tx {
     TestUtils.generateHeavyTx(startPrincipalNumber);
   };
 
-  func createSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): Tx.Tx {
+  func createSimpleTx(sender: Principal, senderSubaccountId: Tx.SubaccountId, receiver: Principal, receiverSubaccountId: Tx.SubaccountId, amount: Nat): Tx.Tx {
     if (sender == receiver) {
       {
         map = [{

@@ -21,9 +21,10 @@ module {
   public type Result<X,Y> = R.Result<X,Y>;
   public type LocalId = T.LocalId;
   public type GlobalId = T.GlobalId;
-  public type Batch = T.Batch;
   public type AggregatorId = T.AggregatorId;
-  public type AssetId = T.AssetId;
+
+  public type Batch = Tx.Batch;
+  public type AssetId = Tx.AssetId;
 
   public type SubmitError = Tx.ValidationError or { #NoSpace; };
   public type NotPendingError = { #WrongAggregator; #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
@@ -59,7 +60,7 @@ module {
     status : { #unapproved : Approvals; #approved : Nat; #rejected; #pending; #failed_to_send };
   };
 
-  public class Aggregator(ledger : Principal, ownId : T.AggregatorId, lookupTableCapacity: Nat) {
+  public class Aggregator(ledger : Principal, ownId : AggregatorId, lookupTableCapacity: Nat) {
     // define the ledger actor
     let Ledger_actor = actor (Principal.toText(ledger)) : LedgerAPI.LedgerAPI;
 
@@ -324,7 +325,7 @@ module {
             case (#failed_to_send)        return #err(#AlreadyApproved);
             case (#rejected)              return #err(#AlreadyRejected);
             case (#unapproved approvals)  {
-              switch (u.arrayFindIndex(tr.tx.map, func (c: T.Contribution) : Bool { c.owner == caller })) {
+              switch (u.arrayFindIndex(tr.tx.map, func (c: Tx.Contribution) : Bool { c.owner == caller })) {
                 case (#NotFound) return #err(#NoPart);
                 case (#Found index) {
                   return #ok( tr, approvals, index );

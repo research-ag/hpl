@@ -6,11 +6,34 @@ import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Option "mo:base/Option";
 
-import T "types";
 import C "constants";
 
 module {
-  public type Tx = T.Tx;
+  public type SubaccountId = Nat;
+  public type AssetId = Nat;
+  public type Asset = { 
+    #ft : (id : AssetId, quantity : Nat);
+  };
+  public type Contribution = {
+    owner : Principal;
+    inflow : [(SubaccountId, Asset)];
+    outflow : [(SubaccountId, Asset)];
+    mints : [Asset];
+    burns : [Asset];
+    memo : ?Blob
+  };
+  // inflow/outflow encodes a map subaccount -> asset list
+  // subaccount id must be strictly increasing throughout the list to rule out duplicate keys
+
+  // Tx = Transaction
+  // map is seen as a map from a principal to its contribution
+  // the owner principals in each contribution must be strictly increasing throughout the list to rule out duplicate keys
+  public type Tx = {
+    map : [Contribution];
+    committer : ?Principal
+  };
+
+  public type Batch = [Tx];
   public type ValidationError = { 
     #FlowsNotBroughtToZero; 
     #MaxContributionsExceeded; 
@@ -24,7 +47,7 @@ module {
   // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
 
-  func nFlows(c : T.Contribution) : Nat =
+  func nFlows(c : Contribution) : Nat =
     c.mints.size() + c.burns.size() + c.inflow.size() + c.outflow.size();
 
   // Tx size in bytes
@@ -38,7 +61,7 @@ module {
   }; 
 
   func owners(tx : Tx) : [Principal] = 
-    Array.map(tx.map, func(c : T.Contribution) : Principal {c.owner});
+    Array.map(tx.map, func(c : Contribution) : Principal {c.owner});
 
   func isUnique(list : [Principal]) : Bool {
     var i = 1;
@@ -83,7 +106,7 @@ module {
     true
   };
 
-  func validateContribution(c : T.Contribution) : Result<(), ValidationError> {
+  func validateContribution(c : Contribution) : Result<(), ValidationError> {
     // memo size
     switch (c.memo) {
       case (?m) {
@@ -98,7 +121,7 @@ module {
       return #err(#MaxFlowsExceeded);
     };
     // flow quantities
-    func exceeds(a : T.Asset) : Bool =
+    func exceeds(a : Asset) : Bool =
       switch a {
         case (#ft(_,q)) { q > C.flowMaxFtQuantity }
       };
@@ -115,8 +138,8 @@ module {
       if (exceeds(f.1)) { return #err(#MaxFtQuantityExceeded) } 
     };
     // sorting of subaccount ids in inflow and outflow
-    let ids1 = Array.map<(Nat, T.Asset),Nat>(c.inflow, func(x) {x.0});
-    let ids2 = Array.map<(Nat, T.Asset),Nat>(c.outflow, func(x) {x.0});
+    let ids1 = Array.map<(Nat, Asset),Nat>(c.inflow, func(x) {x.0});
+    let ids2 = Array.map<(Nat, Asset),Nat>(c.outflow, func(x) {x.0});
     if (not isStrictlyIncreasing(ids1) or not isStrictlyIncreasing(ids2)) {
       return #err(#FlowsNotSorted)
     };
@@ -149,15 +172,15 @@ module {
     };
 
     // equilibrium of flows
-    let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, Nat32.fromNat);
-    func add(a : T.Asset) {
+    let assetBalanceMap = TrieMap.TrieMap<AssetId, Int>(Nat.equal, Nat32.fromNat);
+    func add(a : Asset) {
       switch a {
         case (#ft (id, quantity)) {
           assetBalanceMap.put(id, Option.get(assetBalanceMap.get(id),0) + quantity);
         };
       };
     };
-    func sub(a : T.Asset) {
+    func sub(a : Asset) {
       switch a {
         case (#ft (id, quantity)) {
           assetBalanceMap.put(id, Option.get(assetBalanceMap.get(id),0) - quantity);

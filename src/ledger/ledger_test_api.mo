@@ -7,8 +7,8 @@ import R "mo:base/Result";
 import Error "mo:base/Error";
 import Ledger "ledger";
 
+import Tx "../shared/transaction";
 import C "../shared/constants";
-import T "../shared/types";
 import u "../shared/utils";
 import TestUtils "../shared/test_utils";
 
@@ -51,15 +51,15 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
   public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
 
-  public query func createTestBatch(committer: Principal, owner: Principal, txAmount: Nat): async [T.Tx] {
-    let tx: T.Tx = {
+  public query func createTestBatch(committer: Principal, owner: Principal, txAmount: Nat): async [Tx.Tx] {
+    let tx: Tx.Tx = {
       map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; mints = []; burns = []; memo = null }];
       committer = ?committer;
     };
-    Array.freeze(Array.init<T.Tx>(txAmount, tx));
+    Array.freeze(Array.init<Tx.Tx>(txAmount, tx));
   };
 
-  public query func generateHeavyTx(startPrincipalNumber: Nat): async T.Tx {
+  public query func generateHeavyTx(startPrincipalNumber: Nat): async Tx.Tx {
     TestUtils.generateHeavyTx(startPrincipalNumber);
   };
 

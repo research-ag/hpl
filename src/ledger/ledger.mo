@@ -13,12 +13,13 @@ import CircularBuffer "../shared/circular_buffer";
 
 module {
 
-  public type Batch = T.Batch;
   public type Result<X,Y> = R.Result<X,Y>;
   public type AggregatorId = T.AggregatorId;
-  public type SubaccountId = T.SubaccountId;
-  public type Asset = T.Asset;
-  public type AssetId = T.AssetId;
+
+  public type SubaccountId = Tx.SubaccountId;
+  public type Asset = Tx.Asset;
+  public type AssetId = Tx.AssetId;
+  public type Batch = Tx.Batch;
 
   public type SubaccountState = { asset: Asset };
   public type ProcessingError = Tx.ValidationError or { #UnknownPrincipal; #SubaccountIdUnknown; #InsufficientFunds; #AssetIdUnknown; #AssetIdMismatch; #NotAController; };
@@ -208,7 +209,7 @@ module {
         };
       };
       // list of new subaccounts to be written after full validation
-      var newSubaccounts = List.nil<(OwnerId, T.SubaccountId, SubaccountState)>();
+      var newSubaccounts = List.nil<(OwnerId, SubaccountId, SubaccountState)>();
       // pass #1: validation
       for (j in tx.map.keys()) {
         let (contribution, oid) = (tx.map[j], ownersCache[j]);
@@ -245,7 +246,7 @@ module {
       #ok();
     };
 
-    private func processFlow(ownerId: OwnerId, subaccountId: T.SubaccountId, flowAsset: T.Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
+    private func processFlow(ownerId: OwnerId, subaccountId: SubaccountId, flowAsset: Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
       if (subaccountId >= accounts[ownerId].size()) {
         return #err(#SubaccountIdUnknown);
       };

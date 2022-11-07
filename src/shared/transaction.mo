@@ -5,6 +5,7 @@ import Nat "mo:base/Nat";
 import Principal "mo:base/Principal";
 import Iter "mo:base/Iter";
 import Array "mo:base/Array";
+import Option "mo:base/Option";
 
 import T "types";
 import C "constants";
@@ -94,6 +95,23 @@ module {
     if (nFlows(c) > C.maxFlows) {
       return #err(#MaxFlowsExceeded);
     };
+    // flow quantities
+    func exceeds(a : T.Asset) : Bool =
+      switch a {
+        case (#ft(_,q)) { q > C.flowMaxFtQuantity }
+      };
+    for (a in c.mints.vals()) {
+      if (exceeds(a)) { return #err(#MaxFtQuantityExceeded) } 
+    };
+    for (a in c.burns.vals()) {
+      if (exceeds(a)) { return #err(#MaxFtQuantityExceeded) } 
+    };
+    for (f in c.inflow.vals()) {
+      if (exceeds(f.1)) { return #err(#MaxFtQuantityExceeded) } 
+    };
+    for (f in c.outflow.vals()) {
+      if (exceeds(f.1)) { return #err(#MaxFtQuantityExceeded) } 
+    };
     // sorting of subaccount ids in inflow and outflow
     let ids1 = Array.map<(Nat, T.Asset),Nat>(c.inflow, func(x) {x.0});
     let ids2 = Array.map<(Nat, T.Asset),Nat>(c.outflow, func(x) {x.0});
@@ -129,44 +147,26 @@ module {
     };
 
     // equilibrium of flows
-    let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, func (a : Nat) { Nat32.fromNat(a) });
+    let assetBalanceMap = TrieMap.TrieMap<T.AssetId, Int>(Nat.equal, Nat32.fromNat);
+    func add(a : T.Asset) {
+      switch a {
+        case (#ft (id, quantity)) {
+          assetBalanceMap.put(id, Option.get(assetBalanceMap.get(id),0) + quantity);
+        };
+      };
+    };
+    func sub(a : T.Asset) {
+      switch a {
+        case (#ft (id, quantity)) {
+          assetBalanceMap.put(id, Option.get(assetBalanceMap.get(id),0) - quantity);
+        };
+      };
+    };
     for (contribution in tx.map.vals()) {
-      let txAssetsIn: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
-        Iter.map<(T.SubaccountId, T.Asset), T.Asset>(contribution.inflow.vals(), func (flow) = flow.1),
-        contribution.burns.vals()
-      );
-      let txAssetsOut: Iter.Iter<T.Asset> = u.iterConcat<T.Asset>(
-        Iter.map<(T.SubaccountId, T.Asset), T.Asset>(contribution.outflow.vals(), func (flow) = flow.1),
-        contribution.mints.vals()
-      );
-      for (asset in txAssetsIn) {
-        switch asset {
-          case (#ft (id, quantity)) {
-            if (quantity > C.flowMaxFtQuantity) {
-              return #err(#MaxFtQuantityExceeded);
-            };
-            let currentBalance : ?Int = assetBalanceMap.get(id);
-            switch (currentBalance) {
-              case (?b) assetBalanceMap.put(id, b + quantity);
-              case (null) assetBalanceMap.put(id, quantity);
-            };
-          };
-        };
-      };
-      for (asset in txAssetsOut) {
-        switch asset {
-          case (#ft (id, quantity)) {
-            if (quantity > C.flowMaxFtQuantity) {
-              return #err(#MaxFtQuantityExceeded);
-            };
-            let currentBalance : ?Int = assetBalanceMap.get(id);
-            switch (currentBalance) {
-              case (?b) assetBalanceMap.put(id, b - quantity);
-              case (null) assetBalanceMap.put(id, -quantity);
-            };
-          };
-        };
-      };
+      for (a in contribution.mints.vals()) { add(a); };
+      for (a in contribution.burns.vals()) { sub(a); };
+      for (f in contribution.outflow.vals()) { add(f.1); };
+      for (f in contribution.inflow.vals()) { sub(f.1); };
     };
     for (balance in assetBalanceMap.vals()) {
       if (balance != 0) {

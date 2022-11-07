@@ -57,7 +57,8 @@ module {
     while (i < l.size()) {
       if (l[i] <= l[i-1]) {
         return false
-      }
+      };
+      i += 1;
     }; 
     true
   };

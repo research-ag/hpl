@@ -75,15 +75,16 @@ type TxRequest =
 
 type SubmitError = 
  variant {
-   NoSpace;
-   FlowsNotBroughtToZero;
-   MaxContributionsExceeded;
-   MaxFlowsExceeded;
-   MaxFtQuantityExceeded;
-   MaxMemoSizeExceeded;
+   AssetIdTooLarge;
    FlowsNotSorted;
+   FtQuantityTooLarge;
+   MemoTooLarge;
+   NoSpace;
+   NonZeroAssetSum;
    OwnersNotUnique;
-   AssetIdUnknown;
+   SubaccountIdTooLarge;
+   TooManyContributions;
+   TooManyFlows;
  };
 
 type Submit_Result = 

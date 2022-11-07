@@ -92,18 +92,20 @@ type ProcessImmediateTx_Result =
   variant {
     ok: null;
     err: variant {
-      FlowsNotBroughtToZero;
-      MaxContributionsExceeded;
-      MaxFlowsExceeded;
-      MaxFtQuantityExceeded;
-      MaxMemoSizeExceeded;
-      FlowsNotSorted;
-      OwnersNotUnique;
-      SubaccountIdUnknown;
-      InsufficientFunds;
-      AssetIdUnknown;
       AssetIdMismatch;
+      AssetIdTooLarge;
+      AssetIdUnknown;
+      FlowsNotSorted;
+      FtQuantityTooLarge;
+      InsufficientFunds;
+      MemoTooLarge;
+      NonZeroAssetSum;
       NotAController;
+      OwnersNotUnique;
+      SubaccountIdTooLarge;
+      SubaccountIdUnknown;
+      TooManyContributions;
+      TooManyFlows;
       TxHasToBeApproved;
       UnknownPrincipal;
     }

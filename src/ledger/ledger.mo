@@ -21,12 +21,14 @@ module {
 
   public type SubaccountState = { asset: Asset };
   public type ProcessingError = Tx.TxError or { 
+    // principal, subaccount or asset id which are not yet registered
     #UnknownPrincipal; 
-    #SubaccountIdUnknown; 
+    #UnknownSubaccount; 
+    #UnknownFtAsset; 
+
+    #MismatchInAsset; // asset in flow != asset in subaccount 
     #InsufficientFunds; 
-    #AssetIdUnknown; 
-    #AssetIdMismatch; 
-    #NotAController; 
+    #NotAController;  // attempted mint operation
   };
   public type ImmediateTxError = ProcessingError or { 
     #TxHasToBeApproved; 
@@ -155,9 +157,10 @@ module {
       #ok(assetId);
     };
 
-    public func openNewAccounts(p: Principal, n: Nat, assetId: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #AssetIdUnknown }> {
+    public func openNewAccounts(p: Principal, n: Nat, assetId: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> {
       if (assetId >= ftControllers.size()) {
-        return #err(#AssetIdUnknown);
+        return #err(#UnknownFtAsset
+  );
       };
       switch (getOrCreateOwnerId(p)) {
         case (null) #err(#NoSpaceForPrincipal);
@@ -274,7 +277,7 @@ module {
 
     private func processFlow(ownerId: OwnerId, subaccountId: SubaccountId, flowAsset: Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
       if (subaccountId >= accounts[ownerId].size()) {
-        return #err(#SubaccountIdUnknown);
+        return #err(#UnknownSubaccount);
       };
       let subaccount = accounts[ownerId][subaccountId];
       switch (flowAsset) {
@@ -282,8 +285,8 @@ module {
           switch (subaccount.asset) {
             case (#ft userAssetData) {
               // subaccount has some tokens: check asset type
+                return #err(#MismatchInAsset);
               if (flowAssetData.0 != userAssetData.0) {
-                return #err(#AssetIdMismatch);
               };
               if (isInflow) {
                 return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1) });

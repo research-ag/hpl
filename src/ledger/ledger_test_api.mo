@@ -23,7 +23,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   /*
   Open n new subaccounts.
   */
-  public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #AssetIdUnknown }> =
+  public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> =
     async ledger_.openNewAccounts(caller, n, assetId);
 
   /*

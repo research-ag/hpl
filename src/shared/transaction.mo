@@ -116,13 +116,13 @@ module {
 
     // uniqueness of owners
     if (checkPrincipalUniqueness and not isUnique(owners(tx))) {
-        return #err(#OwnersNotUnique)
+      return #err(#OwnersNotUnique)
     };
 
     // validate each contribution in isolation
     for (c in tx.map.vals()) {
       switch (validateContribution(c)) {
-        case (#err e) { return #err(e) };
+        case (#err e) { return #err e };
         case (_) {}
       }
     };

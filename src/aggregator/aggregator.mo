@@ -1,6 +1,5 @@
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
-import LedgerAPI "../ledger/ledger_api";
 import Bool "mo:base/Bool";
 import R "mo:base/Result";
 import Iter "mo:base/Iter";
@@ -62,7 +61,7 @@ module {
 
   public class Aggregator(ledger : Principal, ownId : AggregatorId, lookupTableCapacity: Nat) {
     // define the ledger actor
-    let Ledger_actor = actor (Principal.toText(ledger)) : LedgerAPI.LedgerAPI;
+    let Ledger_actor = actor (Principal.toText(ledger)) : actor { processBatch : Tx.Batch -> async () };
 
     /*
     Glossary:

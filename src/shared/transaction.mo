@@ -1,6 +1,5 @@
 import R "mo:base/Result";
-import TrieMap "mo:base/TrieMap";
-import Nat32 "mo:base/Nat32";
+import AssocList "mo:base/AssocList";
 import Nat "mo:base/Nat";
 import Principal "mo:base/Principal";
 import Array "mo:base/Array";
@@ -171,33 +170,37 @@ module {
       }
     };
 
-    // equilibrium of flows
-    let assetBalanceMap = TrieMap.TrieMap<AssetId, Int>(Nat.equal, Nat32.fromNat);
+    // equilibrium of flows 
+    var balanceMap : AssocList.AssocList<AssetId, Int> = null;
     func add(a : Asset) {
       switch a {
         case (#ft (id, quantity)) {
-          assetBalanceMap.put(id, Option.get(assetBalanceMap.get(id),0) + quantity);
+          let newValue = Option.get(AssocList.find(balanceMap, id, Nat.equal),0) + quantity;
+          balanceMap := AssocList.replace(balanceMap, id, Nat.equal, ?newValue).0;
         };
       };
     };
     func sub(a : Asset) {
       switch a {
         case (#ft (id, quantity)) {
-          assetBalanceMap.put(id, Option.get(assetBalanceMap.get(id),0) - quantity);
+          let newValue = Option.get(AssocList.find(balanceMap, id, Nat.equal),0) - quantity;
+          balanceMap := AssocList.replace(balanceMap, id, Nat.equal, ?newValue).0;
         };
       };
     };
+    // build map
     for (contribution in tx.map.vals()) {
       for (a in contribution.mints.vals()) { add(a); };
       for (a in contribution.burns.vals()) { sub(a); };
       for (f in contribution.outflow.vals()) { add(f.1); };
       for (f in contribution.inflow.vals()) { sub(f.1); };
     };
-    for (balance in assetBalanceMap.vals()) {
-      if (balance != 0) {
-        return #err(#FlowsNotBroughtToZero);
-      };
+    // test if map has negative entries
+    func cons(id : Nat, quantity : Int, res : Bool) : Bool = res or (quantity < 0);
+    if (AssocList.fold(balanceMap, false, cons)) {
+      return #err(#FlowsNotBroughtToZero);
     };
+    // everything passed, tx is ok
     #ok
   }
 }

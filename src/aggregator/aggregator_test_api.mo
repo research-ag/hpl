@@ -4,11 +4,9 @@ import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Iter "mo:base/Iter";
 import Blob "mo:base/Blob";
-
 import R "mo:base/Result";
-import T "../shared/types";
-import C "../shared/constants";
 
+import Tx "../shared/transaction";
 import TestUtils "../shared/test_utils";
 
 import Aggregator "./aggregator";
@@ -22,29 +20,19 @@ import LedgerAPI "../ledger/ledger_api";
 //   dfx deploy --argument='(principal "aaaaa-aa")' aggregator
 // alternatively, the argument can be placed in dfx.json according to this scheme:
 // https://github.com/dfinity/sdk/blob/ca578a30ea27877a7222176baea3a6aa368ca6e8/docs/dfx-json-schema.json#L222-L229
-actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.AggregatorId, lookupTableCapacity: Nat) {
-  let aggregator_ = Aggregator.Aggregator(ledger_, ownId, lookupTableCapacity);
+actor class AggregatorTestAPI(ledger : Principal, ownId : Aggregator.AggregatorId, lookupTableCapacity: Nat) {
+  let aggregator_ = Aggregator.Aggregator(ledger, ownId, lookupTableCapacity);
 
   type Result<X,Y> = R.Result<X,Y>;
-
-  /* store the init arguments:
-       - canister id of the ledger canister
-       - own unique identifier of this aggregator
-  */
-  let ledger : Principal = ledger_;
-  let selfAggregatorIndex: Aggregator.AggregatorId = ownId;
-
-  // define the ledger actor
-  let Ledger_actor = actor (Principal.toText(ledger)) : LedgerAPI.LedgerAPI;
 
   /** Create a new transaction request.
   * Here we init it and put to the lookup table.
   * If the lookup table is full, we try to reuse the slot with oldest unapproved request
   */
-  public shared({ caller }) func submit(tx: Aggregator.Tx): async Result<Aggregator.GlobalId, Aggregator.SubmitError> {
+  public shared({ caller }) func submit(tx: Tx.Tx): async Result<Aggregator.GlobalId, Aggregator.SubmitError> {
     aggregator_.submit(caller, tx);
   };
-  public shared({ caller }) func profileSubmit(tx: Aggregator.Tx): async (Nat64, Result<Aggregator.GlobalId, Aggregator.SubmitError>) {
+  public shared({ caller }) func profileSubmit(tx: Tx.Tx): async (Nat64, Result<Aggregator.GlobalId, Aggregator.SubmitError>) {
     var result: Result<Aggregator.GlobalId, Aggregator.SubmitError> = #err(#NoSpace);
     let instructions: Nat64 = E.countInstructions(func foo() {
       result := aggregator_.submit(caller, tx);
@@ -52,7 +40,7 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
     (instructions, result);
   };
   public shared({ caller }) func submitManySimpleTxs(
-    txAmount: Nat, sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat
+    txAmount: Nat, sender: Principal, senderSubaccountId: Tx.SubaccountId, receiver: Principal, receiverSubaccountId: Tx.SubaccountId, amount: Nat
   ): async [Result<Aggregator.GlobalId, Aggregator.SubmitError>] {
     Array.tabulate<Result<Aggregator.GlobalId, Aggregator.SubmitError>>(
       txAmount,
@@ -94,30 +82,30 @@ actor class AggregatorTestAPI(ledger_ : Principal, ownId : Aggregator.Aggregator
   };
 
   /** Query transaction request info */
-  public query func txDetails(gid: Aggregator.GlobalId): async Result<Aggregator.TxDetails, Aggregator.TxError> {
+  public query func txDetails(gid: Aggregator.GlobalId): async Result<Aggregator.TxDetails, Aggregator.GidError> {
     aggregator_.txDetails(gid);
   };
 
   public func getNextBatch() : async Aggregator.Batch {
-    Array.map(aggregator_.getNextBatchRequests(), func (req: Aggregator.TxRequest): Aggregator.Tx = req.tx);
+    Array.map(aggregator_.getNextBatchRequests(), func (req: Aggregator.TxReq): Tx.Tx = req.tx);
   };
   public func profileGetNextBatch() : async (Nat64, Aggregator.Batch) {
-    var result: [Aggregator.TxRequest] = [];
+    var result: [Aggregator.TxReq] = [];
     let instructions: Nat64 = E.countInstructions(func foo() {
       result := aggregator_.getNextBatchRequests();
     });
-    (instructions, Array.map(result, func (req: Aggregator.TxRequest): Aggregator.Tx = req.tx));
+    (instructions, Array.map(result, func (req: Aggregator.TxReq): Tx.Tx = req.tx));
   };
 
-  public query func generateSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): async Aggregator.Tx {
+  public query func generateSimpleTx(sender: Principal, senderSubaccountId: Tx.SubaccountId, receiver: Principal, receiverSubaccountId: Tx.SubaccountId, amount: Nat): async Tx.Tx {
     createSimpleTx(sender, senderSubaccountId, receiver, receiverSubaccountId, amount);
   };
 
-  public query func generateHeavyTx(startPrincipalNumber: Nat): async T.Tx {
+  public query func generateHeavyTx(startPrincipalNumber: Nat): async Tx.Tx {
     TestUtils.generateHeavyTx(startPrincipalNumber);
   };
 
-  func createSimpleTx(sender: Principal, senderSubaccountId: T.SubaccountId, receiver: Principal, receiverSubaccountId: T.SubaccountId, amount: Nat): Aggregator.Tx {
+  func createSimpleTx(sender: Principal, senderSubaccountId: Tx.SubaccountId, receiver: Principal, receiverSubaccountId: Tx.SubaccountId, amount: Nat): Tx.Tx {
     if (sender == receiver) {
       {
         map = [{

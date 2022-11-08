@@ -7,8 +7,7 @@ import R "mo:base/Result";
 import Error "mo:base/Error";
 import Ledger "ledger";
 
-import C "../shared/constants";
-import T "../shared/types";
+import Tx "../shared/transaction";
 import u "../shared/utils";
 import TestUtils "../shared/test_utils";
 
@@ -24,7 +23,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   /*
   Open n new subaccounts.
   */
-  public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #AssetIdUnknown }> =
+  public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> =
     async ledger_.openNewAccounts(caller, n, assetId);
 
   /*
@@ -48,27 +47,27 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   // queries
   public query func nAggregators(): async Nat = async ledger_.nAggregators();
   public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async ledger_.aggregatorPrincipal(aid);
-  public shared query ({caller}) func nAccounts(): async Result<Nat, { #NotFound; }> = async ledger_.nAccounts(caller);
-  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #NotFound; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
+  public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
+  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
 
-  public query func createTestBatch(committer: Principal, owner: Principal, txAmount: Nat): async [T.Tx] {
-    let tx: T.Tx = {
+  public query func createTestBatch(committer: Principal, owner: Principal, txAmount: Nat): async [Tx.Tx] {
+    let tx: Tx.Tx = {
       map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; mints = []; burns = []; memo = null }];
       committer = ?committer;
     };
-    Array.freeze(Array.init<T.Tx>(txAmount, tx));
+    Array.freeze(Array.init<Tx.Tx>(txAmount, tx));
   };
 
-  public query func generateHeavyTx(startPrincipalNumber: Nat): async T.Tx {
+  public query func generateHeavyTx(startPrincipalNumber: Nat): async Tx.Tx {
     TestUtils.generateHeavyTx(startPrincipalNumber);
   };
 
   public func registerPrincipals(startPrincipalNumber: Nat, amount: Nat, subaccountsAmount: Nat, initialBalance: Nat): async () {
     let initialAsset = { asset = #ft(0, initialBalance) };
     for (p in Iter.map<Nat, Principal>(Iter.range(startPrincipalNumber, startPrincipalNumber + amount), func (i: Nat) : Principal = TestUtils.principalFromNat(i))) {
-      switch (ledger_.getOwnerId(p, true)) {
-        case (#err _) ();
-        case (#ok oid) ledger_.accounts[oid] := Array.init<Ledger.SubaccountState>(subaccountsAmount, initialAsset);
+      switch (ledger_.getOrCreateOwnerId(p)) {
+        case (null) ();
+        case (?oid) ledger_.accounts[oid] := Array.init<Ledger.SubaccountState>(subaccountsAmount, initialAsset);
       };
     };
   };
@@ -77,9 +76,11 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   // add one aggregator principal
   public func addAggregator(p : Principal) : async AggregatorId = async ledger_.addAggregator(p);
 
+  // TODO: the following function checks if principal exists but not if subaccount exists
+  // TODO: can the following function run a mint transaction instead? 
   public func issueTokens(userPrincipal: Principal, subaccountId: SubaccountId, asset: Ledger.Asset) : async Result<Ledger.SubaccountState,Ledger.ProcessingError> {
     switch (ledger_.ownerId(userPrincipal)) {
-      case (#err _) #err(#OwnerIdUnknown);
+      case (#err _) #err(#UnknownPrincipal);
       case (#ok oid) {
         ledger_.accounts[oid][subaccountId] := { asset = asset };
         #ok(ledger_.accounts[oid][subaccountId]);
@@ -92,7 +93,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   };
 
   // debug interface
-  public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #NotFound; }> = async ledger_.allAssets(owner);
+  public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #UnknownPrincipal }> = async ledger_.allAssets(owner);
   public query func counters() : async { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat } = async ledger_.counters();
   public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async ledger_.batchesHistory(startIndex, endIndex);
 

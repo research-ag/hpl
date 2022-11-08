@@ -1,6 +1,7 @@
 import R "mo:base/Result";
 import Error "mo:base/Error";
 import Ledger "ledger";
+import Tx "../shared/transaction";
 
 import u "../shared/utils";
 
@@ -30,7 +31,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
   That will set the Asset value in the subaccount to the wanted token id.
   */
-  public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #AssetIdUnknown }> =
+  public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> =
     async ledger_.openNewAccounts(caller, n, assetId);
 
   /*
@@ -53,7 +54,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   /*
   Process one Tx immediately. Works only for Tx with single contribution, owned by caller
   */
-  public shared({caller}) func processImmediateTx(tx: Ledger.Tx): async Result<(), Ledger.ImmediateTxError> = async ledger_.processImmediateTx(caller, tx);
+  public shared({caller}) func processImmediateTx(tx: Tx.Tx): async Result<(), Ledger.ImmediateTxError> = async ledger_.processImmediateTx(caller, tx);
 
   // asset interface
   // create a new fungible token and get the asset id
@@ -70,8 +71,8 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   // queries
   public query func nAggregators(): async Nat = async ledger_.nAggregators();
   public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async ledger_.aggregatorPrincipal(aid);
-  public shared query ({caller}) func nAccounts(): async Result<Nat, { #NotFound; }> = async ledger_.nAccounts(caller);
-  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #NotFound; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
+  public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
+  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
 
   // admin interface
   // TODO admin-only authorization
@@ -79,7 +80,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   public func addAggregator(p : Principal) : async AggregatorId = async ledger_.addAggregator(p);
 
   // debug interface
-  public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #NotFound; }> = async ledger_.allAssets(owner);
-  public query func counters() : async { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat } = async ledger_.counters();
+  public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #UnknownPrincipal }> = async ledger_.allAssets(owner);
+  public query func counters() : async { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat; nAssets: Nat } = async ledger_.counters();
   public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async ledger_.batchesHistory(startIndex, endIndex);
 };

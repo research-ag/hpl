@@ -169,7 +169,13 @@ module {
     public func processBatch(aggregatorIndex: Nat, batch: Batch): () {
       let results: [var Result<(), ProcessingError>] = Array.init<Result<(), ProcessingError>>(batch.size(), #ok());
       for (i in batch.keys()) {
-        results[i] := processTx(batch[i]);
+        let res = processTx(batch[i]);
+        switch (res) {
+          case (#ok) { nTxSucceeded_ += 1 };
+          case (#err(_)) { nTxFailed_ += 1 };
+        };
+        nTxTotal_ += 1;
+        results[i] := res; 
       };
       batchHistory.put({ batchNumber = nBatchTotal_; precedingTotalTxAmount = nTxTotal_ - results.size(); results = Array.freeze(results) });
       nBatchPerAggregator_[aggregatorIndex] += 1;
@@ -197,12 +203,6 @@ module {
       // - asset type
       // - is balance sufficient
 
-      // let validationResult = Tx.Tx.validateTx(tx, false);
-      // if (R.isErr(validationResult)) {
-      //     nTxFailed_ += 1;
-      //     return validationResult;
-      // };
-
       // cache owner ids per contribution. If some owner ID is wrong - return error
       let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
       // checking uniqueness (disabled now, since aggregator alredy checked principal uniqueness)
@@ -210,12 +210,10 @@ module {
       for (j in ownersCache.keys()) {
         switch (owners.get(tx.map[j].owner)) {
           case (null) {
-            nTxFailed_ += 1;
             return #err(#UnknownPrincipal);
           };
           case (?oid) {
             // if (not ownerIdsSet.put(oid)) {
-            //   nTxFailed_ += 1;
             //   return #err(#OwnersNotUnique);
             // };
             ownersCache[j] := oid;
@@ -232,7 +230,6 @@ module {
           switch (mintBurnAsset) {
             case (#ft ft) {
               if (contribution.owner != ftControllers[ft.0]) {
-                nTxFailed_ += 1;
                 return #err(#NotAController);
               };
             }
@@ -244,7 +241,6 @@ module {
         )) {
           switch (processFlow(oid, subaccountId, flowAsset, isInflow)) {
             case (#err err) {
-              nTxFailed_ += 1;
               return #err(err);
             };
             case (#ok newState) newSubaccounts := List.push((oid, subaccountId, newState), newSubaccounts);
@@ -255,8 +251,6 @@ module {
       for ((oid, subaccountId, newSubaccount) in List.toIter(newSubaccounts)) {
         accounts[oid][subaccountId] := newSubaccount;
       };
-      nTxSucceeded_ += 1;
-      nTxTotal_ += 1;
       #ok();
     };
 

@@ -21,11 +21,9 @@ module {
 
   public type SubaccountState = { asset: Asset };
   public type ProcessingError = Tx.TxError or { 
-    // principal, subaccount or asset id which are not yet registered
-    #UnknownPrincipal; 
-    #UnknownSubaccount; 
-    #UnknownFtAsset; 
-
+    #UnknownPrincipal; // not yet registered 
+    #UnknownSubaccount; // not yet registered  
+    #UnknownFtAsset; // not yet registered 
     #MismatchInAsset; // asset in flow != asset in subaccount 
     #InsufficientFunds; 
     #NotAController;  // attempted mint operation
@@ -272,8 +270,8 @@ module {
           switch (subaccount.asset) {
             case (#ft userAssetData) {
               // subaccount has some tokens: check asset type
-                return #err(#MismatchInAsset);
               if (flowAssetData.0 != userAssetData.0) {
+                return #err(#MismatchInAsset);
               };
               if (isInflow) {
                 return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1) });

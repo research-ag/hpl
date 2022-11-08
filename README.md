@@ -194,7 +194,14 @@ sequenceDiagram
 
 ## Deployment
 
-TBD
+1) dfx canister create --all
+1) dfx build
+1) dfx canister install --argument='(vec { principal "<agg0 canister principal>"; principal "<agg1 canister principal>" })' ledger
+1) dfx canister install --argument='(principal "<ledger canister principal>", 0, 65536)' agg0
+1) dfx canister install --argument='(principal "<ledger canister principal>", 1, 65536)' agg1
+1) dfx deploy --network ic --no-wallet ledger --argument='(vec { principal "<agg0 canister principal>"; principal "<agg1 canister principal>" })'
+1) dfx deploy --network ic --no-wallet agg0 --argument='(principal "<ledger canister principal>", 0, 65536)'
+1) dfx deploy --network ic --no-wallet agg1 --argument='(principal "<ledger canister principal>", 1, 65536)'
 
 
 ## Contributing

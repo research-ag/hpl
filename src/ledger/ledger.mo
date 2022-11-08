@@ -115,16 +115,8 @@ module {
     // ================================= MUTATORS =================================
     // add one aggregator principal
     public func addAggregator(p : Principal) : AggregatorId {
-      // AG: Array.append is deprecated due to bad performance, however in this case it appears more optimal than converting to buffer
-      aggregators := Array.append(aggregators, [p]);
-      // for var arrays, even append does not exists...
-      nBatchPerAggregator_ := Array.tabulateVar<Nat>(nBatchPerAggregator_.size() + 1, func (i : Nat) : Nat {
-        if (i < nBatchPerAggregator_.size()) {
-          nBatchPerAggregator_[i];
-        } else {
-          0;
-        };
-      });
+      aggregators := u.append(aggregators, p);
+      nBatchPerAggregator_ := u.appendVar(nBatchPerAggregator_, 1, 0);
       aggregators.size() - 1;
     };
 
@@ -153,14 +145,13 @@ module {
         return #err(#NoSpace);
       };
       let assetId : AssetId = ftControllers.size();
-      ftControllers := Array.append(ftControllers, [controller]);
+      ftControllers := u.append(ftControllers, controller);
       #ok(assetId);
     };
 
-    public func openNewAccounts(p: Principal, n: Nat, assetId: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> {
-      if (assetId >= ftControllers.size()) {
-        return #err(#UnknownFtAsset
-  );
+    public func openNewAccounts(p: Principal, n: Nat, aid: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> {
+      if (aid >= ftControllers.size()) {
+        return #err(#UnknownFtAsset);
       };
       switch (getOrCreateOwnerId(p)) {
         case (null) #err(#NoSpaceForPrincipal);
@@ -170,11 +161,7 @@ module {
             return #err(#NoSpaceForSubaccount);
           };
           // array.append seems to not work with var type
-          accounts[oid] := Array.tabulateVar<SubaccountState>(oldSize + n, func (n: Nat) =
-            switch (n < oldSize) {
-              case (true) accounts[oid][n];
-              case (_) ({ asset = #ft(assetId, 0) });
-            });
+          accounts[oid] := u.appendVar(accounts[oid], n, {asset = #ft(aid, 0)});
           #ok(oldSize);
         };
       };
@@ -321,9 +308,7 @@ module {
     In the future we will replace this with our own implementation of an array that can grow.
     The currently available implementations Array and Buffer perform bad in their worst-case when it comes to extending them.
 
-    When an owner open new subaccounts then we use Array.append to grow the owners array of subaccounts.
-    We accept the inefficiency of that implementation until there is a better alternative.
-    Since this isn't happening in a loop and happens only once during the canister call it is fine.
+    When an owner open new subaccounts then we grow the owners array of subaccounts.
     */
     public let accounts : [var [var SubaccountState]] = Array.init(constants.maxPrincipals, [var] : [var SubaccountState]);
 

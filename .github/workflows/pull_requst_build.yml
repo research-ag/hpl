@@ -46,6 +46,10 @@ jobs:
         run: |
           DFX_VERSION=${{ env.dfx_version }} sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 
+      - name: Navigate to test directory
+        run: |
+          cd ./test/
+
       - name: Build project
         run: |
           dfx build --check

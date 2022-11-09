@@ -1,7 +1,9 @@
+cd "$(dirname "$0")"
 i=0
 dfx_json='{
   "canisters": {'
-create_canisters_sh=''
+create_canisters_sh='cd "$(dirname "$0")"
+cd ..'
 for line in $(cat wallet_principals.txt); do
   if [ "$i" -eq "0" ]
   then
@@ -11,7 +13,8 @@ for line in $(cat wallet_principals.txt); do
       "candid": "src/ledger/ledger.did",
       "type": "motoko"
     }'
-    create_canisters_sh='dfx canister --network ic create --wallet '$line' --with-cycles 100000000000 ledger'
+    create_canisters_sh=$create_canisters_sh'
+dfx canister --network ic create --wallet '$line' --with-cycles 100000000000 ledger'
   else
     dfx_json=$dfx_json',
     "agg'$((i-1))'": {
@@ -42,6 +45,6 @@ dfx_json=$dfx_json'
   },
   "version": 1
 }'
-echo "$dfx_json" > dfx.json
+echo "$dfx_json" > ../dfx.json
 echo "$create_canisters_sh" > create_canisters.sh
 

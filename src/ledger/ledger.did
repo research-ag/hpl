@@ -98,13 +98,13 @@ type ProcessImmediateTx_Result =
       InsufficientFunds;
       MemoTooLarge;
       MismatchInAsset;
+      MissingApproval;
       NonZeroAssetSum;
       NotAController;
       OwnersNotUnique;
       SubaccountIdTooLarge;
       TooManyContributions;
       TooManyFlows;
-      TxHasToBeApproved;
       UnknownFtAsset;
       UnknownPrincipal;
       UnknownSubaccount;
@@ -130,10 +130,7 @@ service : (vec principal) -> {
   processImmediateTx: (Tx) -> (ProcessImmediateTx_Result);
 
   // queries
-
-  // return the number of known aggregators
-  nAggregators: () -> (nat) query;
-
+  // stats: () -> 
   // return the principal of the n-th aggregator
   // NotFound if it does not exist
   aggregatorPrincipal: (AggregatorId) -> (Principal_Result) query;

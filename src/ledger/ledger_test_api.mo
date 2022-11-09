@@ -45,7 +45,6 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   public func profile(batch : Batch): async Nat64 = async E.countInstructions(func foo() = ledger_.processBatch(0, batch));
 
   // queries
-  public query func nAggregators(): async Nat = async ledger_.nAggregators();
   public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async ledger_.aggregatorPrincipal(aid);
   public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
   public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
@@ -94,7 +93,7 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
 
   // debug interface
   public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #UnknownPrincipal }> = async ledger_.allAssets(owner);
-  public query func counters() : async { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat } = async ledger_.counters();
+  public query func stats() : async Ledger.Stats = async ledger_.stats();
   public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async ledger_.batchesHistory(startIndex, endIndex);
 
 };

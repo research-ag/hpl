@@ -201,8 +201,9 @@ How to deploy HPL with N aggregators:
 1) run `sh deploy/generate_dfx_config.sh`
 1) observe that in project root directory `dfx.json` appeared with needed amount of aggregators
 1) observe that new script created: `deploy/create_canisters.sh` with needed amount of aggregators
-1) run `deploy/create_canisters.sh`
-1) observe that `canister_ids.json` appeared in root directory
+1) observe that new script created: `deploy/deploy_canisters.sh` with needed amount of aggregators
+1) run `deploy/create_canisters.sh` to create canisters
+1) run `deploy/deploy_canisters.sh` to deploy code to canisters
 
 Then you can work with canisters `ledger`, `agg0`, `agg1`, ....`agg(N-1)` using `dfx`
 

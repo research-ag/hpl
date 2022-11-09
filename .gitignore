@@ -18,3 +18,4 @@ node_modules/
 dist/
 
 canister_ids.json
+/dfx.json

@@ -193,16 +193,18 @@ sequenceDiagram
 ```
 
 ## Deployment
+Note: For the best performance, all canisters should be deployed to separate subnets. This can be achieved by using a separate wallets per canister.
 
-1) dfx canister create --all
-1) dfx build
-1) dfx canister install --argument='(vec { principal "<agg0 canister principal>"; principal "<agg1 canister principal>" })' ledger
-1) dfx canister install --argument='(principal "<ledger canister principal>", 0, 65536)' agg0
-1) dfx canister install --argument='(principal "<ledger canister principal>", 1, 65536)' agg1
-1) dfx deploy --network ic --no-wallet ledger --argument='(vec { principal "<agg0 canister principal>"; principal "<agg1 canister principal>" })'
-1) dfx deploy --network ic --no-wallet agg0 --argument='(principal "<ledger canister principal>", 0, 65536)'
-1) dfx deploy --network ic --no-wallet agg1 --argument='(principal "<ledger canister principal>", 1, 65536)'
+How to deploy HPL with N aggregators:
+1) register N+1 wallet canisters
+1) put their principals, separated with line break, into the file `./deploy/wallet_principals.txt`. First wallet will be used for ledger
+1) run `sh deploy/generate_dfx_config.sh`
+1) observe that in project root directory `dfx.json` appeared with needed amount of aggregators
+1) observe that new script created: `deploy/create_canisters.sh` with needed amount of aggregators
+1) run `deploy/create_canisters.sh`
+1) observe that `canister_ids.json` appeared in root directory
 
+Then you can work with canisters `ledger`, `agg0`, `agg1`, ....`agg(N-1)` using `dfx`
 
 ## Contributing
 

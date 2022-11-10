@@ -43,7 +43,7 @@ GetDfxJsonCanisterDefinition () {
 }
 # return canister principal candid string. Arguments are: canister name
 GetCandidPrincipalOfCanister() {
-  echo 'principal "'"'"'$(dfx canister id '$1')'"'"'"'
+  echo 'principal "'"'"'$(dfx canister id '$1' --network ic)'"'"'"'
 }
 # canister creation command. Arguments are: wallet principal, canister name
 GetCanisterCreateCommand () {
@@ -89,7 +89,7 @@ for line in $(cat wallet_principals.txt); do
   fi
   i=$((++i))
 done
-ledger_args=$ledger_args'})'"'"
+ledger_args=$ledger_args' }'
 # add ledger deploy command to deploy_canisters script
 deploy_canisters_sh=$deploy_canisters_sh"$(GetCanisterDeployCommand $ledger_wallet ledger "$ledger_args")"
 

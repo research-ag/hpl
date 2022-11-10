@@ -47,6 +47,7 @@ jobs:
           DFX_VERSION=${{ env.dfx_version }} sh -ci "$(curl -fsSL https://internetcomputer.org/install.sh)"
 
       - name: Build project
+        working-directory: ./test
         run: |
           dfx build --check
 
@@ -57,9 +58,10 @@ jobs:
           chmod +x /home/runner/bin/didc
 
       - name: Check .did files
+        working-directory: ./test
         run: |
-          /home/runner/bin/didc check .dfx/local/canisters/ledger/ledger.did src/ledger/ledger.did   
-          /home/runner/bin/didc check .dfx/local/canisters/agg0/agg0.did src/aggregator/aggregator.did   
+          /home/runner/bin/didc check .dfx/local/canisters/ledger/ledger.did ../src/ledger/ledger.did   
+          /home/runner/bin/didc check .dfx/local/canisters/agg0/agg0.did ../src/aggregator/aggregator.did   
 
       - name: Install ic-repl
         run: |
@@ -68,17 +70,20 @@ jobs:
           chmod a+x /home/runner/bin/ic-repl
 
       - name: Start local dfx
+        working-directory: ./test
         run: |
           dfx start --host 127.0.0.1:4943 --background
 
       - name: Run ledger load test
+        working-directory: ./test
         run: |
-          rm -f ./test/performance_tests/cycle_stats.txt
-          ic-repl ./test/performance_tests/test_ledger.sh
+          rm -f ./performance_tests/cycle_stats.txt
+          ic-repl ./performance_tests/test_ledger.sh
 
       - name: Run aggregator load test
+        working-directory: ./test
         run: |
-          ic-repl ./test/performance_tests/test_aggregator.sh
+          ic-repl ./performance_tests/test_aggregator.sh
 
       - name: update stats
         uses: stefanzweifel/git-auto-commit-action@v4
@@ -88,5 +93,6 @@ jobs:
           push_options: --force
 
       - name: Stop local dfx
+        working-directory: ./test
         run: |
           dfx stop

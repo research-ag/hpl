@@ -29,11 +29,11 @@ module {
     #NotAController;  // attempted mint operation
   };
   public type ImmediateTxError = ProcessingError or { 
-    #TxHasToBeApproved; 
+    #MissingApproval; 
   }; 
   public type BatchHistoryEntry = { 
     batchNumber: Nat; 
-    precedingTotalTxAmount: Nat; 
+    txNumberOffset: Nat; 
     results: [Result<(), ProcessingError>] 
   };
   public type CreateFtError = { #NoSpace; #FeeError };
@@ -55,12 +55,73 @@ module {
     maxPrincipals = 16777216; // 2**24
   };
 
+  type CtrState = { batches: Nat; txs: Nat; txsFailed: Nat; txsSucceeded: Nat };
+
+  class Ctr() {
+    public var batches : Nat = 0;
+    public var txs : Nat = 0;
+    public var txsFailed : Nat = 0;
+    public var txsSucceeded : Nat = 0;
+
+    public func record(event : {#batch; #txfail; #txsuccess}) =
+      switch (event) {
+        case (#batch) { 
+          batches += 1; 
+        };
+        case (#txfail) { 
+          txsFailed += 1;
+          txs += 1;
+        };
+        case (#txsuccess) {
+          txsSucceeded += 1;
+          txs += 1;
+        }
+      };
+
+    public func get() : CtrState = {
+      batches = batches;
+      txs = txs;
+      txsFailed = txsFailed;
+      txsSucceeded = txsSucceeded;
+    };
+  };
+
+  public type Stats = { perAgg : [CtrState]; direct : CtrState; all : CtrState; owners : Nat; accounts : Nat };
+
   public class Ledger(initialAggregators : [Principal]) {
 
-    // ================================ ACCESSORS =================================
-    // TODO: move this to stats()
-    public func nAggregators(): Nat = aggregators.size();
+    // collection of counters
+    let stats_ = object {
+      public var perAgg : [Ctr] = Array.tabulate<Ctr>(initialAggregators.size(), func(i) { Ctr() });
+      public var direct : Ctr = Ctr();
+      public var all : Ctr = Ctr();
+      public var owners : Nat = 0;
+      public var accounts : Nat = 0;
 
+      public func record(source: {#agg : Nat; #direct}, event : {#batch; #txfail; #txsuccess}) {
+        switch source {
+          case (#agg i) perAgg[i].record(event);
+          case (#direct) direct.record(event)
+        };
+        all.record(event);
+      };
+
+      public func add(item : {#owner; #accounts : Nat}) =
+        switch item {
+          case (#owner) owners += 1;
+          case (#accounts(n)) accounts += n 
+        };
+
+      public func get() : Stats = {
+        perAgg = Array.tabulate<CtrState>(perAgg.size(), func(i) { perAgg[i].get() });
+        direct = direct.get();
+        all = all.get();
+        owners = owners;
+        accounts = accounts
+      }
+    };
+
+    // ================================ ACCESSORS =================================
     public func aggregatorPrincipal(aid: AggregatorId): Result<Principal, { #NotFound; }> =
       switch (aggregators.size() > aid) {
         case (true) #ok(aggregators[aid]);
@@ -98,15 +159,7 @@ module {
     public func allAssets(p : Principal) : Result<[SubaccountState], { #UnknownPrincipal }> =
       R.mapOk(ownerId(p), allAssets_);
 
-    public func counters() : { nBatchTotal: Nat; nBatchPerAggregator: [Nat]; nTxTotal: Nat; nTxFailed: Nat; nTxSucceeded: Nat; nAssets: Nat } =
-      {
-        nBatchTotal = nBatchTotal_;
-        nBatchPerAggregator = Array.freeze<Nat>(nBatchPerAggregator_);
-        nTxTotal = nTxTotal_;
-        nTxFailed = nTxFailed_;
-        nTxSucceeded = nTxSucceeded_;
-        nAssets = ftControllers.size();
-      };
+    public func stats() : Stats = stats_.get(); 
 
     public func batchesHistory(startIndex: Nat, endIndex: Nat) : [BatchHistoryEntry] = batchHistory.slice(startIndex, endIndex);
 
@@ -114,7 +167,7 @@ module {
     // add one aggregator principal
     public func addAggregator(p : Principal) : AggregatorId {
       aggregators := u.append(aggregators, p);
-      nBatchPerAggregator_ := u.appendVar(nBatchPerAggregator_, 1, 0);
+      stats_.perAgg := u.append(stats_.perAgg, Ctr());
       aggregators.size() - 1;
     };
 
@@ -126,7 +179,7 @@ module {
         case (#err _, false) {
           let newId = ownersAmount;
           owners.put(p, newId);
-          ownersAmount += 1;
+          stats_.add(#owner);
           ?newId;
         };
       };
@@ -160,39 +213,44 @@ module {
           };
           // array.append seems to not work with var type
           accounts[oid] := u.appendVar(accounts[oid], n, {asset = #ft(aid, 0)});
+          stats_.add(#accounts(n));
           #ok(oldSize);
         };
       };
     };
 
     // ================================ PROCESSING ================================
-    public func processBatch(aggregatorIndex: Nat, batch: Batch): () {
-      let results: [var Result<(), ProcessingError>] = Array.init<Result<(), ProcessingError>>(batch.size(), #ok());
+    func processBatch_(source: {#agg : Nat; #direct}, batch: Batch): [Result<(), ProcessingError>] {
+      let results : [var Result<(), ProcessingError>] = Array.init(batch.size(), #ok());
       for (i in batch.keys()) {
         let res = processTx(batch[i]);
         switch (res) {
-          case (#ok) { nTxSucceeded_ += 1 };
-          case (#err(_)) { nTxFailed_ += 1 };
+          case (#ok) { stats_.record(source, #txsuccess) };
+          case (#err(_)) { stats_.record(source, #txfail) };
         };
-        nTxTotal_ += 1;
         results[i] := res; 
       };
-      batchHistory.put({ batchNumber = nBatchTotal_; precedingTotalTxAmount = nTxTotal_ - results.size(); results = Array.freeze(results) });
-      nBatchPerAggregator_[aggregatorIndex] += 1;
-      nBatchTotal_ += 1;
+      batchHistory.put({ batchNumber = stats_.all.batches; txNumberOffset = stats_.all.txs - results.size(); results = Array.freeze(results) });
+      stats_.record(source, #batch);
+      Array.freeze(results)
     };
+
+    public func processBatch(aggId: Nat, batch: Batch): () =
+      ignore processBatch_(#agg(aggId), batch);
 
     public func processImmediateTx(caller: Principal, tx: Tx.Tx): Result<(), ImmediateTxError> =
       switch (Tx.validate(tx, false)) {
         case (#ok _) {
           for (c in tx.map.vals()) {
             if (c.owner != caller and (c.outflow.size() > 0 or c.mints.size() > 0 or c.burns.size() > 0)) {
-              return #err(#TxHasToBeApproved);
+              return #err(#MissingApproval);
             };
           };
-          processTx(tx)
+          return processBatch_(#direct, [tx])[0]
         };
-        case (#err e) { #err e }
+        case (#err e) { 
+          return #err(e) 
+        }
       };
 
     private func processTx(tx: Tx.Tx): Result<(), ProcessingError> {
@@ -309,13 +367,6 @@ module {
 
     // asset ids
     public var ftControllers: [Principal] = [];
-
-    // debug counters
-    var nBatchTotal_: Nat = 0;
-    var nBatchPerAggregator_: [var Nat] = Array.init(initialAggregators.size(), 0);
-    var nTxSucceeded_: Nat = 0;
-    var nTxFailed_: Nat = 0;
-    var nTxTotal_: Nat = 0;
 
   };
 };

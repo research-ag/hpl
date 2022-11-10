@@ -50,14 +50,13 @@ GetCanisterCreateCommand () {
    echo '
 dfx canister --network ic create --wallet '$1' --with-cycles 100000000000 '$2
 }
-# canister deployment command. Arguments are: wallet principal, canister name, candid arguments
+# canister deployment command. Arguments are: canister name, candid arguments
 GetCanisterDeployCommand () {
    echo '
-dfx deploy --network ic --wallet '$1' '$2' --argument='"'("$3")'"
+dfx deploy --network ic --no-wallet '$1' --argument='"'("$2")'"
 }
 
 # script body
-ledger_wallet=''
 dfx_json="$(GetDfxJsonHeader)"
 create_canisters_sh="$(GetDeployScriptHeader)"
 deploy_canisters_sh="$(GetDeployScriptHeader)"
@@ -73,8 +72,6 @@ for line in $(cat wallet_principals.txt); do
     dfx_json=$dfx_json"$(GetDfxJsonCanisterDefinition ledger ledger/ledger_api.mo ledger/ledger.did)"
     # add ledger create command to create_canisters script
     create_canisters_sh=$create_canisters_sh"$(GetCanisterCreateCommand $line ledger)"
-    # save ledger wallet to a separate variable
-    ledger_wallet=$line
   else
     # add aggregator to dfx.json
     dfx_json=$dfx_json,"$(GetDfxJsonCanisterDefinition agg$((i-1)) aggregator/aggregator_api.mo aggregator/aggregator.did)"
@@ -85,13 +82,13 @@ for line in $(cat wallet_principals.txt); do
     # build aggregator arguments
     agg_args="$(GetCandidPrincipalOfCanister ledger), $((i-1)), 65536"
     # add aggregator deploy command to deploy_canisters script
-    deploy_canisters_sh=$deploy_canisters_sh"$(GetCanisterDeployCommand $line agg$((i-1)) "$agg_args")"
+    deploy_canisters_sh=$deploy_canisters_sh"$(GetCanisterDeployCommand agg$((i-1)) "$agg_args")"
   fi
   i=$((++i))
 done
 ledger_args=$ledger_args' }'
 # add ledger deploy command to deploy_canisters script
-deploy_canisters_sh=$deploy_canisters_sh"$(GetCanisterDeployCommand $ledger_wallet ledger "$ledger_args")"
+deploy_canisters_sh=$deploy_canisters_sh"$(GetCanisterDeployCommand ledger "$ledger_args")"
 
 # save files
 echo "$dfx_json""$(GetDfxJsonFooter)" > ../dfx.json

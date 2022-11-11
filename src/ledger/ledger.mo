@@ -239,7 +239,7 @@ module {
       ignore processBatch_(#agg(aggId), batch);
 
     public func processImmediateTx(caller: Principal, tx: Tx.Tx): Result<(), ImmediateTxError> =
-      switch (Tx.validate(tx, false)) {
+      switch (Tx.validate(tx, true)) {
         case (#ok _) {
           for (c in tx.map.vals()) {
             if (c.owner != caller and (c.outflow.size() > 0 or c.mints.size() > 0 or c.burns.size() > 0)) {

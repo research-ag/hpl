@@ -2,10 +2,9 @@
 cd "$(dirname "$0")"
 
 # functions
-# header for deploy scripts: cd to project root directory
+# header for deploy scripts: cd to <project_root>/deploy directory
 GetDeployScriptHeader () {
-  echo 'cd "$(dirname "$0")"
-cd ..'
+  echo 'cd "$(dirname "$0")"'
 }
 # header for dfx.json
 GetDfxJsonHeader () {
@@ -32,13 +31,13 @@ GetDfxJsonFooter () {
   "version": 1
 }'
 }
-# canister definition in dfx.json. Arguments are: name, did path, mo path
+# canister definition in dfx.json. Arguments are: name, canister name
 GetDfxJsonCanisterDefinition () {
    echo '
     "'$1'": {
-      "main": "src/'$2'",
-      "candid": "src/'$3'",
-      "type": "motoko"
+      "wasm": "../.dfx/local/canisters/'$2'/'$2'.wasm",
+      "candid": "../.dfx/local/canisters/'$2'/'$2'.did",
+      "type": "custom"
     }'
 }
 # return canister principal candid string. Arguments are: canister name
@@ -69,12 +68,12 @@ for line in $(cat wallet_principals.txt); do
   if [ "$i" -eq "0" ]
   then
     # add ledger to dfx.json
-    dfx_json=$dfx_json"$(GetDfxJsonCanisterDefinition ledger ledger/ledger_api.mo ledger/ledger.did)"
+    dfx_json=$dfx_json"$(GetDfxJsonCanisterDefinition ledger ledger)"
     # add ledger create command to create_canisters script
     create_canisters_sh=$create_canisters_sh"$(GetCanisterCreateCommand $line ledger)"
   else
     # add aggregator to dfx.json
-    dfx_json=$dfx_json,"$(GetDfxJsonCanisterDefinition agg$((i-1)) aggregator/aggregator_api.mo aggregator/aggregator.did)"
+    dfx_json=$dfx_json,"$(GetDfxJsonCanisterDefinition agg$((i-1)) aggregator)"
     # add aggregator create command to create_canisters script
     create_canisters_sh=$create_canisters_sh"$(GetCanisterCreateCommand $line agg$((i-1)))"
     # add aggregator id reference to ledger arguments
@@ -91,6 +90,6 @@ ledger_args=$ledger_args' }'
 deploy_canisters_sh=$deploy_canisters_sh"$(GetCanisterDeployCommand ledger "$ledger_args")"
 
 # save files
-echo "$dfx_json""$(GetDfxJsonFooter)" > ../dfx.json
+echo "$dfx_json""$(GetDfxJsonFooter)" > dfx.json
 echo "$create_canisters_sh" > create_canisters.sh
 echo "$deploy_canisters_sh" > deploy_canisters.sh

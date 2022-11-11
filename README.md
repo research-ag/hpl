@@ -196,16 +196,19 @@ sequenceDiagram
 Note: For the best performance, all canisters should be deployed to separate subnets. This can be achieved by using a separate wallets per canister.
 
 How to deploy HPL with N aggregators:
+1) `dfx start --background` if dfx not started yet
+1) create local canisters `dfx canister create --all` - this will create two local canisters: `ledger` and `aggregator`
+1) build canisters locally `dfx build`
 1) register N+1 wallet canisters
 1) put their principals, separated with line break, into the file `./deploy/wallet_principals.txt`. First wallet will be used for ledger
 1) run `sh deploy/generate_dfx_config.sh`
-1) observe that in project root directory `dfx.json` appeared with needed amount of aggregators
+1) observe that `deploy/dfx.json` appeared with needed amount of aggregators
 1) observe that new script created: `deploy/create_canisters.sh` with needed amount of aggregators
 1) observe that new script created: `deploy/deploy_canisters.sh` with needed amount of aggregators
-1) run `deploy/create_canisters.sh` to create canisters
+1) run `deploy/create_canisters.sh` to create canisters. Check that deploy/canister_ids.json was created
 1) run `deploy/deploy_canisters.sh` to deploy code to canisters
 
-Then you can work with canisters `ledger`, `agg0`, `agg1`, ....`agg(N-1)` using `dfx`
+Then you can work with canisters `ledger`, `agg0`, `agg1`, ....`agg(N-1)` using `dfx` in `<project_root>/deploy` directory
 
 ## Contributing
 

@@ -86,7 +86,7 @@ module {
     };
   };
 
-  public type Stats = { perAgg : [CtrState]; direct : CtrState; all : CtrState; owners : Nat; accounts : Nat };
+  public type Stats = { perAgg : [CtrState]; direct : CtrState; all : CtrState; registry : { owners : Nat; accounts : Nat; assets : Nat }};
 
   public class Ledger(initialAggregators : [Principal]) {
 
@@ -97,6 +97,7 @@ module {
       public var all : Ctr = Ctr();
       public var owners : Nat = 0;
       public var accounts : Nat = 0;
+      public var assets : Nat = 0;
 
       public func record(source: {#agg : Nat; #direct}, event : {#batch; #txfail; #txsuccess}) {
         switch source {
@@ -106,18 +107,18 @@ module {
         all.record(event);
       };
 
-      public func add(item : {#owner; #accounts : Nat}) =
+      public func add(item : {#owner; #accounts : Nat; #asset}) =
         switch item {
           case (#owner) owners += 1;
-          case (#accounts(n)) accounts += n 
+          case (#accounts(n)) accounts += n;
+          case (#asset) assets += 1
         };
 
       public func get() : Stats = {
         perAgg = Array.tabulate<CtrState>(perAgg.size(), func(i) { perAgg[i].get() });
         direct = direct.get();
         all = all.get();
-        owners = owners;
-        accounts = accounts
+        registry = { owners = owners; accounts = accounts; assets = assets }
       }
     };
 
@@ -173,13 +174,13 @@ module {
 
     // only public for the test api
     public func getOrCreateOwnerId(p: Principal): ?OwnerId =
-      switch (ownerId(p), ownersAmount >= constants.maxPrincipals) {
+      switch (ownerId(p), stats_.owners >= constants.maxPrincipals) {
         case (#ok oid, _) { ?oid };
         case (#err _, true) { null }; // no space
         case (#err _, false) {
-          let newId = ownersAmount;
-          owners.put(p, newId);
+          let newId = stats_.owners;
           stats_.add(#owner);
+          owners.put(p, newId);
           ?newId;
         };
       };
@@ -192,12 +193,12 @@ module {
       // - cannot open new subaccounts (has reached maxSubaccounts)
       // If any of this happens then the controller can still approve
       // transactions for the new token. He just cannot hold them himself.
-      if (ftControllers.size() >= constants.maxAssets) {
+      if (stats_.assets >= constants.maxAssets) {
         return #err(#NoSpace);
       };
-      let assetId : AssetId = ftControllers.size();
       ftControllers := u.append(ftControllers, controller);
-      #ok(assetId);
+      stats_.add(#asset);
+      #ok(stats_.assets - 1);
     };
 
     public func openNewAccounts(p: Principal, n: Nat, aid: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> {
@@ -344,8 +345,6 @@ module {
     public var aggregators: [Principal] = initialAggregators;
     // The map from principal to short id is stored in a single `RBTree`:
     let owners : RBTree.RBTree<Principal, OwnerId> = RBTree.RBTree<Principal, OwnerId>(compare);
-    // track size of owners RBTree;
-    var ownersAmount : Nat = 0;
 
     /*
     The content of all accounts is stored in an array of arrays.

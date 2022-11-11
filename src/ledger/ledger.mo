@@ -202,7 +202,7 @@ module {
     };
 
     public func openNewAccounts(p: Principal, n: Nat, aid: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> {
-      if (aid >= ftControllers.size()) {
+      if (aid >= stats_.assets) {
         return #err(#UnknownFtAsset);
       };
       switch (getOrCreateOwnerId(p)) {
@@ -320,6 +320,9 @@ module {
       let subaccount = accounts[ownerId][subaccountId];
       switch (flowAsset) {
         case (#ft flowAssetData) {
+          if (flowAssetData.0 >= stats_.assets) {
+            return #err(#UnknownFtAsset);
+          };
           switch (subaccount.asset) {
             case (#ft userAssetData) {
               // subaccount has some tokens: check asset type

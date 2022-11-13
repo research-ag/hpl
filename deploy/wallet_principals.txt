@@ -1,1 +1,11 @@
-# put wallet canister principals here and remove this comment
+q2y4e-giaaa-aaaap-aaoka-cai
+neicu-baaaa-aaaam-aaxqa-cai
+tp77g-mqaaa-aaaal-abi4q-cai
+672sd-gaaaa-aaaan-qa3oa-cai
+a2gic-zqaaa-aaaal-qbgyq-cai
+ebpt7-aiaaa-aaaak-adiaq-cai
+66qs7-syaaa-aaaag-qa2uq-cai
+hbuku-aqaaa-aaaag-aazga-cai
+g7onv-maaaa-aaaap-qatza-cai
+rln4c-rqaaa-aaaao-aatra-cai
+pklns-bqaaa-aaaak-qay3q-cai

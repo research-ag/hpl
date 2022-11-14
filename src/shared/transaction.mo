@@ -50,8 +50,7 @@ module {
   // map is seen as a map from a principal to its contribution
   // the owner principals in each contribution must be strictly increasing throughout the list to rule out duplicate keys
   public type Tx = {
-    map : [Contribution];
-    committer : ?Principal
+    map : [Contribution]
   };
 
   public type Batch = [Tx];

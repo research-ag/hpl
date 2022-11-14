@@ -44,8 +44,7 @@ output("./performance_tests/cycle_stats.txt", stringify("[LED] Empty batch: ", n
 // test cycles of batch with single empty Tx
 let n = call canister.profile(vec {
   record {
-    map = vec { };
-    committer = opt user1;
+    map = vec { }
   }
 });
 call canister.stats();
@@ -72,8 +71,7 @@ let n = call canister.profile(vec {
           burns = vec { };
           memo = null;
         }
-    };
-    committer = opt user1;
+    }
   }
 });
 call canister.stats();

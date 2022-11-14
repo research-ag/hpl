@@ -49,10 +49,9 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
   public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
 
-  public query func createTestBatch(committer: Principal, owner: Principal, txAmount: Nat): async [Tx.Tx] {
+  public query func createTestBatch(owner: Principal, txAmount: Nat): async [Tx.Tx] {
     let tx: Tx.Tx = {
-      map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; mints = []; burns = []; memo = null }];
-      committer = ?committer;
+      map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; mints = []; burns = []; memo = null }]
     };
     Array.freeze(Array.init<Tx.Tx>(txAmount, tx));
   };

@@ -38,7 +38,7 @@ cat >>dfx.json <<-END
       "packtool": ""
     }
   },
-  "dfx": "0.12.0-beta.2",
+  "dfx": "0.12.0",
   "networks": {
     "local": {
       "bind": "127.0.0.1:8000",

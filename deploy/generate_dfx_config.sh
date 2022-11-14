@@ -1,19 +1,36 @@
 #!/bin/sh
-cd "$(dirname "$0")"
+pushd "$(dirname "$0")"
 
-# functions
-# header for deploy scripts: cd to <project_root>/deploy directory
-GetDeployScriptHeader () {
-  echo 'cd "$(dirname "$0")"'
-}
-# header for dfx.json
-GetDfxJsonHeader () {
-  echo '{
-  "canisters": {'
-}
-# footer for dfx.json
-GetDfxJsonFooter () {
-  echo '
+# build dfx.json
+
+# canister definition in dfx.json. Arguments are: alias name, module name
+printJsonEntry () {
+  printf '    "%s": {
+      "wasm": "../.dfx/local/canisters/%s/%s.wasm",
+      "candid": "../.dfx/local/canisters/%s/%s.did",
+      "type": "custom"
+    }' $1 $2 $2 $2 $2
+  }
+# header
+cat >dfx.json <<-END
+{
+  "canisters": {
+END
+# entries
+i=0
+for p in $(cat wallet_principals.txt); do
+  if [ "$i" -eq "0" ]
+  then
+    printJsonEntry ledger ledger >>dfx.json
+  else
+    echo , >>dfx.json
+    printJsonEntry agg$((i-1)) aggregator >>dfx.json
+  fi
+  i=$((++i))
+done
+# footer 
+cat >>dfx.json <<-END
+
   },
   "defaults": {
     "build": {
@@ -29,67 +46,68 @@ GetDfxJsonFooter () {
     }
   },
   "version": 1
-}'
 }
-# canister definition in dfx.json. Arguments are: name, canister name
-GetDfxJsonCanisterDefinition () {
-   echo '
-    "'$1'": {
-      "wasm": "../.dfx/local/canisters/'$2'/'$2'.wasm",
-      "candid": "../.dfx/local/canisters/'$2'/'$2'.did",
-      "type": "custom"
-    }'
-}
-# return canister principal candid string. Arguments are: canister name
-GetCandidPrincipalOfCanister() {
-  echo 'principal "'"'"'$(dfx canister id '$1' --network ic)'"'"'"'
-}
-# canister creation command. Arguments are: wallet principal, canister name
-GetCanisterCreateCommand () {
-   echo '
-dfx canister --network ic create --wallet '$1' --with-cycles 100000000000 '$2
-}
-# canister deployment command. Arguments are: canister name, candid arguments
-GetCanisterDeployCommand () {
-   echo '
-dfx deploy --network ic --no-wallet '$1' --argument='"'("$2")'"
-}
+END
 
-# script body
-dfx_json="$(GetDfxJsonHeader)"
-create_canisters_sh="$(GetDeployScriptHeader)"
-deploy_canisters_sh="$(GetDeployScriptHeader)"
+# create and deploy scripts
 
-# wallet file line counter
+alias canister_id="dfx canister --network ic id"
+# printCreateCmd <wallet_principal> <canister_alias>
+printCreateCmd () { printf 'dfx_create --wallet %s --with-cycles 100000000000 %s' "$1" "$2" ; }
+# printDeployCmd <canister_alias> <deploy_argument>
+printDeployCmd() { printf 'dfx_deploy %s --argument=%s\n' "$1" "$2" ; }
+
+# header
+cat >create_canisters.sh <<-END
+#!/bin/sh
+pushd "\$(dirname "\$0")"
+
+network=ic
+alias cid="dfx canister --network \$network id"
+alias dfx_create="dfx canister --network \$network create"
+
+END
+
+cat >deploy_canisters.sh <<-END
+#!/bin/sh
+pushd "\$(dirname "\$0")"
+
+network=ic
+alias cid="dfx canister --network \$network id"
+alias dfx_deploy="dfx deploy --network \$network --no-wallet"
+
+END
+
+# entries
 i=0
 # arguments for ledger canister deploy: will be filled with aggregator id-s in a loop below
-ledger_args='vec { '
-for line in $(cat wallet_principals.txt); do
+ledger_arg='"(vec { '
+for wallet in $(cat wallet_principals.txt); do
   if [ "$i" -eq "0" ]
   then
-    # add ledger to dfx.json
-    dfx_json=$dfx_json"$(GetDfxJsonCanisterDefinition ledger ledger)"
-    # add ledger create command to create_canisters script
-    create_canisters_sh=$create_canisters_sh"$(GetCanisterCreateCommand $line ledger)"
+    # do the ledger, but only the create command, not the deploy command
+    # the deploy command is done after the for loop (its argument is 
+    # constructed in this loop)
+    printCreateCmd $wallet ledger >>create_canisters.sh
   else
-    # add aggregator to dfx.json
-    dfx_json=$dfx_json,"$(GetDfxJsonCanisterDefinition agg$((i-1)) aggregator)"
-    # add aggregator create command to create_canisters script
-    create_canisters_sh=$create_canisters_sh"$(GetCanisterCreateCommand $line agg$((i-1)))"
-    # add aggregator id reference to ledger arguments
-    ledger_args=$ledger_args$(GetCandidPrincipalOfCanister agg$((i-1)))'; '
-    # build aggregator arguments
-    agg_args="$(GetCandidPrincipalOfCanister ledger), $((i-1)), 65536"
-    # add aggregator deploy command to deploy_canisters script
-    deploy_canisters_sh=$deploy_canisters_sh"$(GetCanisterDeployCommand agg$((i-1)) "$agg_args")"
+    # do one aggregator 
+    N=$((i-1))
+    alias=agg$N
+    # add create and deploy commands
+    deploy_arg=$(printf '"(principal \\"$(cid ledger)\\", %s, 65536)"' $N)
+    echo "" >>create_canisters.sh
+    printCreateCmd $wallet $alias >>create_canisters.sh
+    printDeployCmd $alias "$deploy_arg" >>deploy_canisters.sh
+    # add one element to the ledger's deploy argument
+    ledger_arg=$ledger_arg$(printf 'principal \\"$(cid %s)\\"; ' $alias)
   fi
   i=$((++i))
 done
-ledger_args=$ledger_args' }'
-# add ledger deploy command to deploy_canisters script
-deploy_canisters_sh=$deploy_canisters_sh"$(GetCanisterDeployCommand ledger "$ledger_args")"
+# finalize ledger's deploy argument and add the deploy command
+ledger_arg=$ledger_arg'})"'
+printDeployCmd ledger "$ledger_arg" >>deploy_canisters.sh
 
-# save files
-echo "$dfx_json""$(GetDfxJsonFooter)" > dfx.json
-echo "$create_canisters_sh" > create_canisters.sh
-echo "$deploy_canisters_sh" > deploy_canisters.sh
+echo "\n\npopd" >>create_canisters.sh
+echo "\npopd" >>deploy_canisters.sh
+chmod +x create_canisters.sh deploy_canisters.sh
+popd

@@ -79,7 +79,7 @@ assert _.all.txsFailed == (0 : nat);
 output("./performance_tests/cycle_stats.txt", stringify("[LED] One simple Tx: ", n, "\n"));
 
 // load 2**14 txs
-let batch = call canister.createTestBatch(user2, user2, 16384);
+let batch = call canister.createTestBatch(user2, 16384);
 let n = call canister.profile(batch);
 call canister.stats();
 assert _.all.txsFailed == (0 : nat);

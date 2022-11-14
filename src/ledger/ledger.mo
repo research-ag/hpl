@@ -1,13 +1,13 @@
 import RBTree "mo:base/RBTree";
 import List "mo:base/List";
 import Array "mo:base/Array";
-import { compare } "mo:base/Principal";
+import Principal "mo:base/Principal";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
 
 import Tx "../shared/transaction";
 import u "../shared/utils";
-import CircularBuffer "../shared/circular_buffer";
+import { CircularBuffer } "../shared/circular_buffer";
 import C "../shared/constants";
 
 module {
@@ -347,7 +347,7 @@ module {
     // list of all aggregators by their principals
     public var aggregators: [Principal] = initialAggregators;
     // The map from principal to short id is stored in a single `RBTree`:
-    let owners : RBTree.RBTree<Principal, OwnerId> = RBTree.RBTree<Principal, OwnerId>(compare);
+    let owners : RBTree.RBTree<Principal, OwnerId> = RBTree.RBTree<Principal, OwnerId>(Principal.compare);
 
     /*
     The content of all accounts is stored in an array of arrays.
@@ -365,7 +365,7 @@ module {
     public let accounts : [var [var SubaccountState]] = Array.init(constants.maxPrincipals, [var] : [var SubaccountState]);
 
     /* history of last processed transactions */
-    let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(constants.batchHistoryLength);
+    let batchHistory = CircularBuffer<BatchHistoryEntry>(constants.batchHistoryLength);
 
     // asset ids
     public var ftControllers: [Principal] = [];

@@ -4,7 +4,6 @@ import Nat "mo:base/Nat";
 import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Option "mo:base/Option";
-
 import C "../shared/constants";
 
 module {
@@ -72,7 +71,6 @@ module {
     #NonZeroAssetSum 
   };
 
-  // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
 
   func nFlows(c : Contribution) : Nat =

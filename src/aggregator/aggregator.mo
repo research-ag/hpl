@@ -3,22 +3,17 @@ import Principal "mo:base/Principal";
 import Bool "mo:base/Bool";
 import R "mo:base/Result";
 import Iter "mo:base/Iter";
-
-// type imports
-// pattern matching is not available for types (work-around required)
 import Tx "../shared/transaction";
-import u "../shared/utils";
-import SlotTable "../shared/slot_table";
-import HPLQueue "../shared/queue";
 import DLL "../shared/dll";
+import { arrayFindIndex } "../shared/utils";
+import { SlotTable } "../shared/slot_table";
+import { HPLQueue } "../shared/queue";
 
 module {
   public type AggregatorId = Nat;
   public type LocalId = Nat;
   public type GlobalId = ( aggregator: AggregatorId, local_id: LocalId );
-  // public type GlobalId = T.GlobalId;
 
-  // type import work-around
   public type Result<X,Y> = R.Result<X,Y>;
 
   public type Batch = Tx.Batch;
@@ -115,11 +110,11 @@ module {
     };
 
     // lookup table
-    var lookup : SlotTable.SlotTable<DLL.Cell<TxReq>> = SlotTable.SlotTable<DLL.Cell<TxReq>>(lookupTableCapacity);
+    var lookup = SlotTable<DLL.Cell<TxReq>>(lookupTableCapacity);
     // chain of all used slots with an unapproved tx request
-    var unapproved : DLL.DoublyLinkedList<TxReq> = DLL.DoublyLinkedList<TxReq>();
+    var unapproved = DLL.DoublyLinkedList<TxReq>();
     // the queue of approved requests for batching
-    var approvedTxs = HPLQueue.HPLQueue<LocalId>();
+    var approvedTxs = HPLQueue<LocalId>();
 
     // Create a new transaction request.
     // Here we init it and put to the lookup table.
@@ -332,7 +327,7 @@ module {
             case (#failed_to_send)        return #err(#AlreadyApproved);
             case (#rejected)              return #err(#AlreadyRejected);
             case (#unapproved approvals)  {
-              switch (u.arrayFindIndex(tr.tx.map, func (c: Tx.Contribution) : Bool { c.owner == caller })) {
+              switch (arrayFindIndex(tr.tx.map, func (c: Tx.Contribution) : Bool { c.owner == caller })) {
                 case (#NotFound) return #err(#NoPart);
                 case (#Found index) {
                   return #ok( tr, approvals, index );

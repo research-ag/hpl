@@ -55,6 +55,7 @@ module {
     maxPrincipals = 16777216; // 2**24
   };
 
+  // tx counter (used once per source)
   type CtrState = { batches: Nat; txs: Nat; txsFailed: Nat; txsSucceeded: Nat };
 
   class Ctr() {
@@ -86,6 +87,7 @@ module {
     };
   };
 
+  // global stats
   public type Stats = { perAgg : [CtrState]; direct : CtrState; all : CtrState; registry : { owners : Nat; accounts : Nat; assets : Nat }};
 
   public class Ledger(initialAggregators : [Principal]) {

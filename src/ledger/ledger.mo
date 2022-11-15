@@ -126,10 +126,10 @@ module {
       public var assets : Nat = 0;
       public var owners : Nat = 0;
 
-      public func add(item : {#owner; #asset}) =
+      public func add(item : {#owner; #asset}) : Nat =
         switch item {
-          case (#owner) owners += 1;
-          case (#asset) assets += 1
+          case (#owner) { let n = owners; owners += 1; n }; 
+          case (#asset) { let n = assets; assets += 1; n }
         };
 
       public func hasSpace(item : {#owner; #asset}) : Bool =
@@ -195,8 +195,7 @@ module {
         case (#ok oid, _) { ?oid };
         case (#err _, false) { null }; // no space
         case (#err _, true) {
-          let newId = counters_.owners;
-          counters_.add(#owner);
+          let newId = counters_.add(#owner);
           owners.put(p, newId);
           ?newId;
         };
@@ -214,8 +213,7 @@ module {
         return #err(#NoSpace);
       };
       ftControllers := u.append(ftControllers, controller);
-      counters_.add(#asset);
-      #ok(counters_.assets - 1);
+      #ok(counters_.add(#asset));
     };
 
     public func openNewAccounts(p: Principal, n: Nat, aid: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> {

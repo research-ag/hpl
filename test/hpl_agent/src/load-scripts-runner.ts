@@ -29,33 +29,54 @@ export class LoadScriptsRunner {
         .withOptions({ agent: new HttpAgent({ identity: userA }) })
         ()
     ));
-    // TODO create subaccounts for users A and B
-    const mintResult = await unwrapCallResult(this.ledgerDelegate.processImmediateTx({ map: [{
-      owner: userA.getPrincipal(),
-      mints: [{ ft: [BigInt(tokenId), BigInt(totalTxs)]}],
-      burns: [],
-      inflow: [],
-      outflow: [],
-      memo: [],
-    }], committer: [] }));
-    console.log(mintResult);
-    const tx: Tx = { map: [{
+    const subaccountA = Number(await unwrapCallResult(
+      this.ledgerDelegate.openNewAccounts
+        .withOptions({ agent: new HttpAgent({ identity: userA }) })
+        (BigInt(1), BigInt(tokenId))
+    ));
+    const subaccountB = Number(await unwrapCallResult(
+      this.ledgerDelegate.openNewAccounts
+        .withOptions({ agent: new HttpAgent({ identity: userB }) })
+        (BigInt(1), BigInt(tokenId))
+    ));
+    const mintResult = await unwrapCallResult(this.ledgerDelegate.processImmediateTx
+      .withOptions({ agent: new HttpAgent({ identity: userA }) })
+      ({
+        map: [{
+          owner: userA.getPrincipal(),
+          mints: [{ ft: [BigInt(tokenId), BigInt(totalTxs)] }],
+          burns: [],
+          inflow: [[BigInt(subaccountA), { ft: [BigInt(tokenId), BigInt(totalTxs)] }]],
+          outflow: [],
+          memo: [],
+        }], committer: []
+      }));
+    const tx: Tx = {
+      map: [{
         owner: userA.getPrincipal(),
         mints: [],
         burns: [],
         inflow: [],
-        outflow: [[BigInt(0), { ft: [BigInt(tokenId), BigInt(1)]}]],
+        outflow: [[BigInt(subaccountA), { ft: [BigInt(tokenId), BigInt(1)] }]],
         memo: [],
-      },{
+      }, {
         owner: userB.getPrincipal(),
         mints: [],
         burns: [],
-        inflow: [[BigInt(0), { ft: [BigInt(tokenId), BigInt(1)]}]],
+        inflow: [[BigInt(subaccountB), { ft: [BigInt(tokenId), BigInt(1)] }]],
         outflow: [],
         memo: [],
       },
-      ], committer: [] };
-    // TODO bomb with tx
+      ], committer: []
+    };
+    for (let i = 0; i < totalTxs; i++) {
+      this.aggregatorDelegates[i % this.aggregatorDelegates.length].submit
+        .withOptions({ agent: new HttpAgent({ identity: userA }) })
+        (tx)
+        .then((res) => {
+          console.log(res);
+        });
+    }
   }
 
 }

@@ -39,12 +39,6 @@ cat >>dfx.json <<-END
     }
   },
   "dfx": "0.12.0",
-  "networks": {
-    "local": {
-      "bind": "127.0.0.1:8000",
-      "type": "ephemeral"
-    }
-  },
   "version": 1
 }
 END

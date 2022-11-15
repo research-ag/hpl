@@ -10,3 +10,8 @@
 [AGG] approve + equeue simple Tx: 731
 [AGG] reject simple Tx: 728
 [AGG] prepare big batch: 827_371
+[LED] Empty batch: 1_591
+[LED] Batch with one empty Tx: 2_803
+[LED] One simple Tx: 23_162
+[LED] 16,384 txs: 205_862_658
+[LED] Heavy tx: 88_763_703

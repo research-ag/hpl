@@ -78,7 +78,7 @@ module {
         }
       };
 
-    public func get() : CtrState = {
+    public func state() : CtrState = {
       batches = batches;
       txs = txs;
       txsFailed = txsFailed;
@@ -90,14 +90,13 @@ module {
 
   public class Ledger(initialAggregators : [Principal]) {
 
-    // collection of counters
+    // stats bundles all values that are collected with the purpose of making them available to outside observers
+    // they are not used internally and have no relevance for the operation of the ledger
     let stats_ = object {
       public var perAgg : [Ctr] = Array.tabulate<Ctr>(initialAggregators.size(), func(i) { Ctr() });
       public var direct : Ctr = Ctr();
       public var all : Ctr = Ctr();
-      public var owners : Nat = 0;
       public var accounts : Nat = 0;
-      public var assets : Nat = 0;
 
       public func record(source: {#agg : Nat; #direct}, event : {#batch; #txfail; #txsuccess}) {
         switch source {
@@ -107,19 +106,35 @@ module {
         all.record(event);
       };
 
-      public func add(item : {#owner; #accounts : Nat; #asset}) =
+      public func add(item : {#accounts : Nat}) =
         switch item {
-          case (#owner) owners += 1;
           case (#accounts(n)) accounts += n;
-          case (#asset) assets += 1
         };
 
       public func get() : Stats = {
-        perAgg = Array.tabulate<CtrState>(perAgg.size(), func(i) { perAgg[i].get() });
-        direct = direct.get();
-        all = all.get();
-        registry = { owners = owners; accounts = accounts; assets = assets }
+        perAgg = Array.tabulate<CtrState>(perAgg.size(), func(i) { perAgg[i].state() });
+        direct = direct.state();
+        all = all.state();
+        registry = { owners = counters_.owners; accounts = accounts; assets = counters_.assets }
       }
+    };
+
+    // counters bundles those counter values on which the ledger operation depends 
+    let counters_ = object {
+      public var assets : Nat = 0;
+      public var owners : Nat = 0;
+
+      public func add(item : {#owner; #asset}) =
+        switch item {
+          case (#owner) owners += 1;
+          case (#asset) assets += 1
+        };
+
+      public func hasSpace(item : {#owner; #asset}) : Bool =
+        switch item {
+          case (#owner) owners <= constants.maxPrincipals;
+          case (#asset) assets <= constants.maxAssets
+        }
     };
 
     // ================================ ACCESSORS =================================
@@ -174,12 +189,12 @@ module {
 
     // only public for the test api
     public func getOrCreateOwnerId(p: Principal): ?OwnerId =
-      switch (ownerId(p), stats_.owners >= constants.maxPrincipals) {
+      switch (ownerId(p), counters_.hasSpace(#owner)) {
         case (#ok oid, _) { ?oid };
         case (#err _, true) { null }; // no space
         case (#err _, false) {
-          let newId = stats_.owners;
-          stats_.add(#owner);
+          let newId = counters_.owners;
+          counters_.add(#owner);
           owners.put(p, newId);
           ?newId;
         };
@@ -193,16 +208,16 @@ module {
       // - cannot open new subaccounts (has reached maxSubaccounts)
       // If any of this happens then the controller can still approve
       // transactions for the new token. He just cannot hold them himself.
-      if (stats_.assets >= constants.maxAssets) {
+      if (counters_.hasSpace(#asset)) {
         return #err(#NoSpace);
       };
       ftControllers := u.append(ftControllers, controller);
-      stats_.add(#asset);
-      #ok(stats_.assets - 1);
+      counters_.add(#asset);
+      #ok(counters_.assets - 1);
     };
 
     public func openNewAccounts(p: Principal, n: Nat, aid: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> {
-      if (aid >= stats_.assets) {
+      if (aid >= counters_.assets) {
         return #err(#UnknownFtAsset);
       };
       switch (getOrCreateOwnerId(p)) {
@@ -320,7 +335,7 @@ module {
       let subaccount = accounts[ownerId][subaccountId];
       switch (flowAsset) {
         case (#ft flowAssetData) {
-          if (flowAssetData.0 >= stats_.assets) {
+          if (flowAssetData.0 >= counters_.assets) {
             return #err(#UnknownFtAsset);
           };
           switch (subaccount.asset) {

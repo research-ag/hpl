@@ -136,12 +136,18 @@ module {
         switch item {
           case (#owner) owners <= constants.maxPrincipals;
           case (#asset) assets <= constants.maxAssets
+        };
+
+      public func isKnown(item : {#owner; #asset}, i : Nat) : Bool = 
+        switch item {
+          case (#owner) i < owners;
+          case (#asset) i < assets
         }
     };
 
     // ================================ ACCESSORS =================================
     public func aggregatorPrincipal(aid: AggregatorId): Result<Principal, { #NotFound; }> =
-      switch (aggregators.size() > aid) {
+      switch (aid < aggregators.size()) {
         case (true) #ok(aggregators[aid]);
         case (_) #err(#NotFound);
       };
@@ -217,7 +223,7 @@ module {
     };
 
     public func openNewAccounts(p: Principal, n: Nat, aid: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> {
-      if (aid >= counters_.assets) {
+      if (not counters_.isKnown(#asset, aid)) {
         return #err(#UnknownFtAsset);
       };
       switch (getOrCreateOwnerId(p)) {

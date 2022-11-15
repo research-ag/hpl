@@ -110,7 +110,7 @@ module {
 
       public func add(item : {#accounts : Nat}) =
         switch item {
-          case (#accounts(n)) accounts += n;
+          case (#accounts(n)) accounts += n
         };
 
       public func get() : Stats = {
@@ -193,8 +193,8 @@ module {
     public func getOrCreateOwnerId(p: Principal): ?OwnerId =
       switch (ownerId(p), counters_.hasSpace(#owner)) {
         case (#ok oid, _) { ?oid };
-        case (#err _, true) { null }; // no space
-        case (#err _, false) {
+        case (#err _, false) { null }; // no space
+        case (#err _, true) {
           let newId = counters_.owners;
           counters_.add(#owner);
           owners.put(p, newId);
@@ -210,7 +210,7 @@ module {
       // - cannot open new subaccounts (has reached maxSubaccounts)
       // If any of this happens then the controller can still approve
       // transactions for the new token. He just cannot hold them himself.
-      if (counters_.hasSpace(#asset)) {
+      if (not counters_.hasSpace(#asset)) {
         return #err(#NoSpace);
       };
       ftControllers := u.append(ftControllers, controller);

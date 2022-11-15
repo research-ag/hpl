@@ -1,4 +1,4 @@
-#!/home/andy/bin/ic-repl -r local
+#!/usr/local/bin/ic-repl
 
 identity ledger_mock;
 

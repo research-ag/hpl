@@ -1,4 +1,4 @@
-#!/home/andy/bin/ic-repl -r local
+#!/usr/local/bin/ic-repl
 
 function createLedger(aggregators) {
   let id = call ic.provisional_create_canister_with_cycles(record { settings = null; amount = null });

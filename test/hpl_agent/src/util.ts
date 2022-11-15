@@ -8,3 +8,13 @@ export const pathDfxEnvironment = () => {
   g.window.fetch = fetch;
   g.window.location = 'https://ic0.app';
 }
+
+export const unwrapCallResult = <T>(call: Promise<{ 'ok': T } | { 'err': any }>): Promise<T> => {
+  return call.then((res) => {
+    if (res['ok']) {
+      return res['ok'];
+    } else {
+      throw new Error(Object.keys(res['err'])[0]);
+    }
+  });
+}

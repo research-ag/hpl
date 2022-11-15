@@ -1,6 +1,8 @@
 import { LedgerAPI } from '../../../.dfx/local/canisters/ledger/ledger.did';
 import { AggregatorAPI } from '../../../.dfx/local/canisters/aggregator/aggregator.did';
 
+export { LedgerAPI, AggregatorAPI };
+
 export class DelegateFactory {
 
   static getLedgerApi(canisterId: string): LedgerAPI {

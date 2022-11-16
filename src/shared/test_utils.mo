@@ -18,8 +18,7 @@ module {
           burns = [];
           memo = ?Blob.fromArray(Array.freeze(Array.init<Nat8>(Tx.constants.maxMemoBytes, 12)))
         },
-      );
-      committer = null;
+      )
     };
 
   public func principalFromNat(n : Nat) : Principal {

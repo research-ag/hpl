@@ -1,13 +1,13 @@
 import RBTree "mo:base/RBTree";
 import List "mo:base/List";
 import Array "mo:base/Array";
-import { compare } "mo:base/Principal";
+import Principal "mo:base/Principal";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
 
 import Tx "../shared/transaction";
 import u "../shared/utils";
-import CircularBuffer "../shared/circular_buffer";
+import { CircularBuffer } "../shared/circular_buffer";
 import C "../shared/constants";
 
 module {
@@ -55,6 +55,7 @@ module {
     maxPrincipals = 16777216; // 2**24
   };
 
+  // tx counter (used once per source)
   type CtrState = { batches: Nat; txs: Nat; txsFailed: Nat; txsSucceeded: Nat };
 
   class Ctr() {
@@ -78,7 +79,7 @@ module {
         }
       };
 
-    public func get() : CtrState = {
+    public func state() : CtrState = {
       batches = batches;
       txs = txs;
       txsFailed = txsFailed;
@@ -86,18 +87,18 @@ module {
     };
   };
 
+  // global stats
   public type Stats = { perAgg : [CtrState]; direct : CtrState; all : CtrState; registry : { owners : Nat; accounts : Nat; assets : Nat }};
 
   public class Ledger(initialAggregators : [Principal]) {
 
-    // collection of counters
+    // stats bundles all values that are collected with the purpose of making them available to outside observers
+    // they are not used internally and have no relevance for the operation of the ledger
     let stats_ = object {
       public var perAgg : [Ctr] = Array.tabulate<Ctr>(initialAggregators.size(), func(i) { Ctr() });
       public var direct : Ctr = Ctr();
       public var all : Ctr = Ctr();
-      public var owners : Nat = 0;
       public var accounts : Nat = 0;
-      public var assets : Nat = 0;
 
       public func record(source: {#agg : Nat; #direct}, event : {#batch; #txfail; #txsuccess}) {
         switch source {
@@ -107,24 +108,46 @@ module {
         all.record(event);
       };
 
-      public func add(item : {#owner; #accounts : Nat; #asset}) =
+      public func add(item : {#accounts : Nat}) =
         switch item {
-          case (#owner) owners += 1;
-          case (#accounts(n)) accounts += n;
-          case (#asset) assets += 1
+          case (#accounts(n)) accounts += n
         };
 
       public func get() : Stats = {
-        perAgg = Array.tabulate<CtrState>(perAgg.size(), func(i) { perAgg[i].get() });
-        direct = direct.get();
-        all = all.get();
-        registry = { owners = owners; accounts = accounts; assets = assets }
+        perAgg = Array.tabulate<CtrState>(perAgg.size(), func(i) { perAgg[i].state() });
+        direct = direct.state();
+        all = all.state();
+        registry = { owners = counters_.owners; accounts = accounts; assets = counters_.assets }
       }
+    };
+
+    // counters bundles those counter values on which the ledger operation depends 
+    let counters_ = object {
+      public var assets : Nat = 0;
+      public var owners : Nat = 0;
+
+      public func add(item : {#owner; #asset}) : Nat =
+        switch item {
+          case (#owner) { let n = owners; owners += 1; n }; 
+          case (#asset) { let n = assets; assets += 1; n }
+        };
+
+      public func hasSpace(item : {#owner; #asset}) : Bool =
+        switch item {
+          case (#owner) owners <= constants.maxPrincipals;
+          case (#asset) assets <= constants.maxAssets
+        };
+
+      public func isKnown(item : {#owner; #asset}, i : Nat) : Bool = 
+        switch item {
+          case (#owner) i < owners;
+          case (#asset) i < assets
+        }
     };
 
     // ================================ ACCESSORS =================================
     public func aggregatorPrincipal(aid: AggregatorId): Result<Principal, { #NotFound; }> =
-      switch (aggregators.size() > aid) {
+      switch (aid < aggregators.size()) {
         case (true) #ok(aggregators[aid]);
         case (_) #err(#NotFound);
       };
@@ -174,12 +197,11 @@ module {
 
     // only public for the test api
     public func getOrCreateOwnerId(p: Principal): ?OwnerId =
-      switch (ownerId(p), stats_.owners >= constants.maxPrincipals) {
+      switch (ownerId(p), counters_.hasSpace(#owner)) {
         case (#ok oid, _) { ?oid };
-        case (#err _, true) { null }; // no space
-        case (#err _, false) {
-          let newId = stats_.owners;
-          stats_.add(#owner);
+        case (#err _, false) { null }; // no space
+        case (#err _, true) {
+          let newId = counters_.add(#owner);
           owners.put(p, newId);
           ?newId;
         };
@@ -193,16 +215,15 @@ module {
       // - cannot open new subaccounts (has reached maxSubaccounts)
       // If any of this happens then the controller can still approve
       // transactions for the new token. He just cannot hold them himself.
-      if (stats_.assets >= constants.maxAssets) {
+      if (not counters_.hasSpace(#asset)) {
         return #err(#NoSpace);
       };
       ftControllers := u.append(ftControllers, controller);
-      stats_.add(#asset);
-      #ok(stats_.assets - 1);
+      #ok(counters_.add(#asset));
     };
 
     public func openNewAccounts(p: Principal, n: Nat, aid: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> {
-      if (aid >= stats_.assets) {
+      if (not counters_.isKnown(#asset, aid)) {
         return #err(#UnknownFtAsset);
       };
       switch (getOrCreateOwnerId(p)) {
@@ -320,7 +341,7 @@ module {
       let subaccount = accounts[ownerId][subaccountId];
       switch (flowAsset) {
         case (#ft flowAssetData) {
-          if (flowAssetData.0 >= stats_.assets) {
+          if (flowAssetData.0 >= counters_.assets) {
             return #err(#UnknownFtAsset);
           };
           switch (subaccount.asset) {
@@ -347,7 +368,7 @@ module {
     // list of all aggregators by their principals
     public var aggregators: [Principal] = initialAggregators;
     // The map from principal to short id is stored in a single `RBTree`:
-    let owners : RBTree.RBTree<Principal, OwnerId> = RBTree.RBTree<Principal, OwnerId>(compare);
+    let owners : RBTree.RBTree<Principal, OwnerId> = RBTree.RBTree<Principal, OwnerId>(Principal.compare);
 
     /*
     The content of all accounts is stored in an array of arrays.
@@ -365,7 +386,7 @@ module {
     public let accounts : [var [var SubaccountState]] = Array.init(constants.maxPrincipals, [var] : [var SubaccountState]);
 
     /* history of last processed transactions */
-    let batchHistory: CircularBuffer.CircularBuffer<BatchHistoryEntry> = CircularBuffer.CircularBuffer<BatchHistoryEntry>(constants.batchHistoryLength);
+    let batchHistory = CircularBuffer<BatchHistoryEntry>(constants.batchHistoryLength);
 
     // asset ids
     public var ftControllers: [Principal] = [];

@@ -21,7 +21,7 @@ module {
     };
     var heartbeats = 0;
 
-    public func add(item : {#submit; #queue; #reject; #batch : Nat; #processed; #error; #heartbeat}) =
+    public func add(item : {#submit; #queue; #reject; #batch: Nat; #processed: Nat; #error: Nat; #heartbeat}) =
       switch item {
         // tx
         case (#submit) txs.submitted += 1;
@@ -29,10 +29,10 @@ module {
         case (#reject) txs.rejected += 1;
         // batch
         case (#batch n) { batches.sent += 1; txs.batched += n };
-        case (#processed) { batches.processed += 1; /* txs.batched += n */ };
-        case (#error) { batches.failed += 1; /* txs.failed += n */ };
+        case (#processed n) { batches.processed += 1; txs.batched += n };
+        case (#error n) { batches.failed += 1; txs.failed += n };
         // heartbeat
-        case (#heartbeat) {} /* heartbeats += 1 */
+        case (#heartbeat) heartbeats += 1 
       };
 
     public func stats() : Stats = {
@@ -49,7 +49,7 @@ module {
         processed = batches.processed;
         failed = batches.failed;
       };
-      heartbeats = 0 /* heartbeats */
+      heartbeats = heartbeats
     }
   };
 }

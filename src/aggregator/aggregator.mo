@@ -232,13 +232,12 @@ module {
       let requestsToSend = getNextBatchRequests();
       // if the batch is empty then stop
       // we don't send an empty batch
-      if (requestsToSend.size() == 0) {
-        return
-      };
+      let n = requestsToSend.size();
+      if (n == 0) return;
       try {
         tracker.add(#batch(requestsToSend.size()));
         await Ledger_actor.processBatch(Array.map(requestsToSend, func (req: TxReq): Tx.Tx = req.tx));
-        tracker.add(#processed);
+        tracker.add(#processed(n));
         // the batch has been processed
         // the transactions in b are now explicitly deleted from the lookup table
         // the aggregator has now done its job
@@ -250,7 +249,7 @@ module {
           };
         };
       } catch (e) {
-        tracker.add(#error);
+        tracker.add(#error(n));
         // batch was not processed
         // we do not retry sending the batch
         // we set the status of all txs to #failed_to_send

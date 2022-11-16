@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import { AggregatorAPI, DelegateFactory, LedgerAPI } from './delegate-factory';
 import { HttpAgent } from '@dfinity/agent';
-import { unwrapCallResult } from './util';
+import { callCanisterAsync, unwrapCallResult } from './util';
 import { Secp256k1KeyIdentity } from '@dfinity/identity';
 import { Tx } from '../../../.dfx/local/canisters/ledger/ledger.did';
 
@@ -69,14 +69,15 @@ export class LoadScriptsRunner {
       },
       ], committer: []
     };
+    const agentA = new HttpAgent({ identity: userA });
+    const calls: Promise<void>[] = [];
+    const start = Date.now();
     for (let i = 0; i < totalTxs; i++) {
-      this.aggregatorDelegates[i % this.aggregatorDelegates.length].submit
-        .withOptions({ agent: new HttpAgent({ identity: userA }) })
-        (tx)
-        .then((res) => {
-          console.log(res);
-        });
+      const delegate = this.aggregatorDelegates[i % this.aggregatorDelegates.length];
+      calls.push(callCanisterAsync(delegate, agentA, 'submit', tx));
     }
+    await Promise.all(calls);
+    console.log(`${calls.length} TX-s sent to canister in ${Date.now() - start}ms`);
   }
 
 }

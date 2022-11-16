@@ -46,6 +46,8 @@ actor class AggregatorAPI(ledger : Principal, ownId : Aggregator.AggregatorId, l
     aggregator_.txDetails(gid);
   };
 
+  public query func stats() : async Aggregator.Stats = async aggregator_.stats();
+
   /** heartbeat function */
   system func heartbeat() : async () {
     await aggregator_.heartbeat();

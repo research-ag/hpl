@@ -62,6 +62,12 @@ module {
     maxBatchBytes = 262074;
   };
 
+  public type Stats = { 
+    txs : { submitted : Nat; queued: Nat; rejected: Nat; batched: Nat; processed: Nat; failed: Nat }; 
+    batches : { sent: Nat; processed: Nat; failed: Nat }; 
+    heartbeats : Nat 
+  };
+
   public class Aggregator(ledger : Principal, ownId : AggregatorId, lookupTableCapacity: Nat) {
     // define the ledger actor
     let Ledger_actor = actor (Principal.toText(ledger)) : actor { processBatch : Tx.Batch -> async () };
@@ -104,9 +110,52 @@ module {
     delivery failures occur. We currently do not implement it.
     */
 
-    // global counters
-    let ctr = {
-      var submitted : Nat = 0 // number of tx requests ever submitted
+    let stats_ = object {
+      public let txs = {
+        var submitted = 0;
+        var queued = 0;
+        var rejected = 0;
+        var batched = 0;
+        var processed = 0;
+        var failed = 0; // failed to send, in a failed batch
+      };
+      public let batches = {
+        var sent = 0;
+        var processed = 0;
+        var failed = 0;
+      };
+      public var heartbeats : Nat = 0;
+
+      public func add(item : {#submit; #queue; #reject; #batch : Nat; #processed; #error; #heartbeat}) =
+        switch item {
+          // tx
+          case (#submit) txs.submitted += 1;
+          case (#queue) txs.queued += 1;
+          case (#reject) txs.rejected += 1;
+          // batch
+          case (#batch n) { batches.sent += 1; txs.batched += n };
+          case (#processed) { batches.processed += 1; /* txs.batched += n */ };
+          case (#error) { batches.failed += 1; /* txs.failed += n */ };
+          // heartbeat
+          case (#heartbeat) heartbeats += 1
+        };
+
+      public func get() : Stats = {
+        txs = { 
+          submitted = txs.submitted;
+          queued = txs.queued;
+          rejected = txs.rejected;
+          batched = txs.batched;
+          processed = txs.processed;
+          failed = txs.failed;
+        };
+        batches = {
+          sent = batches.sent;
+          processed = batches.processed;
+          failed = batches.failed;
+        };
+        heartbeats = heartbeats
+      }
     };
 
     // lookup table
@@ -125,7 +174,7 @@ module {
         case (_) {}
       };
       let txSize = Tx.size(tx);
-      ctr.submitted += 1;
+      stats_.add(#submit);
       let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].owner == caller or (tx.map[i].outflow.size() == 0 and tx.map[i].mints.size() == 0 and tx.map[i].burns.size() == 0));
       let txRequest : TxReq = {
         tx = tx;
@@ -197,6 +246,7 @@ module {
         case (#err err) return #err(err);
         case (#ok (tr, _, _)) {
           tr.status := #rejected;
+          stats_.add(#reject);
           return #ok;
         };
       };
@@ -216,9 +266,9 @@ module {
             status = switch (txr.status) {
               case (#unapproved list) #unapproved(Array.freeze(list));
               case (#approved x) #approved(x);
-              case (#rejected) #rejected();
-              case (#pending) #pending();
-              case (#failed_to_send) #failed_to_send();
+              case (#rejected) #rejected;
+              case (#pending) #pending;
+              case (#failed_to_send) #failed_to_send;
             };
           });
         };
@@ -227,6 +277,7 @@ module {
 
     /** heartbeat function */
     public func heartbeat() : async () {
+      stats_.add(#heartbeat);
       let requestsToSend = getNextBatchRequests();
       // if the batch is empty then stop
       // we don't send an empty batch
@@ -234,7 +285,9 @@ module {
         return
       };
       try {
+        stats_.add(#batch(requestsToSend.size()));
         await Ledger_actor.processBatch(Array.map(requestsToSend, func (req: TxReq): Tx.Tx = req.tx));
+        stats_.add(#processed);
         // the batch has been processed
         // the transactions in b are now explicitly deleted from the lookup table
         // the aggregator has now done its job
@@ -246,6 +299,7 @@ module {
           };
         };
       } catch (e) {
+        stats_.add(#error);
         // batch was not processed
         // we do not retry sending the batch
         // we set the status of all txs to #failed_to_send
@@ -257,6 +311,8 @@ module {
         };
       };
     };
+
+    public func stats() : Stats = stats_.get(); 
 
     let batchIter = object {
       var remainingRequests = 0;
@@ -322,10 +378,6 @@ module {
         case (?c) {
           let tr = c.value;
           switch (tr.status) {
-            case (#approved _)            return #err(#AlreadyApproved);
-            case (#pending)               return #err(#AlreadyApproved);
-            case (#failed_to_send)        return #err(#AlreadyApproved);
-            case (#rejected)              return #err(#AlreadyRejected);
             case (#unapproved approvals)  {
               switch (arrayFindIndex(tr.tx.map, func (c: Tx.Contribution) : Bool { c.owner == caller })) {
                 case (#NotFound) return #err(#NoPart);
@@ -334,6 +386,8 @@ module {
                 };
               };
             };
+            case (#rejected) return #err(#AlreadyRejected);
+            case (_) return #err(#AlreadyApproved);
           };
         };
       };
@@ -369,6 +423,7 @@ module {
         };
         approvedTxs.enqueue(lid);
         tr.status := #approved(approvedTxs.pushesAmount());
+        stats_.add(#queue)
       };
     };
 

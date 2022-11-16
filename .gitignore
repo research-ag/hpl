@@ -19,3 +19,5 @@ dist/
 
 canister_ids.json
 /deploy/dfx.json
+/deploy/create_canisters.sh
+/deploy/deploy_canisters.sh

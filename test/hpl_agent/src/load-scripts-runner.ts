@@ -49,7 +49,7 @@ export class LoadScriptsRunner {
           inflow: [[BigInt(subaccountA), { ft: [BigInt(tokenId), BigInt(totalTxs)] }]],
           outflow: [],
           memo: [],
-        }], committer: []
+        }]
       }));
     const tx: Tx = {
       map: [{
@@ -67,7 +67,7 @@ export class LoadScriptsRunner {
         outflow: [],
         memo: [],
       },
-      ], committer: []
+      ]
     };
     const agentA = new HttpAgent({ identity: userA });
     const calls: Promise<void>[] = [];
@@ -77,7 +77,8 @@ export class LoadScriptsRunner {
       calls.push(callCanisterAsync(delegate, agentA, 'submit', tx));
     }
     await Promise.all(calls);
-    console.log(`${calls.length} TX-s sent to canister in ${Date.now() - start}ms`);
+    const timeSpent = Date.now() - start;
+    console.log(`${calls.length} TX-s sent to canister in ${timeSpent}ms (${(calls.length * 1000 / timeSpent).toFixed(2)}TPS)`);
   }
 
 }

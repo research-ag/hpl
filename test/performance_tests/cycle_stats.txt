@@ -4,9 +4,9 @@
 [LED] 16,384 txs: 205_889_521
 [LED] Heavy tx: 88_850_533
 [LED] 5 heavy tx-s (max possible batch): 444_268_227
-[AGG] submit simple Tx: 16_129
-[AGG] submit + auto-enqueue simple Tx: 12_676
-[AGG] submit heavy tx: 180_776_433
-[AGG] approve + equeue simple Tx: 731
-[AGG] reject simple Tx: 728
+[AGG] submit simple Tx: 16_442
+[AGG] submit + auto-enqueue simple Tx: 12_989
+[AGG] submit heavy tx: 180_777_674
+[AGG] approve + equeue simple Tx: 795
+[AGG] reject simple Tx: 796
 [AGG] prepare big batch: 827_371

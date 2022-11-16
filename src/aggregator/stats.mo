@@ -29,7 +29,7 @@ module {
         case (#reject) txs.rejected += 1;
         // batch
         case (#batch n) { batches.sent += 1; txs.batched += n };
-        case (#processed n) { batches.processed += 1; txs.batched += n };
+        case (#processed n) { batches.processed += 1; txs.processed += n };
         case (#error n) { batches.failed += 1; txs.failed += n };
         // heartbeat
         case (#heartbeat) heartbeats += 1 

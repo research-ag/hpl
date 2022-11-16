@@ -36,13 +36,9 @@ type Contribution =
  };
 
 // A transaction is a map from owner to the owner's contribution.
-// A transaction can specify an optional committer. 
-// The committer is the only one who can make an update call and receive the success in the response.
-// In that way the committer can process the transaction in a continuation and does not need to rely on polling. 
 type Tx = 
  record {
-   map: vec Contribution;
-   committer: opt principal;
+   map: vec Contribution
  };
 
 // The globally unique transaction id

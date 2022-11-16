@@ -1,25 +1,19 @@
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Bool "mo:base/Bool";
-import R "mo:base/Result";
+import Result "mo:base/Result";
 import Iter "mo:base/Iter";
-
-// type imports
-// pattern matching is not available for types (work-around required)
 import Tx "../shared/transaction";
-import u "../shared/utils";
-import SlotTable "../shared/slot_table";
-import HPLQueue "../shared/queue";
 import DLL "../shared/dll";
+import { arrayFindIndex } "../shared/utils";
+import { SlotTable } "../shared/slot_table";
+import { HPLQueue } "../shared/queue";
+import Stats "stats";
 
 module {
   public type AggregatorId = Nat;
   public type LocalId = Nat;
   public type GlobalId = ( aggregator: AggregatorId, local_id: LocalId );
-  // public type GlobalId = T.GlobalId;
-
-  // type import work-around
-  public type Result<X,Y> = R.Result<X,Y>;
 
   public type Batch = Tx.Batch;
   public type AssetId = Tx.AssetId;
@@ -27,6 +21,10 @@ module {
   public type SubmitError = Tx.TxError or { #NoSpace; };
   public type NotPendingError = { #WrongAggregator; #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
   public type GidError = { #NotFound; };
+
+  public type Stats = Stats.Stats;
+
+  type Result<X,Y> = Result.Result<X,Y>;
 
   /*
   Here is the information that makes up a transaction request (txreq).
@@ -71,6 +69,8 @@ module {
     // define the ledger actor
     let Ledger_actor = actor (Principal.toText(ledger)) : actor { processBatch : Tx.Batch -> async () };
 
+    let tracker = Stats.Tracker();
+
     /*
     Glossary:
     transaction (short: tx): The information that is being sent to the ledger if the transaction is approved. It captures a) everything needed during ledger-side validation of the transaction and b) everything needed to define the effect on the ledger if executed.
@@ -109,17 +109,12 @@ module {
     delivery failures occur. We currently do not implement it.
     */
 
-    // global counters
-    let ctr = {
-      var submitted : Nat = 0 // number of tx requests ever submitted
-    };
-
     // lookup table
-    var lookup : SlotTable.SlotTable<DLL.Cell<TxReq>> = SlotTable.SlotTable<DLL.Cell<TxReq>>(lookupTableCapacity);
+    var lookup = SlotTable<DLL.Cell<TxReq>>(lookupTableCapacity);
     // chain of all used slots with an unapproved tx request
-    var unapproved : DLL.DoublyLinkedList<TxReq> = DLL.DoublyLinkedList<TxReq>();
+    var unapproved = DLL.DoublyLinkedList<TxReq>();
     // the queue of approved requests for batching
-    var approvedTxs = HPLQueue.HPLQueue<LocalId>();
+    var approvedTxs = HPLQueue<LocalId>();
 
     // Create a new transaction request.
     // Here we init it and put to the lookup table.
@@ -130,7 +125,7 @@ module {
         case (_) {}
       };
       let txSize = Tx.size(tx);
-      ctr.submitted += 1;
+      tracker.add(#submit);
       let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].owner == caller or (tx.map[i].outflow.size() == 0 and tx.map[i].mints.size() == 0 and tx.map[i].burns.size() == 0));
       let txRequest : TxReq = {
         tx = tx;
@@ -202,6 +197,7 @@ module {
         case (#err err) return #err(err);
         case (#ok (tr, _, _)) {
           tr.status := #rejected;
+          tracker.add(#reject);
           return #ok;
         };
       };
@@ -221,9 +217,9 @@ module {
             status = switch (txr.status) {
               case (#unapproved list) #unapproved(Array.freeze(list));
               case (#approved x) #approved(x);
-              case (#rejected) #rejected();
-              case (#pending) #pending();
-              case (#failed_to_send) #failed_to_send();
+              case (#rejected) #rejected;
+              case (#pending) #pending;
+              case (#failed_to_send) #failed_to_send;
             };
           });
         };
@@ -232,14 +228,16 @@ module {
 
     /** heartbeat function */
     public func heartbeat() : async () {
+      tracker.add(#heartbeat);
       let requestsToSend = getNextBatchRequests();
       // if the batch is empty then stop
       // we don't send an empty batch
-      if (requestsToSend.size() == 0) {
-        return
-      };
+      let n = requestsToSend.size();
+      if (n == 0) return;
       try {
+        tracker.add(#batch(requestsToSend.size()));
         await Ledger_actor.processBatch(Array.map(requestsToSend, func (req: TxReq): Tx.Tx = req.tx));
+        tracker.add(#processed(n));
         // the batch has been processed
         // the transactions in b are now explicitly deleted from the lookup table
         // the aggregator has now done its job
@@ -251,6 +249,7 @@ module {
           };
         };
       } catch (e) {
+        tracker.add(#error(n));
         // batch was not processed
         // we do not retry sending the batch
         // we set the status of all txs to #failed_to_send
@@ -262,6 +261,8 @@ module {
         };
       };
     };
+
+    public func stats() : Stats = tracker.stats(); 
 
     let batchIter = object {
       var remainingRequests = 0;
@@ -327,18 +328,16 @@ module {
         case (?c) {
           let tr = c.value;
           switch (tr.status) {
-            case (#approved _)            return #err(#AlreadyApproved);
-            case (#pending)               return #err(#AlreadyApproved);
-            case (#failed_to_send)        return #err(#AlreadyApproved);
-            case (#rejected)              return #err(#AlreadyRejected);
             case (#unapproved approvals)  {
-              switch (u.arrayFindIndex(tr.tx.map, func (c: Tx.Contribution) : Bool { c.owner == caller })) {
+              switch (arrayFindIndex(tr.tx.map, func (c: Tx.Contribution) : Bool { c.owner == caller })) {
                 case (#NotFound) return #err(#NoPart);
                 case (#Found index) {
                   return #ok( tr, approvals, index );
                 };
               };
             };
+            case (#rejected) return #err(#AlreadyRejected);
+            case (_) return #err(#AlreadyApproved);
           };
         };
       };
@@ -374,6 +373,7 @@ module {
         };
         approvedTxs.enqueue(lid);
         tr.status := #approved(approvedTxs.pushesAmount());
+        tracker.add(#queue)
       };
     };
 

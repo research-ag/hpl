@@ -4,7 +4,6 @@ import Nat "mo:base/Nat";
 import Principal "mo:base/Principal";
 import Array "mo:base/Array";
 import Option "mo:base/Option";
-
 import C "../shared/constants";
 
 module {
@@ -50,8 +49,7 @@ module {
   // map is seen as a map from a principal to its contribution
   // the owner principals in each contribution must be strictly increasing throughout the list to rule out duplicate keys
   public type Tx = {
-    map : [Contribution];
-    committer : ?Principal
+    map : [Contribution]
   };
 
   public type Batch = [Tx];
@@ -73,7 +71,6 @@ module {
     #NonZeroAssetSum 
   };
 
-  // type import work-around
   type Result<X,Y> = R.Result<X,Y>;
 
   func nFlows(c : Contribution) : Nat =

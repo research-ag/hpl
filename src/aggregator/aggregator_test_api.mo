@@ -115,8 +115,7 @@ actor class AggregatorTestAPI(ledger : Principal, ownId : Aggregator.AggregatorI
           mints = [];
           burns = [];
           memo = null;
-        }];
-        committer = null;
+        }]
       };
     } else {
       {
@@ -134,8 +133,7 @@ actor class AggregatorTestAPI(ledger : Principal, ownId : Aggregator.AggregatorI
           mints = [];
           burns = [];
           memo = null;
-        }];
-        committer = null;
+        }]
       };
     };
   };

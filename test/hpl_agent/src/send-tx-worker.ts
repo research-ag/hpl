@@ -27,7 +27,14 @@ const aggregatorDelegates = Object.keys(canisterIds)
 const totalTxs = +txPerAggregator * aggregatorDelegates.length;
 
 const user = Secp256k1KeyIdentity.fromJSON(identity);
-const agentA = new HttpAgent({ identity: user, disableNonce: true });
+const agentA = new HttpAgent({
+  identity: user,
+  disableNonce: true,
+  fetch: (input, init) => {
+    init.keepalive = true;
+    return fetch(input, init);
+  }
+});
 const tx: Tx = {
   map: [{
     owner: Principal.fromText(principalA),
@@ -47,15 +54,23 @@ const tx: Tx = {
   ]
 };
 
+const MAX_SAFE_CONCURRENT_REQUESTS = 8;
+
 setTimeout(async () => {
   const start = Date.now();
+  let failures = 0;
   console.log(`Starting sending Tx-s`);
+  let calls: Promise<void>[] = [];
   for (let i = 0; i < totalTxs; i++) {
-    const delegate = aggregatorDelegates[i % aggregatorDelegates.length];
-    await callCanisterAsync(delegate, agentA, 'submit', tx);
+    calls.push(callCanisterAsync(aggregatorDelegates[i % aggregatorDelegates.length], agentA, 'submit', tx));
+    if (calls.length >= MAX_SAFE_CONCURRENT_REQUESTS || i === totalTxs - 1) {
+      const res = await Promise.allSettled(calls);
+      failures += res.filter(x => x.status === 'rejected').length;
+      calls = [];
+    }
   }
   const timeSpent = Date.now() - start;
-  console.log(`${totalTxs} TX-s sent to canister in ${timeSpent}ms (${(totalTxs * 1000 / timeSpent).toFixed(2)}TPS)`);
+  console.log(`${totalTxs} TX-s sent to canister in ${timeSpent}ms (${(totalTxs * 1000 / timeSpent).toFixed(2)}TPS). Failures: ${failures}`);
 });
 
 

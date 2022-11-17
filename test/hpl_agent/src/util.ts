@@ -4,7 +4,7 @@ import { Principal } from '@dfinity/principal';
 import { IDL } from '@dfinity/candid';
 import { Agent } from '@dfinity/agent';
 
-export const pathDfxEnvironment = () => {
+export const patchDfxEnvironment = () => {
   dotenv.config();
   // make dfx browser js scripts happy
   const g = global as any;

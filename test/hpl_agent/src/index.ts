@@ -1,7 +1,7 @@
-import { pathDfxEnvironment } from './util';
+import { patchDfxEnvironment } from './util';
 import { LoadScriptsRunner } from './load-scripts-runner';
 
-pathDfxEnvironment();
+patchDfxEnvironment();
 const runner = new LoadScriptsRunner();
 
-runner.floodTxs(50).then();
+runner.floodTxs(500, 100).then();

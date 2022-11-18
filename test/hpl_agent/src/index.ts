@@ -4,4 +4,4 @@ import { LoadScriptsRunner } from './load-scripts-runner';
 patchDfxEnvironment();
 const runner = new LoadScriptsRunner();
 
-runner.floodTxs(500, 50).then();
+runner.floodTxs(1, 1).then();

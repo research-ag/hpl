@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { AggregatorAPI, DelegateFactory, LedgerAPI } from './delegate-factory';
-import { HttpAgent } from '@dfinity/agent';
+import { AnonymousIdentity, HttpAgent } from '@dfinity/agent';
 import { unwrapCallResult } from './util';
 import { Secp256k1KeyIdentity } from '@dfinity/identity';
 
@@ -23,7 +23,7 @@ export class LoadScriptsRunner {
 
   async floodTxs(txPerWorkerAggregator: number, workersAmount: number) {
     const totalTxs = txPerWorkerAggregator * workersAmount * this.aggregatorDelegates.length;
-    const userA = Secp256k1KeyIdentity.generate();
+    const userA = new AnonymousIdentity();
     const userB = Secp256k1KeyIdentity.generate();
     console.info('Registering new token');
     const tokenId = Number(await unwrapCallResult(
@@ -64,7 +64,7 @@ export class LoadScriptsRunner {
   }
 
   async runWorker(
-    userA: Secp256k1KeyIdentity,
+    userA: AnonymousIdentity,
     userB: Secp256k1KeyIdentity,
     subaccountA: number,
     subaccountB: number,
@@ -74,7 +74,6 @@ export class LoadScriptsRunner {
     return new Promise(async (resolve) => {
       const worker = spawn('ts-node', [
         'src/send-tx-worker.ts',
-        JSON.stringify(userA.toJSON()),
         userA.getPrincipal().toText(),
         subaccountA,
         userB.getPrincipal().toText(),

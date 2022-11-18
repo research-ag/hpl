@@ -1,5 +1,4 @@
-import { Secp256k1KeyIdentity } from '@dfinity/identity';
-import { HttpAgent } from '@dfinity/agent';
+import { AnonymousIdentity, HttpAgent } from '@dfinity/agent';
 import { callCanisterAsync, patchDfxEnvironment } from './util';
 import { DelegateFactory } from './delegate-factory';
 import { Tx } from '../../../.dfx/local/canisters/ledger/ledger.did';
@@ -16,9 +15,10 @@ console.error = ((...args) => {
   }
   return originalStdErr(...args);
 }).bind(console);
-console.warn = () => {};
+console.warn = () => {
+};
 
-const [_, __, identity, principalA, subaccountA, principalB, subaccountB, tokenId, txPerAggregator] = process.argv;
+const [_, __, principalA, subaccountA, principalB, subaccountB, tokenId, txPerAggregator] = process.argv;
 
 const canisterIds = JSON.parse(fs.readFileSync('../../deploy/canister_ids.json', 'utf8'));
 const aggregatorDelegates = Object.keys(canisterIds)
@@ -26,7 +26,7 @@ const aggregatorDelegates = Object.keys(canisterIds)
   .map(aggId => DelegateFactory.getAggregatorApi(canisterIds[aggId][process.env.DFX_NETWORK]));
 const totalTxs = +txPerAggregator * aggregatorDelegates.length;
 
-const user = Secp256k1KeyIdentity.fromJSON(identity);
+const user = new AnonymousIdentity();
 const agentA = new HttpAgent({
   identity: user,
   disableNonce: true,

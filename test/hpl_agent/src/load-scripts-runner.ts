@@ -73,8 +73,12 @@ export class LoadScriptsRunner {
           this.batchSize - this.maxRequestsInOneCurlCommand * i,
           this.maxRequestsInOneCurlCommand
         );
-        await this.runCurl(tmpDir + '/send.sh', this.maxRequestsInOneCurlCommand * i, amount);
-        sent += amount;
+        try {
+          await this.runCurl(tmpDir + '/send.sh', this.maxRequestsInOneCurlCommand * i, amount);
+          sent += amount;
+        } catch (err) {
+          // pass
+        }
         if (!this.running) {
           break;
         }
@@ -171,7 +175,7 @@ then
 else
   echo " -: $arg"
 fi
-done | xargs -n 50000 curl -s -X POST --http2-prior-knowledge -Z --parallel-max 125 --header 'Content-Type: application/cbor'`);
+done | xargs -x -n 50000 curl -s -X POST --http2-prior-knowledge -Z --parallel-max 125 --header 'Content-Type: application/cbor'`);
   }
 
   async runCurl(
@@ -180,13 +184,16 @@ done | xargs -n 50000 curl -s -X POST --http2-prior-knowledge -Z --parallel-max 
     amount: number,
   ): Promise<void> {
     console.info(new Date(), `Running curl ${startIndex} ${amount}`);
-    return new Promise(async (resolve) => {
+    return new Promise(async (resolve, reject) => {
       const worker = spawn('sh', [scriptPath, startIndex, amount]);
       worker.stdout.on('data', (data) => {
         console.log(`curl stdout: ${data}`);
       });
       worker.stderr.on('data', (data) => {
         console.error(`curl stderr: ${data}`);
+        if (data.toString().startsWith('xargs: ')) {
+          reject(new Error(data.toString()));
+        }
       });
       worker.on('close', (code) => {
         resolve();

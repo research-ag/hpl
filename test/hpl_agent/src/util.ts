@@ -2,7 +2,7 @@ import * as dotenv from 'dotenv';
 import { FuncClass } from '@dfinity/candid/lib/cjs/idl';
 import { Principal } from '@dfinity/principal';
 import { IDL } from '@dfinity/candid';
-import { Agent } from '@dfinity/agent';
+import { Agent, AnonymousIdentity, HttpAgent } from '@dfinity/agent';
 
 export const patchDfxEnvironment = () => {
   dotenv.config();
@@ -37,3 +37,37 @@ export const callCanisterAsync = async (api: any, agent: Agent | null, methodNam
     }
   );
 }
+
+/** does not make a real http request, but prepares the payload */
+export const generateCanisterRequest = async (api: any, agent: HttpAgent | null, methodName: string, ...args): Promise<{ url: string, cborBuffer: ArrayBuffer }> => {
+  return new Promise((resolve) => {
+    const agentPatched = new HttpAgent({
+      identity: agent ? agent['_identity'] : new AnonymousIdentity(),
+      disableNonce: true,
+      fetch: async (input, init) => {
+        resolve({
+          url: input.toString(),
+          cborBuffer: init.body as ArrayBuffer
+        });
+        return { ok: true } as any;
+      }
+    });
+    callCanisterAsync(api, agentPatched, methodName, ...args);
+  });
+}
+
+/** returns index of subarray in array. -1 if not found */
+export function indexOfMulti<T>(container: ArrayLike<T>, searchElements: ArrayLike<T>, fromIndex: number = 0): number {
+  const index: number = Array.prototype.indexOf.call(container, searchElements[0], fromIndex);
+  if(searchElements.length === 1 || index === -1) {
+    return index;
+  }
+  let i = index;
+  for (let j = 0; j < searchElements.length && i < container.length; i++, j++) {
+    if (container[i] !== searchElements[j]) {
+      return indexOfMulti(container, searchElements, index + 1);
+    }
+  }
+  return(i === index + searchElements.length) ? index : -1;
+}
+

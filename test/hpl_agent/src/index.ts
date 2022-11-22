@@ -1,19 +1,15 @@
 import { patchDfxEnvironment } from './util';
 import { LoadScriptsRunner } from './load-scripts-runner';
-import { createInterface } from 'readline';
 
 patchDfxEnvironment();
 const runner = new LoadScriptsRunner();
 
+const ipArgStr = process.argv.find(x => x.startsWith('--ip='));
+runner.resolveIp = ipArgStr && ipArgStr.substring(5);
+if (runner.resolveIp) {
+  console.info('Resolving ic0 to IP ' + runner.resolveIp);
+}
+
 runner.start().then(() => {
   process.exit(0);
-});
-
-const readline = createInterface({
-  input: process.stdin,
-  output: process.stdout
-});
-readline.question('Input anything to stop', userRes => {
-  console.info('Stopping after finishing iteration...');
-  runner.stop().then();
 });

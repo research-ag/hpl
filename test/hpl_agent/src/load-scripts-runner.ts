@@ -15,6 +15,8 @@ export class LoadScriptsRunner {
   protected readonly ledgerDelegate: LedgerAPI;
   protected readonly aggregatorDelegates: AggregatorAPI[];
 
+  public resolveIp: string | undefined;
+
   // UTF-8 encoded string "ingress_expiry" + 0x1B indicator that next value is a 64-bit uint. Used in cbor just before timestamp
   private readonly expiryTimeoutKeyCborSequence = [0x69, 0x6e, 0x67, 0x72, 0x65, 0x73, 0x73, 0x5f, 0x65, 0x78, 0x70, 0x69, 0x72, 0x79, 0x1B];
   // prepare and send this amount of requests. After them cbor-s will be generated from scratch again
@@ -63,7 +65,7 @@ export class LoadScriptsRunner {
       }
     });
     while (this.running) {
-      console.info(new Date(), `Preparing request payloads and curl script. Input anything to stop`);
+      console.info(new Date(), `Preparing request payloads and curl script`);
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `load_test_${Date.now()}`));
       await this.prepareCurlScript(tmpDir, this.batchSize, agentA, tx);
       const start = Date.now();
@@ -175,7 +177,7 @@ then
 else
   echo " -: $arg"
 fi
-done | xargs -x -n 50000 curl -s -X POST --http2-prior-knowledge -Z --parallel-max 100 --header 'Content-Type: application/cbor'`);
+done | xargs -x -n 50000 curl -s -X POST ${this.resolveIp ? '--resolve ic0.app:443:' + this.resolveIp + ' ' : ''}--http2-prior-knowledge -Z --parallel-max 100 --header 'Content-Type: application/cbor'`);
   }
 
   async runCurl(

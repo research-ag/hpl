@@ -17,6 +17,9 @@ src/declarations/
 node_modules/
 dist/
 
+# logs
+logs/
+
 canister_ids.json
 /deploy/dfx.json
 /deploy/create_canisters.sh

@@ -5,7 +5,7 @@ import { generateCanisterRequest, indexOfMulti, unwrapCallResult } from './util'
 import { Secp256k1KeyIdentity } from '@dfinity/identity';
 import * as path from 'path';
 import * as os from 'os';
-import { Tx } from '../../.dfx/local/canisters/ledger/ledger.did';
+import { Tx } from '../../../.dfx/local/canisters/ledger/ledger.did';
 
 const { spawn } = require('node:child_process');
 

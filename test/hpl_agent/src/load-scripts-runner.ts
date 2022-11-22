@@ -84,7 +84,7 @@ export class LoadScriptsRunner {
         }
       }
       const timeSpent = Date.now() - start;
-      console.log(`${sent} TX-s sent to canister in ${timeSpent}ms (${(sent * this.maxRequestsInOneCurlCommand / timeSpent).toFixed(2)}TPS)`);
+      console.log(`${sent} TX-s sent to canister in ${timeSpent}ms (${(sent * 1000 / timeSpent).toFixed(2)}TPS)`);
       fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   }
@@ -175,7 +175,7 @@ then
 else
   echo " -: $arg"
 fi
-done | xargs -x -n 50000 curl -s -X POST --http2-prior-knowledge -Z --parallel-max 125 --header 'Content-Type: application/cbor'`);
+done | xargs -x -n 50000 curl -s -X POST --http2-prior-knowledge -Z --parallel-max 100 --header 'Content-Type: application/cbor'`);
   }
 
   async runCurl(

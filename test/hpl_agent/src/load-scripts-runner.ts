@@ -134,9 +134,9 @@ export class LoadScriptsRunner {
     for (let i = 0; i < totalTxs; i++) {
       const requestInfo = aggRequestInfo[i % aggRequestInfo.length];
       requestInfo.timestamp32_2 += 1; // + 1 nanosecond
-      if (requestInfo.timestamp32_1 >= 4294967296) {
-        requestInfo.timestamp32_1 -= 4294967296;
-        requestInfo.timestamp32_2 += 1;
+      if (requestInfo.timestamp32_2 >= 4294967296) {
+        requestInfo.timestamp32_2 -= 4294967296;
+        requestInfo.timestamp32_1 += 1;
         // write timestamp32_1 to cbor
         for (let j = 0; j < 4; j++) {
           requestInfo.cbor[requestInfo.timestampOffset + j] = (requestInfo.timestamp32_1 >> (3 - j))

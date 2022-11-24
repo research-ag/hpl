@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 pushd "$(dirname "$0")"
 
 ips=( $(dig +short ic0.app) )
@@ -15,7 +15,7 @@ trap cleanup EXIT
 mkdir -p logs
 rm -rf logs/worker_*
 for i in $(seq 0 $(($processes - 1))); do
-  npm run start -- --ip=${ips[$(($i % $ips_len))]} 2>&1 | tee logs/worker_$i.log >(awk '{print "worker_'$i': "$0}' > /dev/tty) > /dev/null &
+  npm run start -- --ip=${ips[$(($i % $ips_len))]} 2>&1 | sed  's/^/worker_'$i': /' | tee logs/worker_$i.log &
 done
 wait
 

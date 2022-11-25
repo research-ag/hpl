@@ -231,6 +231,10 @@ module {
 
     /** heartbeat function */
     public func heartbeat() : async () {
+      // debug logic to test big batches
+      if (approvedTxs.size() < 50000) {
+        return;
+      };
       tracker.add(#heartbeat);
       let requestsToSend = getNextBatchRequests();
       // if the batch is empty then stop

@@ -116,6 +116,9 @@ module {
     // the queue of approved requests for batching
     var approvedTxs = HPLQueue<LocalId>();
 
+    // for debug
+    public var maxBatchBytes = 262074; // 2MB - 70 bytes for DIDL prefix and type table
+
     // Create a new transaction request.
     // Here we init it and put to the lookup table.
     // If the lookup table is full, we try to reuse the slot with oldest unapproved request
@@ -262,14 +265,14 @@ module {
       };
     };
 
-    public func stats() : Stats = tracker.stats(); 
+    public func stats() : Stats = tracker.stats();
 
     let batchIter = object {
       var remainingRequests = 0;
       var remainingBytes = 0;
       public func reset() : () {
         remainingRequests := constants.maxBatchRequests;
-        remainingBytes := constants.maxBatchBytes;
+        remainingBytes := maxBatchBytes;
       };
       public func next() : ?TxReq {
         // number of requests is limited to `batchSize`

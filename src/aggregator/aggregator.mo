@@ -58,11 +58,11 @@ module {
 
   public let constants = {
     // the number of transactions in one batch
-    maxBatchRequests = 4096;
+    maxBatchRequests = 16384;
 
     // the size of a batch in bytes
     // 2MB - 70 bytes for DIDL prefix and type table
-    maxBatchBytes = 262074;
+    maxBatchBytes = 2097082;
   };
 
   public class Aggregator(ledger : Principal, ownId : AggregatorId, lookupTableCapacity: Nat) {
@@ -117,7 +117,7 @@ module {
     var approvedTxs = HPLQueue<LocalId>();
 
     // for debug
-    public var maxBatchBytes = 262074; // 2MB - 70 bytes for DIDL prefix and type table
+    public var maxBatchBytes = 2097082; // 2MB - 70 bytes for DIDL prefix and type table
 
     // Create a new transaction request.
     // Here we init it and put to the lookup table.

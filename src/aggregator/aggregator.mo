@@ -58,7 +58,7 @@ module {
 
   public let constants = {
     // the number of transactions in one batch
-    maxBatchRequests = 256;
+    maxBatchRequests = 4096;
 
     // the size of a batch in bytes
     // 2MB - 70 bytes for DIDL prefix and type table

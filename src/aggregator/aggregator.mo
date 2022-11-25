@@ -118,6 +118,7 @@ module {
 
     // for debug
     public var maxBatchBytes = 1048506; // 1MB - 70 bytes for DIDL prefix and type table
+    public var maxBatchRequests = 16384;
 
     // Create a new transaction request.
     // Here we init it and put to the lookup table.
@@ -275,7 +276,7 @@ module {
       var remainingRequests = 0;
       var remainingBytes = 0;
       public func reset() : () {
-        remainingRequests := constants.maxBatchRequests;
+        remainingRequests := maxBatchRequests;
         remainingBytes := maxBatchBytes;
       };
       public func next() : ?TxReq {

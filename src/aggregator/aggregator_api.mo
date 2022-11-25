@@ -50,6 +50,7 @@ actor class AggregatorAPI(ledger : Principal, ownId : Aggregator.AggregatorId, l
 
   // TODO remove after testing OR make it available only to canister controller
   public func setMaxBatchBytes(value: Nat) : async () { aggregator_.maxBatchBytes := value; };
+  public func setMaxBatchRequests(value: Nat) : async () { aggregator_.maxBatchRequests := value; };
 
   /** heartbeat function */
   system func heartbeat() : async () {

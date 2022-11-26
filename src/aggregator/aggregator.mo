@@ -7,7 +7,7 @@ import Tx "../shared/transaction";
 import DLL "../shared/dll";
 import { arrayFindIndex } "../shared/utils";
 import { SlotTable } "../shared/slot_table";
-import { HPLQueue } "../shared/queue";
+import HPLQueue "../shared/queue";
 import Stats "stats";
 
 module {
@@ -18,7 +18,7 @@ module {
   public type Batch = Tx.Batch;
   public type AssetId = Tx.AssetId;
 
-  public type SubmitError = Tx.TxError or { #NoSpace; };
+  public type SubmitError = Tx.TxError or { #NoSpace; #NotRunning };
   public type NotPendingError = { #WrongAggregator; #NotFound; #NoPart; #AlreadyRejected; #AlreadyApproved };
   public type GidError = { #NotFound; };
 
@@ -65,11 +65,15 @@ module {
     maxBatchBytes = 262074;
   };
 
+  public type State = { #stopped; #running; #resuming };
+
   public class Aggregator(ledger : Principal, ownId : AggregatorId, lookupTableCapacity: Nat) {
     // define the ledger actor
     let Ledger_actor = actor (Principal.toText(ledger)) : actor { processBatch : Tx.Batch -> async () };
 
     let tracker = Stats.Tracker();
+
+    var state_ : State = #running;
 
     /*
     Glossary:
@@ -114,12 +118,17 @@ module {
     // chain of all used slots with an unapproved tx request
     var unapproved = DLL.DoublyLinkedList<TxReq>();
     // the queue of approved requests for batching
-    var approvedTxs = HPLQueue<LocalId>();
+    var approvedTxs = HPLQueue.HPLQueue<LocalId>();
+    // the queue of failed-to-send requests for retrying
+    var failedTxs = HPLQueue.HPLQueue<LocalId>();
 
     // Create a new transaction request.
     // Here we init it and put to the lookup table.
     // If the lookup table is full, we try to reuse the slot with oldest unapproved request
     public func submit(caller: Principal, tx: Tx.Tx): Result<GlobalId, SubmitError> {
+      if (state_ != #running) {
+        return #err(#NotRunning);
+      };
       switch (Tx.validate(tx, true)) {
         case (#err error) { return #err(error) };
         case (_) {}
@@ -229,19 +238,40 @@ module {
     /** heartbeat function */
     public func heartbeat() : async () {
       tracker.add(#heartbeat);
-      let requestsToSend = getNextBatchRequests();
-      // if the batch is empty then stop
-      // we don't send an empty batch
+      var requestsToSend : [TxReq] = [];
+      switch (state_) {
+        case (#stopped) { 
+          return
+        };
+        case (#resuming) { 
+          // build batch from the failed-to-send txs
+          retryIter.reset();
+          requestsToSend := Iter.toArray(retryIter);
+          if (requestsToSend.size() == 0) {
+            // none left to retry, transition to state #running
+            state_ := #running;
+            return
+          }
+        };
+        case (#running) {
+          // build batch from the normal queue
+          batchIter.reset();
+          requestsToSend := Iter.toArray(batchIter);
+          if (requestsToSend.size() == 0) {
+            // we don't send empty batches
+            return
+          }
+        }
+      };
       let n = requestsToSend.size();
-      if (n == 0) return;
       try {
-        tracker.add(#batch(requestsToSend.size()));
+        tracker.add(#batch(n));
         await Ledger_actor.processBatch(Array.map(requestsToSend, func (req: TxReq): Tx.Tx = req.tx));
         tracker.add(#processed(n));
         // the batch has been processed
-        // the transactions in b are now explicitly deleted from the lookup table
-        // the aggregator has now done its job
-        // the user has to query the ledger to see the execution status (executed or failed) and the order relative to other transactions
+        // the transactions from the batch will be deleted from the lookup table
+        // the user has to query the ledger to see the execution status (executed or failed) 
+        // and the order relative to other transactions
         for (req in requestsToSend.vals()) {
           switch (req.lid) {
             case (?l) lookup.remove(l);
@@ -249,22 +279,34 @@ module {
           };
         };
       } catch (e) {
-        tracker.add(#error(n));
         // batch was not processed
-        // we do not retry sending the batch
-        // we set the status of all txs to #failed_to_send
-        // we leave all txs in the lookup table forever
-        // in the lookup table all of status #approved, #pending, #failed_to_send remain outside any chain, hence they won't be deleted
-        // only an upgrade can clean them up
+        tracker.add(#error(n));
+        // we set the status of all txs to #failed_to_send 
+        // and re-queue them in a separate queue 
         for (req in requestsToSend.vals()) {
           req.status := #failed_to_send;
+          switch (req.lid) {
+            case (?l) failedTxs.enqueue(l);
+            case (null) assert false; // should never happen
+          };
         };
+        // we stop the aggregator
+        state_ := #stopped;
+        // it must be manually resumed by the admin (or upgraded)
+        // failed-to-send txs remain in the lookup table and can be retried
+      };
+    };
+
+    public func resume() : async () {
+      if (state_ == #stopped) {
+        state_ := #resuming;
       };
     };
 
     public func stats() : Stats = tracker.stats(); 
+    public func state() : State = state_; 
 
-    let batchIter = object {
+    class BatchIter(queue : HPLQueue.HPLQueue<LocalId>) {
       var remainingRequests = 0;
       var remainingBytes = 0;
       public func reset() : () {
@@ -278,7 +320,7 @@ module {
           return null 
         };
         // get the local id at the head of the queue
-        switch (approvedTxs.peek()) {
+        switch (queue.peek()) {
           case (?lid) {
             // get the txreq from the lookup table 
             switch (lookup.get(lid)) {
@@ -290,7 +332,7 @@ module {
                   return null // stop iteration
                 } else { 
                   // pop local id from queue and return the txreq
-                  ignore approvedTxs.dequeue(); 
+                  ignore queue.dequeue(); 
                   remainingBytes -= bytesNeeded;
                   remainingRequests -= 1;
                   txreq.status := #pending;
@@ -310,10 +352,8 @@ module {
       };
     };
 
-    public func getNextBatchRequests(): [TxReq] {
-      batchIter.reset();
-      Iter.toArray(batchIter)
-    };
+    let batchIter = BatchIter(approvedTxs);
+    let retryIter = BatchIter(failedTxs);
 
     // private functionality
     /** get info about pending request. Returns user-friendly errors */

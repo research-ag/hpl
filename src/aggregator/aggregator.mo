@@ -352,8 +352,8 @@ module {
       };
     };
 
-    let batchIter = BatchIter(approvedTxs);
-    let retryIter = BatchIter(failedTxs);
+    public let batchIter = BatchIter(approvedTxs);
+    public let retryIter = BatchIter(failedTxs);
 
     // private functionality
     /** get info about pending request. Returns user-friendly errors */

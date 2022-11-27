@@ -3,6 +3,7 @@ import Principal "mo:base/Principal";
 import Bool "mo:base/Bool";
 import Result "mo:base/Result";
 import Iter "mo:base/Iter";
+import E "mo:base/Error";
 import Tx "../shared/transaction";
 import DLL "../shared/dll";
 import { arrayFindIndex } "../shared/utils";
@@ -65,7 +66,7 @@ module {
     maxBatchBytes = 262074;
   };
 
-  public type State = { #stopped; #running; #resuming };
+  public type State = { #stopped : (E.ErrorCode, Text); #running; #resuming };
 
   public class Aggregator(ledger : Principal, ownId : AggregatorId, lookupTableCapacity: Nat) {
     // define the ledger actor
@@ -240,7 +241,7 @@ module {
       tracker.add(#heartbeat);
       var requestsToSend : [TxReq] = [];
       switch (state_) {
-        case (#stopped) { 
+        case (#stopped _) { 
           return
         };
         case (#resuming) { 
@@ -291,16 +292,19 @@ module {
           };
         };
         // we stop the aggregator
-        state_ := #stopped;
+        state_ := #stopped(E.code(e),E.message(e));
         // it must be manually resumed by the admin (or upgraded)
         // failed-to-send txs remain in the lookup table and can be retried
       };
     };
 
     public func resume() : async () {
-      if (state_ == #stopped) {
-        state_ := #resuming;
-      };
+      switch state_ {
+        case (#stopped _) {
+          state_ := #resuming;
+        };
+        case _ {} 
+      }
     };
 
     public func stats() : Stats = tracker.stats(); 

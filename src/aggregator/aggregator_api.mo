@@ -46,8 +46,14 @@ actor class AggregatorAPI(ledger : Principal, ownId : Aggregator.AggregatorId, l
     aggregator_.txDetails(gid);
   };
 
+  public func resume() : async () = async aggregator_.resume();
+
   public query func stats() : async Aggregator.Stats = async aggregator_.stats();
   public query func state() : async Aggregator.State = async aggregator_.state();
+
+  // TODO remove after testing OR make it available only to canister controller
+  public func setMaxBatchBytes(value: Nat) : async () { aggregator_.maxBatchBytes := value; };
+  public func setMaxBatchRequests(value: Nat) : async () { aggregator_.maxBatchRequests := value; };
 
   /** heartbeat function */
   system func heartbeat() : async () {

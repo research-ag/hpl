@@ -59,11 +59,11 @@ module {
 
   public let constants = {
     // the number of transactions in one batch
-    maxBatchRequests = 256;
+    maxBatchRequests = 16384;
 
     // the size of a batch in bytes
-    // 2MB - 70 bytes for DIDL prefix and type table
-    maxBatchBytes = 262074;
+    // 1MB - 70 bytes for DIDL prefix and type table
+    maxBatchBytes = 1048506;
   };
 
   public type State = { #stopped : (E.ErrorCode, Text); #running; #resuming };
@@ -122,6 +122,10 @@ module {
     var approvedTxs = HPLQueue.HPLQueue<LocalId>();
     // the queue of failed-to-send requests for retrying
     var failedTxs = HPLQueue.HPLQueue<LocalId>();
+
+    // for debug
+    public var maxBatchBytes = 1048506; // 1MB - 70 bytes for DIDL prefix and type table
+    public var maxBatchRequests = 16384;
 
     // Create a new transaction request.
     // Here we init it and put to the lookup table.
@@ -241,10 +245,10 @@ module {
       tracker.add(#heartbeat);
       var requestsToSend : [TxReq] = [];
       switch (state_) {
-        case (#stopped _) { 
+        case (#stopped _) {
           return
         };
-        case (#resuming) { 
+        case (#resuming) {
           // build batch from the failed-to-send txs
           retryIter.reset();
           requestsToSend := Iter.toArray(retryIter);
@@ -271,7 +275,7 @@ module {
         tracker.add(#processed(n));
         // the batch has been processed
         // the transactions from the batch will be deleted from the lookup table
-        // the user has to query the ledger to see the execution status (executed or failed) 
+        // the user has to query the ledger to see the execution status (executed or failed)
         // and the order relative to other transactions
         for (req in requestsToSend.vals()) {
           switch (req.lid) {
@@ -282,8 +286,8 @@ module {
       } catch (e) {
         // batch was not processed
         tracker.add(#error(n));
-        // we set the status of all txs to #failed_to_send 
-        // and re-queue them in a separate queue 
+        // we set the status of all txs to #failed_to_send
+        // and re-queue them in a separate queue
         for (req in requestsToSend.vals()) {
           req.status := #failed_to_send;
           switch (req.lid) {
@@ -298,24 +302,24 @@ module {
       };
     };
 
-    public func resume() : async () {
+    public func resume() : () {
       switch state_ {
         case (#stopped _) {
           state_ := #resuming;
         };
-        case _ {} 
+        case _ {}
       }
     };
 
-    public func stats() : Stats = tracker.stats(); 
-    public func state() : State = state_; 
+    public func stats() : Stats = tracker.stats();
+    public func state() : State = state_;
 
     class BatchIter(queue : HPLQueue.HPLQueue<LocalId>) {
       var remainingRequests = 0;
       var remainingBytes = 0;
       public func reset() : () {
-        remainingRequests := constants.maxBatchRequests;
-        remainingBytes := constants.maxBatchBytes;
+        remainingRequests := maxBatchRequests;
+        remainingBytes := maxBatchBytes;
       };
       public func next() : ?TxReq {
         // number of requests is limited to `batchSize`
@@ -336,7 +340,7 @@ module {
                   return null // stop iteration
                 } else { 
                   // pop local id from queue and return the txreq
-                  ignore queue.dequeue(); 
+                  ignore queue.dequeue();
                   remainingBytes -= bytesNeeded;
                   remainingRequests -= 1;
                   txreq.status := #pending;

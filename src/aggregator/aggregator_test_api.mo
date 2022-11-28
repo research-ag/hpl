@@ -87,12 +87,14 @@ actor class AggregatorTestAPI(ledger : Principal, ownId : Aggregator.AggregatorI
   };
 
   public func getNextBatch() : async Aggregator.Batch {
-    Array.map(aggregator_.getNextBatchRequests(), func (req: Aggregator.TxReq): Tx.Tx = req.tx);
+    aggregator_.batchIter.reset();
+    Array.map(Iter.toArray(aggregator_.batchIter), func (req: Aggregator.TxReq): Tx.Tx = req.tx);
   };
   public func profileGetNextBatch() : async (Nat64, Aggregator.Batch) {
     var result: [Aggregator.TxReq] = [];
     let instructions: Nat64 = E.countInstructions(func foo() {
-      result := aggregator_.getNextBatchRequests();
+      aggregator_.batchIter.reset();
+      result := Iter.toArray(aggregator_.batchIter);
     });
     (instructions, Array.map(result, func (req: Aggregator.TxReq): Tx.Tx = req.tx));
   };

@@ -47,6 +47,7 @@ actor class AggregatorAPI(ledger : Principal, ownId : Aggregator.AggregatorId, l
   };
 
   public query func stats() : async Aggregator.Stats = async aggregator_.stats();
+  public query func state() : async Aggregator.State = async aggregator_.state();
 
   // TODO remove after testing OR make it available only to canister controller
   public func setMaxBatchBytes(value: Nat) : async () { aggregator_.maxBatchBytes := value; };

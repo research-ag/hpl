@@ -307,7 +307,7 @@ module {
       };
     };
 
-    public func resume() : async () {
+    public func resume() : () {
       switch state_ {
         case (#stopped _) {
           state_ := #resuming;

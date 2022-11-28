@@ -46,6 +46,8 @@ actor class AggregatorAPI(ledger : Principal, ownId : Aggregator.AggregatorId, l
     aggregator_.txDetails(gid);
   };
 
+  public func resume() : async () = async aggregator_.resume();
+
   public query func stats() : async Aggregator.Stats = async aggregator_.stats();
   public query func state() : async Aggregator.State = async aggregator_.state();
 

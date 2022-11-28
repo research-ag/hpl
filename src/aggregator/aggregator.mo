@@ -126,6 +126,7 @@ module {
     // for debug
     public var maxBatchBytes = 1048506; // 1MB - 70 bytes for DIDL prefix and type table
     public var maxBatchRequests = 16384;
+    public var minQueueSize = 0;
 
     // Create a new transaction request.
     // Here we init it and put to the lookup table.
@@ -242,11 +243,11 @@ module {
 
     /** heartbeat function */
     public func heartbeat() : async () {
+      tracker.add(#heartbeat);
       // debug logic to test big batches
-      if (approvedTxs.size() < 50000) {
+      if (approvedTxs.size() < minQueueSize) {
         return;
       };
-      tracker.add(#heartbeat);
       var requestsToSend : [TxReq] = [];
       switch (state_) {
         case (#stopped _) {

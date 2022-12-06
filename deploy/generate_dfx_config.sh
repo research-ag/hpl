@@ -101,7 +101,7 @@ done
 ledger_arg=$ledger_arg'})"'
 printDeployCmd ledger "$ledger_arg" >>deploy_canisters.sh
 
-echo "\n\npopd" >>create_canisters.sh
-echo "\npopd" >>deploy_canisters.sh
+echo $'\n\npopd' >>create_canisters.sh
+echo $'\npopd' >>deploy_canisters.sh
 chmod +x create_canisters.sh deploy_canisters.sh
 popd

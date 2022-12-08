@@ -5,7 +5,7 @@ on:
 
 env:
   vessel_version: v0.6.4
-  moc_version: 0.7.3
+  moc_version: 0.7.4
   dfx_version: 0.12.1
   ic-repl_version: 0.3.10
 

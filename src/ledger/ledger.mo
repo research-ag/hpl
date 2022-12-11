@@ -9,6 +9,7 @@ import Tx "../shared/transaction";
 import u "../shared/utils";
 import { CircularBuffer } "../shared/circular_buffer";
 import C "../shared/constants";
+import Stats "ledger-stats";
 
 module {
   public type Result<X,Y> = R.Result<X,Y>;
@@ -42,6 +43,8 @@ module {
     #NoSpace; 
     #FeeError 
   };
+  public type Stats = Stats.Stats;
+
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (aka owner ids) are issued consecutively
   public type OwnerId = Nat;
@@ -60,71 +63,12 @@ module {
     maxPrincipals = 16777216; // 2**24
   };
 
-  // tx counter (used once per source)
-  type CtrState = { batches: Nat; txs: Nat; txsFailed: Nat; txsSucceeded: Nat };
-
-  class Ctr() {
-    public var batches : Nat = 0;
-    public var txs : Nat = 0;
-    public var txsFailed : Nat = 0;
-    public var txsSucceeded : Nat = 0;
-
-    public func record(event : {#batch; #txfail; #txsuccess}) =
-      switch (event) {
-        case (#batch) { 
-          batches += 1; 
-        };
-        case (#txfail) { 
-          txsFailed += 1;
-          txs += 1;
-        };
-        case (#txsuccess) {
-          txsSucceeded += 1;
-          txs += 1;
-        }
-      };
-
-    public func state() : CtrState = {
-      batches = batches;
-      txs = txs;
-      txsFailed = txsFailed;
-      txsSucceeded = txsSucceeded;
-    };
-  };
-
-  // global stats
-  public type Stats = { perAgg : [CtrState]; direct : CtrState; all : CtrState; registry : { owners : Nat; accounts : Nat; assets : Nat }};
 
   public class Ledger(initialAggregators : [Principal]) {
 
-    // stats bundles all values that are collected with the purpose of making them available to outside observers
+    // tracker bundles all values that are collected with the purpose of making them available to outside observers
     // they are not used internally and have no relevance for the operation of the ledger
-    let stats_ = object {
-      public var perAgg : [Ctr] = Array.tabulate<Ctr>(initialAggregators.size(), func(i) { Ctr() });
-      public var direct : Ctr = Ctr();
-      public var all : Ctr = Ctr();
-      public var accounts : Nat = 0;
-
-      public func record(source: {#agg : Nat; #direct}, event : {#batch; #txfail; #txsuccess}) {
-        switch source {
-          case (#agg i) perAgg[i].record(event);
-          case (#direct) direct.record(event)
-        };
-        all.record(event);
-      };
-
-      public func add(item : {#accounts : Nat}) =
-        switch item {
-          case (#accounts(n)) accounts += n
-        };
-
-      public func get() : Stats = {
-        perAgg = Array.tabulate<CtrState>(perAgg.size(), func(i) { perAgg[i].state() });
-        direct = direct.state();
-        all = all.state();
-        registry = { owners = counters_.owners; accounts = accounts; assets = counters_.assets }
-      }
-    };
+    let tracker = Stats.Tracker(initialAggregators.size());
 
     // counters bundles those counter values on which the ledger operation depends 
     let counters_ = object {
@@ -197,7 +141,7 @@ module {
     public func allAssets(p : Principal) : Result<[SubaccountState], { #UnknownPrincipal }> =
       R.mapOk(ownerId(p), allAssets_);
 
-    public func stats() : Stats = stats_.get(); 
+    public func stats() : Stats = tracker.get(); 
 
     public func batchesHistory(startIndex: Nat, endIndex: Nat) : [BatchHistoryEntry] = batchHistory.slice(startIndex, endIndex);
 
@@ -205,9 +149,10 @@ module {
     // add one aggregator principal
     // return the id of the newly added aggregator
     public func addAggregator(p : Principal) : AggregatorId {
+      let newId = aggregators.size();
       aggregators := u.append(aggregators, p);
-      stats_.perAgg := u.append(stats_.perAgg, Ctr());
-      aggregators.size() - 1;
+      tracker.add(#aggregator);
+      newId
     };
 
     // this function is an internal helper but is made public for testing (see ledger_api.mo)
@@ -251,7 +196,7 @@ module {
             return #err(#NoSpaceForSubaccount);
           };
           accounts[oid] := u.appendVar(accounts[oid], n, {asset = #ft(aid, 0)});
-          stats_.add(#accounts(n));
+          tracker.add(#accounts(n));
           #ok(oldSize);
         };
       };
@@ -265,13 +210,13 @@ module {
       for (i in batch.keys()) {
         let res = processTx(batch[i]);
         switch (res) {
-          case (#ok) { stats_.record(source, #txsuccess) };
-          case (#err(_)) { stats_.record(source, #txfail) };
+          case (#ok) { tracker.record(source, #txsuccess) };
+          case (#err(_)) { tracker.record(source, #txfail) };
         };
         results[i] := res; 
       };
-      batchHistory.put({ batchNumber = stats_.all.batches; txNumberOffset = stats_.all.txs - results.size(); results = Array.freeze(results) });
-      stats_.record(source, #batch);
+      batchHistory.put({ batchNumber = tracker.all.batches; txNumberOffset = tracker.all.txs - results.size(); results = Array.freeze(results) });
+      tracker.record(source, #batch);
       Array.freeze(results)
     };
 

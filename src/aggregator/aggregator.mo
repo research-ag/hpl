@@ -9,7 +9,7 @@ import DLL "../shared/dll";
 import { arrayFindIndex } "../shared/utils";
 import { SlotTable } "../shared/slot_table";
 import HPLQueue "../shared/queue";
-import Stats "stats";
+import Stats "agg-stats";
 
 module {
   public type AggregatorId = Nat;

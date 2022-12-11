@@ -50,19 +50,18 @@ module {
   public type OwnerId = Nat;
 
   public let constants = {
-    // maximum number of asset ids that the ledger can register
-    maxAssets = C.maxAssets; 
+    // maximum number of owner ids that the ledger can register
+    maxPrincipals = 16777216; // 2**24
 
     // maximum number of subaccounts per owner
     maxSubaccounts = C.maxSubaccounts; 
 
+    // maximum number of asset ids that the ledger can register
+    maxAssets = C.maxAssets; 
+
     // maximum number of stored latest processed batches on the ledger
     batchHistoryLength = 1024;
-
-    // maximum number of owner ids that the ledger can register
-    maxPrincipals = 16777216; // 2**24
   };
-
 
   public class Ledger(initialAggregators : [Principal]) {
 

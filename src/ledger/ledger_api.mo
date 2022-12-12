@@ -24,11 +24,8 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   /*
   Open n new subaccounts.
 
-  The token id cannot be changed anymore with the current API.
+  The token id has to be defined and cannot be changed anymore with the current API.
   For any transaction the inflow has to match the token id of the subaccount or else is rejected.
-
-  If the owner wants to set a subaccount's token id before the first inflow then the owner can make a transaction that has no inflows and an outflow of the token id and amount 0.
-  That will set the Asset value in the subaccount to the wanted token id.
   */
   public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> =
     async ledger_.openNewAccounts(caller, n, assetId);
@@ -51,7 +48,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   };
 
   /*
-  Process one Tx immediately. Works only for Tx with single contribution, owned by caller
+  Process one Tx immediately. Works only if approval by the caller is sufficient to approve the whole Tx
   */
   public shared({caller}) func processImmediateTx(tx: Tx.Tx): async Result<(), Ledger.ImmediateTxError> = async ledger_.processImmediateTx(caller, tx);
 
@@ -60,7 +57,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   // in the future, calling this will cost a fee in ICP or cycles
   // an error occurs when the maximum number of asset ids is reached
   // an error occurs when the call does not carry a valid fee payment
-  // the caller will become the "controller" of the asset id
+  // the caller becomes the "controller" of the asset id
   // the controller is the sole principal that can mint and burn tokens
   // typically the controller will be a canister
   public shared ({caller}) func createFungibleToken() : async Result<Ledger.AssetId, Ledger.CreateFtError> {

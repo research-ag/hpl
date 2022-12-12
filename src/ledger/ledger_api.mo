@@ -81,4 +81,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   public query func allAssets(owner : Principal) : async Result<[Ledger.SubaccountState], { #UnknownPrincipal }> = async ledger_.allAssets(owner);
   public query func stats() : async Ledger.Stats = async ledger_.stats();
   public query func batchesHistory(startIndex: Nat, endIndex: Nat) : async [Ledger.BatchHistoryEntry] = async ledger_.batchesHistory(startIndex, endIndex);
+
+  /** heartbeat function */
+  system func heartbeat() : async () = async ledger_.heartbeat();
 };

@@ -4,6 +4,9 @@ import Bool "mo:base/Bool";
 import Result "mo:base/Result";
 import Iter "mo:base/Iter";
 import E "mo:base/Error";
+import Cycles "mo:base/ExperimentalCycles";
+import Prim "mo:prim";
+
 import Tx "../shared/transaction";
 import DLL "../shared/dll";
 import { arrayFindIndex } "../shared/utils";
@@ -33,7 +36,7 @@ module {
   The vector's length equals the number of contributors to the transactions.
   When a txreq is fully approved then it is queued for being sent to the ledger and its status changes to #approved.
   The `pushCtr` value of the queue is stored in the Nat value of the #approved variant.
-  This value can be used to determine the position in the queue at a later time by comparing against `popCtr`. 
+  This value can be used to determine the position in the queue at a later time by comparing against `popCtr`.
   */
   public type MutableApprovals = [var Bool];
   public type Approvals = [Bool];
@@ -243,6 +246,9 @@ module {
 
     /** heartbeat function */
     public func heartbeat() : async () {
+      if (tracker.stats().heartbeats % 60 == 0) {
+        tracker.logCanisterStatus();
+      };
       tracker.add(#heartbeat);
       var requestsToSend : [TxReq] = [];
       switch (state_) {

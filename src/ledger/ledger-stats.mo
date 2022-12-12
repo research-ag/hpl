@@ -1,5 +1,7 @@
 import Array "mo:base/Array";
 import u "../shared/utils";
+import Cycles "mo:base/ExperimentalCycles";
+import Prim "mo:prim";
 
 module {
   public class Tracker(nAggregators: Nat) {
@@ -9,6 +11,11 @@ module {
     public var accounts : Nat = 0;
     public var owners : Nat = 0;
     public var assets : Nat = 0;
+
+    let canisterStatus = {
+      var cyclesBalance = 0;
+      var memory_size = 0;
+    };
 
     public func record(source: {#agg : Nat; #direct}, event : {#batch; #txfail; #txsuccess}) {
       switch source {
@@ -28,11 +35,20 @@ module {
         }
       };
 
+    public func logCanisterStatus() : () {
+      canisterStatus.cyclesBalance := Cycles.balance();
+      canisterStatus.memory_size := Prim.rts_memory_size();
+    };
+
     public func get() : Stats = {
       perAgg = Array.tabulate<CtrState>(perAgg.size(), func(i) { perAgg[i].state() });
       direct = direct.state();
       all = all.state();
-      registry = { owners = owners; accounts = accounts; assets = assets; aggregators = perAgg.size() }
+      registry = { owners = owners; accounts = accounts; assets = assets; aggregators = perAgg.size() };
+      canisterStatus = {
+        cyclesBalance = canisterStatus.cyclesBalance;
+        memory_size = canisterStatus.memory_size;
+      };
     }
   };
 
@@ -47,10 +63,10 @@ module {
 
     public func record(event : {#batch; #txfail; #txsuccess}) =
       switch (event) {
-        case (#batch) { 
-          batches += 1; 
+        case (#batch) {
+          batches += 1;
         };
-        case (#txfail) { 
+        case (#txfail) {
           txsFailed += 1;
           txs += 1;
         };
@@ -69,15 +85,19 @@ module {
   };
 
   // global stats
-  public type Stats = { 
-    perAgg : [CtrState]; 
-    direct : CtrState; 
-    all : CtrState; 
-    registry : { 
-      owners : Nat; 
-      accounts : Nat; 
+  public type Stats = {
+    perAgg : [CtrState];
+    direct : CtrState;
+    all : CtrState;
+    registry : {
+      owners : Nat;
+      accounts : Nat;
       assets : Nat;
       aggregators : Nat
-    }
+    };
+    canisterStatus : {
+      cyclesBalance: Nat;
+      memory_size: Nat;
+    };
   };
 }

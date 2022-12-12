@@ -1,8 +1,15 @@
+import Cycles "mo:base/ExperimentalCycles";
+import Prim "mo:prim";
+
 module {
-  public type Stats = { 
-    txs : { submitted : Nat; queued: Nat; rejected: Nat; batched: Nat; processed: Nat; failed: Nat }; 
-    batches : { sent: Nat; processed: Nat; failed: Nat }; 
-    heartbeats : Nat 
+  public type Stats = {
+    txs : { submitted : Nat; queued: Nat; rejected: Nat; batched: Nat; processed: Nat; failed: Nat };
+    batches : { sent: Nat; processed: Nat; failed: Nat };
+    heartbeats : Nat;
+    canisterStatus : {
+      cyclesBalance: Nat;
+      memory_size: Nat;
+    };
   };
 
   public class Tracker() {
@@ -21,6 +28,11 @@ module {
     };
     var heartbeats = 0;
 
+    let canisterStatus = {
+      var cyclesBalance = 0;
+      var memory_size = 0;
+    };
+
     public func add(item : {#submit; #queue; #reject; #batch: Nat; #processed: Nat; #error: Nat; #heartbeat}) =
       switch item {
         // tx
@@ -32,11 +44,16 @@ module {
         case (#processed n) { batches.processed += 1; txs.processed += n };
         case (#error n) { batches.failed += 1; txs.failed += n };
         // heartbeat
-        case (#heartbeat) heartbeats += 1 
+        case (#heartbeat) heartbeats += 1
       };
 
+    public func logCanisterStatus() : () {
+      canisterStatus.cyclesBalance := Cycles.balance();
+      canisterStatus.memory_size := Prim.rts_memory_size();
+    };
+
     public func stats() : Stats = {
-      txs = { 
+      txs = {
         submitted = txs.submitted;
         queued = txs.queued;
         rejected = txs.rejected;
@@ -49,7 +66,11 @@ module {
         processed = batches.processed;
         failed = batches.failed;
       };
-      heartbeats = heartbeats
-    }
+      heartbeats = heartbeats;
+      canisterStatus = {
+        cyclesBalance = canisterStatus.cyclesBalance;
+        memory_size = canisterStatus.memory_size;
+      };
+    };
   };
 }

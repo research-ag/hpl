@@ -349,5 +349,14 @@ module {
     // asset ids
     public var ftControllers: [Principal] = [];
 
+    private var heartbeatsAmount: Nat = 0;
+    /** heartbeat function */
+    public func heartbeat() : () {
+      if (heartbeatsAmount % 60 == 0) {
+        tracker.logCanisterStatus();
+      };
+      heartbeatsAmount += 1;
+    };
+
   };
 };

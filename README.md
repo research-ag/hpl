@@ -27,13 +27,13 @@ Find more documentation on [GitHub Pages](https://research-ag.github.io/hpl/)
 
 ## About
 
-The goal is to design and demonstrate a ledger on the IC(https://internetcomputer.org/) that can handle 10,000 transactions per second which are submitted individually by different end users via ingress messages. The number of ingress messages that the consensus mechanism of a single subnet can process is only in the order of 1,000 per second and is in fact rate limited by boundary nodes to a lower number (maybe around 400 per second). Therefore, to get to the desired throughput we plan to utilize 25 subnets.
+The goal is to design and demonstrate a ledger on the IC(https://internetcomputer.org/) that can handle 10,000 transactions per second which are submitted individually by different end users via ingress messages. The number of ingress messages that the consensus mechanism of a single subnet can process is in the order of 1,000 per second. In practice, due to rate limiting in the replicas, we expect to achieve ~400 per second. Therefore, to get to the desired throughput we plan to utilize 25 subnets.
 
 The approach we take is based on the assumption that consensus is indeed the bottleneck and that computation and memory are not bottlenecks. Our approach has a single ledger canister which stores all account balances and settles all transactions. Transactions are not submitted to the ledger directly, though. Instead, end users submit their transactions to aggregators of which there are 25, all on different subnets. Aggregators batch up the transactions and forward them in batches to the ledger. The bottleneck is now the block space available for incoming cross-subnet messages on the subnet that hosts the ledger. If the size of a simple transaction is 100 bytes then each aggregator submits 40kB of data per second to the ledger. For all aggregators combined this occupies 1 MB of block space per second.
 
-With some compression techniques we expect that the size of a simple transaction can be reduced to be around 20 bytes, which means a block space requirement of only 200 kB per second.
+With some compression techniques we expect that the size of a simple transaction can be reduced to be around 20 bytes, which means a block space requirement on the ledger side of only 200 kB per second.
 
-We expect the computational resources required to check 10,000 account balances and update 20,000 account balances per second to be within what a single canister can do.
+We expect the computational resources required to check 10,000 account balances and update 20,000 account balances per second to be insignificant compared to what a single canister can do.
 
 We expect the memory resources required to store 100 million account balances to be within what a single canister can do.
 
@@ -43,11 +43,9 @@ We do not expect the ledger to be able to store the history of transactions, but
 
 The ledger is a multi-token ledger. This means that multiple tokens, differentiated from each other by a token id, can be hosted on the same ledger canister.
 
-All transactions need to be explicitly approved by all parties involved, even the receiver. There are no deposits into arbitrary accounts without approval of the receiver.
-
 Multiple token flows can happen atomically in a single transaction.
 
-More than two parties can be part of a single transaction and all have to approve.
+More than two parties can be part of a single transaction.
 
 Any party can initiate the transaction: the sender, the receiver or even a third-party. The initiator is paying the fee.
 
@@ -58,11 +56,10 @@ Any party can initiate the transaction: the sender, the receiver or even a third
 
 ### Terminology
 
-**Canister** - conceptual computational unit, executes program in the Internet Computer blockchain [Read More](https://wiki.internetcomputer.org/wiki/Canisters_(dapps/smart_contracts))
+**Principal** - tokens in the ledger are held by [principals](https://internetcomputer.org/docs/current/references/ic-interface-spec#id-classes) which can identify an external user or a canister on the IC.
+ier for an entity on the IC such as a user or a canister which can hold tokens. (dapps/smart contracts), or a subnet.
 
-**Principal** - an identifier for an entity on the IC such as a user, a canister (dapps/smart contracts), or a subnet. [Read More](https://wiki.internetcomputer.org/wiki/Principal)
-
-**Subaccount** - essentially a wallet, owned by one principal and containing one type of tokens. Client principal can have many subaccounts with different and/or the same tokens 
+**Subaccount** - a principal can manage its tokens in multiple subaccounts which can hold different and/or the same tokens.
 
 ### Candid types of the API
 
@@ -72,7 +69,7 @@ See [ledger.did](src/ledger/ledger.did) and [aggregator.did](src/aggregator/aggr
 
 - [Context](#context-diagram)
   - [High-level user story](#high-level-user-story)
-- [Containers](#containers-diagram)
+- [Canisters](#containers-diagram)
   - [Low-level user story](#low-level-user-story)
 - [Data structures](#data-structures)
   - [Ledger](#ledger)
@@ -84,11 +81,11 @@ See [ledger.did](src/ledger/ledger.did) and [aggregator.did](src/aggregator/aggr
     <br/><span style="font-style: italic">context diagram</span>
 </p>
 
-With **HPL**, registered principals can submit and approve multi-token transactions. **HPL** charges fee for transaction
+With **HPL**, registered principals can submit and approve multi-token transactions. **HPL** charges a fee for the transaction.
 
-### High-level user story:
+### High-level user story for a two-party transaction:
 
-1. Principals **A** and **B** are registering themselves in **HPL**
+1. Principals **A** and **B** are registering themselves in the **HPL**
 2. Principals communicate directly to agree on the transaction details and on who initiates the transaction  (say **A**). 
 3. **A** submits transaction on **HPL** and receives generated **transactionId** as response
 4. **A** sends **transactionId** to **B** directly
@@ -105,7 +102,7 @@ With **HPL**, registered principals can submit and approve multi-token transacti
 </p>
 
 **HPL** infrastructure consists of 1 **Ledger** and N **Aggregators** (N=25 by default).
-- **Aggregator** canister is an entrypoint for principals. During the transaction process, both sender and receiver principal have to use one single aggregator. The aggregator is responsible for:
+- **Aggregator** canister is an entrypoint for principals. During the transaction process, all approving principals have to use one single aggregator. The aggregator is responsible for:
     - principals authentication
     - initial transaction validation
     - charging fee
@@ -120,7 +117,7 @@ With **HPL**, registered principals can submit and approve multi-token transacti
   - archiving latest transactions
   - providing list of available aggregators
 
-### Low-level user story:
+### Low-level user story for a two-party transaction:
 
 1. Principals **A** and **B** register themselves by [calling](#open-new-subaccount) ledger **L** API
 2. **L** creates accounts for newly registered principals

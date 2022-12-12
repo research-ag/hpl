@@ -9,7 +9,7 @@ import DLL "../shared/dll";
 import { arrayFindIndex } "../shared/utils";
 import { SlotTable } "../shared/slot_table";
 import HPLQueue "../shared/queue";
-import Stats "stats";
+import Stats "agg-stats";
 
 module {
   public type AggregatorId = Nat;
@@ -32,7 +32,8 @@ module {
   `Approvals` is a vector that captures the information who has already approved the transaction.
   The vector's length equals the number of contributors to the transactions.
   When a txreq is fully approved then it is queued for being sent to the ledger and its status changes to #approved.
-  The `push_ctr` value of the queue is stored in the #approved variant.
+  The `pushCtr` value of the queue is stored in the Nat value of the #approved variant.
+  This value can be used to determine the position in the queue at a later time by comparing against `popCtr`. 
   */
   public type MutableApprovals = [var Bool];
   public type Approvals = [Bool];
@@ -48,7 +49,7 @@ module {
   Here is the information we return to the user when the user queries for tx details.
   The difference to the internally stored TxReq is:
   - global id instead of local id
-  - the Nat in variant #approved is not the same. Here, we subtract the value `pop_ctr` to return the queue position.
+  - the Nat in variant #approved is not the same. Here, we subtract the value `popCtr` to return the queue position.
   */
   public type TxDetails = {
     tx : Tx.Tx;
@@ -80,9 +81,9 @@ module {
     Glossary:
     transaction (short: tx): The information that is being sent to the ledger if the transaction is approved. It captures a) everything needed during ledger-side validation of the transaction and b) everything needed to define the effect on the ledger if executed.
 
-    transaction request (short: tx request): The information of a transaction plus transient information needed while the transaction lives in the aggregator.
+    transaction request (short: tx request): The information of a tx plus transient information needed while the tx lives in the aggregator.
 
-    local tx id (short: local id): An id that uniquely identifies a transaction request inside this aggregator. It is issued when a transaction request is first submitted. It is never re-used again for any other request regardless of whether the transaction request is approved, rejected or otherwise deleted (expired). It stays with the transaction if the transaction is send to the ledger.
+    local tx id (short: local id): An id that uniquely identifies a tx request inside this aggregator. It is issued when a tx request is first submitted. It is never re-used again for any other request regardless of whether the tx request is approved, rejected or otherwise deleted (expired). It stays with the tx if the tx is sent to the ledger.
 
     global tx id (short: global id): The local id plus aggregator id makes a globally unique id.
 
@@ -93,20 +94,20 @@ module {
 
     /*
     Lifetime of a transaction request:
-    - tx submitted by the user becomes a transaction request
+    - tx submitted by the user becomes a tx request
     - pre-validation: is it too large? too many fields, etc.?
-    - tx is being saved to unapproved list
-    - tx cell in unapproved list is added to the lookup table. if there is no space then it is rejected, if there is space then the lookup table
+    - tx is being saved to unapproved list, forming a "cell" in a doubly-linked list
+    - tx cell is added to the lookup table. if there is no space then it is rejected, if there is space then the lookup table
       - generates a unique local tx id
       - stores the local tx id in the tx in the request
       - stores the cell with tx request
       - returns the local tx id
     - global tx id is returned to the user
-    - when approve and reject is called then the tx is looked up by its local id
+    - when approve or reject is called then the tx is looked up by its local id
     - when a tx is fully approved its local id is queued for batching
-    - when a local tx id is popped from the queue then the cell is deleted from the unapproved list and from the the lookup table. Slot becomes unused
+    - when a local tx id is popped from the queue then the cell is deleted from the unapproved list and from the the lookup table. The slot in the lookup table becomes unused
 
-    The aggregator sends the transactions in batches to the ledger. It does so at every invocation by the heartbeat functionality.
+    The aggregator sends the txs in batches to the ledger. It does so at every invocation by the heartbeat functionality.
     Between heartbeats, approved transaction queue up and get stored in a queue. The batches have a size limit. At every heartbeat,
     we pop as many approved transactions from the queue as fit into a batch and send the batch.
 
@@ -116,7 +117,7 @@ module {
 
     // lookup table
     var lookup = SlotTable<DLL.Cell<TxReq>>(lookupTableCapacity);
-    // chain of all used slots with an unapproved tx request
+    // list of all used slots with an unapproved tx request
     var unapproved = DLL.DoublyLinkedList<TxReq>();
     // the queue of approved requests for batching
     var approvedTxs = HPLQueue.HPLQueue<LocalId>();
@@ -128,7 +129,7 @@ module {
     public var maxBatchRequests = 16384;
 
     // Create a new transaction request.
-    // Here we init it and put to the lookup table.
+    // Here we create the request and add it to the lookup table.
     // If the lookup table is full, we try to reuse the slot with oldest unapproved request
     public func submit(caller: Principal, tx: Tx.Tx): Result<GlobalId, SubmitError> {
       if (state_ != #running) {
@@ -157,7 +158,7 @@ module {
         };
         case (null) {
           // try to reuse oldest unapproved
-          if (unapproved.size() < 2) { // 1 means that chain contains only just added cell
+          if (unapproved.size() < 2) { // 1 means that list contains only just added cell
             cell.removeFromList();
             return #err(#NoSpace);
           };
@@ -393,8 +394,8 @@ module {
     };
 
     /** cleanup oldest unapproved request */
-    private func cleanupOldest(chain: DLL.DoublyLinkedList<TxReq>) : Bool {
-      let oldestTrRequest = chain.popFront();
+    private func cleanupOldest(list: DLL.DoublyLinkedList<TxReq>) : Bool {
+      let oldestTrRequest = list.popFront();
       switch (oldestTrRequest) {
         case (null) false;
         case (?req) {
@@ -403,8 +404,8 @@ module {
               lookup.remove(lid);
               true;
             };
-            // chain contained request without lid. Should never happen, but to be on the safe side let's try to cleanup further
-            case (null) cleanupOldest(chain);
+            // list contained request without lid. Should never happen, but to be on the safe side let's try to cleanup further
+            case (null) cleanupOldest(list);
           };
         };
       };

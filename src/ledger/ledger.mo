@@ -9,6 +9,7 @@ import Tx "../shared/transaction";
 import u "../shared/utils";
 import { CircularBuffer } "../shared/circular_buffer";
 import C "../shared/constants";
+import Stats "ledger-stats";
 
 module {
   public type Result<X,Y> = R.Result<X,Y>;
@@ -21,12 +22,14 @@ module {
 
   public type SubaccountState = { asset: Asset };
   public type ProcessingError = Tx.TxError or { 
-    #UnknownPrincipal; // not yet registered 
-    #UnknownSubaccount; // not yet registered  
-    #UnknownFtAsset; // not yet registered 
+    // Errors that start with "Unknown" mean that 
+    // a value has not yet been registered
+    #UnknownPrincipal;
+    #UnknownSubaccount;
+    #UnknownFtAsset;
     #MismatchInAsset; // asset in flow != asset in subaccount 
     #InsufficientFunds; 
-    #NotAController;  // attempted mint operation
+    #NotAController;  // in attempted mint operation
   };
   public type ImmediateTxError = ProcessingError or { 
     #MissingApproval; 
@@ -36,90 +39,35 @@ module {
     txNumberOffset: Nat; 
     results: [Result<(), ProcessingError>] 
   };
-  public type CreateFtError = { #NoSpace; #FeeError };
+  public type CreateFtError = { 
+    #NoSpace; 
+    #FeeError 
+  };
+  public type Stats = Stats.Stats;
+
   // Owners are tracked via a "short id" which is a Nat
-  // Short ids (= owner ids) are issued consecutively
+  // Short ids (aka owner ids) are issued consecutively
   public type OwnerId = Nat;
 
   public let constants = {
-    // maximum number of asset ids that the ledger can register
-    maxAssets = C.maxAssets; 
+    // maximum number of owner ids that the ledger can register
+    maxPrincipals = 16777216; // 2**24
 
     // maximum number of subaccounts per owner
     maxSubaccounts = C.maxSubaccounts; 
 
+    // maximum number of asset ids that the ledger can register
+    maxAssets = C.maxAssets; 
+
     // maximum number of stored latest processed batches on the ledger
     batchHistoryLength = 1024;
-
-    // maximum number of accounts total in the ledger
-    maxPrincipals = 16777216; // 2**24
   };
-
-  // tx counter (used once per source)
-  type CtrState = { batches: Nat; txs: Nat; txsFailed: Nat; txsSucceeded: Nat };
-
-  class Ctr() {
-    public var batches : Nat = 0;
-    public var txs : Nat = 0;
-    public var txsFailed : Nat = 0;
-    public var txsSucceeded : Nat = 0;
-
-    public func record(event : {#batch; #txfail; #txsuccess}) =
-      switch (event) {
-        case (#batch) { 
-          batches += 1; 
-        };
-        case (#txfail) { 
-          txsFailed += 1;
-          txs += 1;
-        };
-        case (#txsuccess) {
-          txsSucceeded += 1;
-          txs += 1;
-        }
-      };
-
-    public func state() : CtrState = {
-      batches = batches;
-      txs = txs;
-      txsFailed = txsFailed;
-      txsSucceeded = txsSucceeded;
-    };
-  };
-
-  // global stats
-  public type Stats = { perAgg : [CtrState]; direct : CtrState; all : CtrState; registry : { owners : Nat; accounts : Nat; assets : Nat }};
 
   public class Ledger(initialAggregators : [Principal]) {
 
-    // stats bundles all values that are collected with the purpose of making them available to outside observers
+    // tracker bundles all values that are collected with the purpose of making them available to outside observers
     // they are not used internally and have no relevance for the operation of the ledger
-    let stats_ = object {
-      public var perAgg : [Ctr] = Array.tabulate<Ctr>(initialAggregators.size(), func(i) { Ctr() });
-      public var direct : Ctr = Ctr();
-      public var all : Ctr = Ctr();
-      public var accounts : Nat = 0;
-
-      public func record(source: {#agg : Nat; #direct}, event : {#batch; #txfail; #txsuccess}) {
-        switch source {
-          case (#agg i) perAgg[i].record(event);
-          case (#direct) direct.record(event)
-        };
-        all.record(event);
-      };
-
-      public func add(item : {#accounts : Nat}) =
-        switch item {
-          case (#accounts(n)) accounts += n
-        };
-
-      public func get() : Stats = {
-        perAgg = Array.tabulate<CtrState>(perAgg.size(), func(i) { perAgg[i].state() });
-        direct = direct.state();
-        all = all.state();
-        registry = { owners = counters_.owners; accounts = accounts; assets = counters_.assets }
-      }
-    };
+    let tracker = Stats.Tracker(initialAggregators.size());
 
     // counters bundles those counter values on which the ledger operation depends 
     let counters_ = object {
@@ -146,6 +94,7 @@ module {
     };
 
     // ================================ ACCESSORS =================================
+    // get the principal of aggregator specified by aggregtor id
     public func aggregatorPrincipal(aid: AggregatorId): Result<Principal, { #NotFound; }> =
       switch (aid < aggregators.size()) {
         case (true) #ok(aggregators[aid]);
@@ -153,24 +102,32 @@ module {
       };
 
     // internal accessors based on owner id
+    // they assume that the owner id exists and will trap otherwise
 
+    // get the number of subaccounts of a given owner id
     func nAccounts_(oid : OwnerId) : Nat = 
       accounts[oid].size();
 
+    // get the asset in a given subaccount
     func asset_(oid : OwnerId, sid: SubaccountId): Result<SubaccountState, { #SubaccountNotFound }> =
       switch (accounts[oid].size() > sid) {
         case (true) #ok(accounts[oid][sid]);
         case (false) #err(#SubaccountNotFound)
       };
 
+    // currying the asset_ function
     func assetInSubaccount_(sid: SubaccountId) : OwnerId -> Result<SubaccountState, { #SubaccountNotFound }> =
       func(oid) = asset_(oid, sid);
 
+    // get the assets in all subaccounts of a given owner id
     func allAssets_(oid : OwnerId) : [SubaccountState] =
       Array.freeze(accounts[oid]);
 
     // public accessors based on principal
+    // if the principal is not registered then error #UnknownPrincipal is returned
 
+    // ownerId is an implementation detail and not publicly exposed
+    // this function is only public for testing purposes (see ledger_api.mo)
     public func ownerId(p: Principal): Result<OwnerId, { #UnknownPrincipal }> =
       R.fromOption(owners.get(p), #UnknownPrincipal); 
 
@@ -183,19 +140,21 @@ module {
     public func allAssets(p : Principal) : Result<[SubaccountState], { #UnknownPrincipal }> =
       R.mapOk(ownerId(p), allAssets_);
 
-    public func stats() : Stats = stats_.get(); 
+    public func stats() : Stats = tracker.get(); 
 
     public func batchesHistory(startIndex: Nat, endIndex: Nat) : [BatchHistoryEntry] = batchHistory.slice(startIndex, endIndex);
 
     // ================================= MUTATORS =================================
     // add one aggregator principal
+    // return the id of the newly added aggregator
     public func addAggregator(p : Principal) : AggregatorId {
+      let newId = aggregators.size();
       aggregators := u.append(aggregators, p);
-      stats_.perAgg := u.append(stats_.perAgg, Ctr());
-      aggregators.size() - 1;
+      tracker.add(#aggregator);
+      newId
     };
 
-    // only public for the test api
+    // this function is an internal helper but is made public for testing (see ledger_api.mo)
     public func getOrCreateOwnerId(p: Principal): ?OwnerId =
       switch (ownerId(p), counters_.hasSpace(#owner)) {
         case (#ok oid, _) { ?oid };
@@ -222,6 +181,8 @@ module {
       #ok(counters_.add(#asset));
     };
 
+    // open n new subaccounts for the given principal
+    // all n new subaccounts are for the same asset id
     public func openNewAccounts(p: Principal, n: Nat, aid: AssetId): Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> {
       if (not counters_.isKnown(#asset, aid)) {
         return #err(#UnknownFtAsset);
@@ -233,34 +194,38 @@ module {
           if (oldSize + n > constants.maxSubaccounts) {
             return #err(#NoSpaceForSubaccount);
           };
-          // array.append seems to not work with var type
           accounts[oid] := u.appendVar(accounts[oid], n, {asset = #ft(aid, 0)});
-          stats_.add(#accounts(n));
+          tracker.add(#accounts(n));
           #ok(oldSize);
         };
       };
     };
 
     // ================================ PROCESSING ================================
+    // proces a batch of txs
+    // the batch could have been submitted directly to the ledger or through an aggregator
     func processBatch_(source: {#agg : Nat; #direct}, batch: Batch): [Result<(), ProcessingError>] {
       let results : [var Result<(), ProcessingError>] = Array.init(batch.size(), #ok());
       for (i in batch.keys()) {
         let res = processTx(batch[i]);
         switch (res) {
-          case (#ok) { stats_.record(source, #txsuccess) };
-          case (#err(_)) { stats_.record(source, #txfail) };
+          case (#ok) { tracker.record(source, #txsuccess) };
+          case (#err(_)) { tracker.record(source, #txfail) };
         };
         results[i] := res; 
       };
-      batchHistory.put({ batchNumber = stats_.all.batches; txNumberOffset = stats_.all.txs - results.size(); results = Array.freeze(results) });
-      stats_.record(source, #batch);
+      batchHistory.put({ batchNumber = tracker.all.batches; txNumberOffset = tracker.all.txs - results.size(); results = Array.freeze(results) });
+      tracker.record(source, #batch);
       Array.freeze(results)
     };
 
+    // pass through a batch from an aggregator
     public func processBatch(aggId: Nat, batch: Batch): () =
       ignore processBatch_(#agg(aggId), batch);
 
+    // pass through a single directly submitted tx
     public func processImmediateTx(caller: Principal, tx: Tx.Tx): Result<(), ImmediateTxError> =
+      // do the same validation that otherwise the aggregator would do
       switch (Tx.validate(tx, true)) {
         case (#ok _) {
           for (c in tx.map.vals()) {
@@ -275,27 +240,21 @@ module {
         }
       };
 
-    private func processTx(tx: Tx.Tx): Result<(), ProcessingError> {
-      // disabled validation, performed on the aggregator side. The ledger still validates:
+    func processTx(tx: Tx.Tx): Result<(), ProcessingError> {
+      // Pre-validation has been performed on the aggregator side. We still validate:
       // - owner Id-s
       // - subaccount Id-s
-      // - auto-approve flag
       // - asset type
       // - is balance sufficient
 
-      // cache owner ids per contribution. If some owner ID is wrong - return error
+      // cache owner ids per contribution. If some principal is unknown - return error
       let ownersCache: [var OwnerId] = Array.init(tx.map.size(), 0);
-      // checking uniqueness (disabled now, since aggregator alredy checked principal uniqueness)
-      // let ownerIdsSet = LinkedListSet.LinkedListSet<Nat>(Nat.equal);
       for (j in ownersCache.keys()) {
         switch (owners.get(tx.map[j].owner)) {
           case (null) {
             return #err(#UnknownPrincipal);
           };
           case (?oid) {
-            // if (not ownerIdsSet.put(oid)) {
-            //   return #err(#OwnersNotUnique);
-            // };
             ownersCache[j] := oid;
           };
         };
@@ -334,7 +293,7 @@ module {
       #ok();
     };
 
-    private func processFlow(ownerId: OwnerId, subaccountId: SubaccountId, flowAsset: Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
+    func processFlow(ownerId: OwnerId, subaccountId: SubaccountId, flowAsset: Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
       if (subaccountId >= accounts[ownerId].size()) {
         return #err(#UnknownSubaccount);
       };
@@ -370,22 +329,21 @@ module {
     // The map from principal to short id is stored in a single `RBTree`:
     let owners : RBTree.RBTree<Principal, OwnerId> = RBTree.RBTree<Principal, OwnerId>(Principal.compare);
 
-    /*
-    The content of all accounts is stored in an array of arrays.
-    The first index is the owner id and the second index is the subaccount id
-    For example, a particular balance in a fungible token is accessed like this:
-      let #ft(id, balance) = accounts[owner_id][subaccount_id]
-
-    The outer array is of fixed-length N (currently, N=2**24).
-    This means there is space for N different owners and N cannot grow.
-    In the future we will replace this with our own implementation of an array that can grow.
-    The currently available implementations Array and Buffer perform bad in their worst-case when it comes to extending them.
-
-    When an owner open new subaccounts then we grow the owners array of subaccounts.
-    */
+    // The content of all accounts is stored in an array of arrays.
+    // The first index is the owner id and the second index is the subaccount id
+    // For example, a particular balance in a fungible token is accessed like this:
+    //   let #ft(id, balance) = accounts[owner_id][subaccount_id]
+    //
+    // The outer array is of fixed-length N = constants.maxPrincipals.
+    // This means there is space for N different owners and N cannot grow.
+    // In the future we will replace this with our own implementation of an array that can grow.
+    // The currently available implementations Array and Buffer perform badly in their worst-case 
+    // when it comes to extending them.
+    //
+    // When an owner open new subaccounts then we grow that owner's array of subaccounts.
     public let accounts : [var [var SubaccountState]] = Array.init(constants.maxPrincipals, [var] : [var SubaccountState]);
 
-    /* history of last processed transactions */
+    // history of last processed transactions 
     let batchHistory = CircularBuffer<BatchHistoryEntry>(constants.batchHistoryLength);
 
     // asset ids

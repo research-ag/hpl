@@ -119,22 +119,22 @@ With **HPL**, registered principals can submit and approve multi-token transacti
 
 ### Low-level user story for a two-party transaction:
 
-1. Principals **A** and **B** register themselves by [calling](#open-new-subaccount) ledger **L** API
+1. Principals **A** and **B** register themselves by calling ledger **L** API
 2. **L** creates accounts for newly registered principals
 3. **A** and **B** communicate directly to agree on the transaction details and on who initiates the transaction  (say **A**).
-4. **A** [queries](#get-number-of-aggregators) available aggregators from **L** and chooses aggregator **G**
-5. **A** calls a [function](#initialize-transaction) on **G** with the transaction details
+4. **A** queries available aggregators from **L** and chooses aggregator **G**
+5. **A** calls a function on **G** with the transaction details
 6. **G** generates a **transactionId** and stores the unapproved transaction under this id
 7. **G** returns **transactionId** to **A** as response
 8. **A** sends **transactionId** and **G** principal to **B** directly
-9. **B** [calls](doc/archived/README.md#get-transaction-status) **G** with **transactionId** to get the transaction details
-10. **B** [calls](doc/archived/README.md#approve-transaction) **G** with **transactionId** to approve the transaction
+9. **B** calls **G** with **transactionId** to get the transaction details
+10. **B** calls **G** with **transactionId** to approve the transaction
 11. **G** puts the transaction in the queue
-12. At the next heartbeat, **G** sends a batch of queued transactions in a single cross-canister [call](#process-batch) to **L**
+12. At the next heartbeat, **G** sends a batch of queued transactions in a single cross-canister call to **L**
 13. **L** processes the transactions in the batch in order, i.e. executes the transaction if valid and discards it if invalid
 14. **L** returns the list of successfully executed transaction ids to **G**
 15. **L** returns error codes for failed transaction ids to **G**
-16. **A** and **B** can [query](#get-transaction-status) **G** about the status of a transaction id (processing, success, failed)
+16. **A** and **B** can query **G** about the status of a transaction id (processing, success, failed)
 
 <p align="center">
     <img src=".github/assets/flow.drawio.png" alt="Container diagram"/>

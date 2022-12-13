@@ -103,28 +103,17 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
       }
     }
   ) : Bool {
-
-    let allowSystemFunctions = false;
-    let allowAdminFunctions = true;
-    let allowCreatingFungibleTokens = true;
-    let allowImmediateTx = true;
-
     switch(msg) {
       // fully blocked
-      case (#processBatch _) { allowSystemFunctions; };
+      case (#processBatch _) { false; };
       // admin functions
-      case (#aggregatorPrincipal _) { allowAdminFunctions };
-      case (#addAggregator _) { allowAdminFunctions };
-      case (#batchesHistory _) { allowAdminFunctions };
-      case (#nAccounts _) { allowAdminFunctions };
-      case (#stats _) { allowAdminFunctions };
+      case (#addAggregator _) { true; };
       // temporarily allowed
-      case (#createFungibleToken _) { allowCreatingFungibleTokens; };
-      case (#processImmediateTx _) { allowImmediateTx; };
+      case (#createFungibleToken _) { true; };
+      case (#processImmediateTx _) { true; };
       // public functions
-      case (#allAssets _) { true };
-      case (#asset _) { true };
-      case (#openNewAccounts _) { true };
+      case (#openNewAccounts _) { arg.size() <= 16 };
+      case (_) { false };
     };
   }
 };

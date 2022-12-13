@@ -84,4 +84,47 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
 
   /** heartbeat function */
   system func heartbeat() : async () = async ledger_.heartbeat();
+  system func inspect(
+    {
+      caller : Principal;
+      arg : Blob;
+      msg : {
+        #addAggregator : () -> Principal;
+        #aggregatorPrincipal : () -> AggregatorId;
+        #allAssets : () -> Principal;
+        #asset : () -> SubaccountId;
+        #batchesHistory : () -> (Nat, Nat);
+        #createFungibleToken : () -> ();
+        #nAccounts : () -> ();
+        #openNewAccounts : () -> (Nat, Ledger.AssetId);
+        #processBatch : () -> Batch;
+        #processImmediateTx : () -> Tx.Tx;
+        #stats : () -> ()
+      }
+    }
+  ) : Bool {
+
+    let allowSystemFunctions = false;
+    let allowAdminFunctions = true;
+    let allowCreatingFungibleTokens = true;
+    let allowImmediateTx = true;
+
+    switch(msg) {
+      // fully blocked
+      case (#processBatch _) { allowSystemFunctions; };
+      // admin functions
+      case (#aggregatorPrincipal _) { allowAdminFunctions };
+      case (#addAggregator _) { allowAdminFunctions };
+      case (#batchesHistory _) { allowAdminFunctions };
+      case (#nAccounts _) { allowAdminFunctions };
+      case (#stats _) { allowAdminFunctions };
+      // temporarily allowed
+      case (#createFungibleToken _) { allowCreatingFungibleTokens; };
+      case (#processImmediateTx _) { allowImmediateTx; };
+      // public functions
+      case (#allAssets _) { true };
+      case (#asset _) { true };
+      case (#openNewAccounts _) { true };
+    };
+  }
 };

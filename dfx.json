@@ -9,6 +9,10 @@
       "main": "src/aggregator/aggregator_api.mo",
       "candid": "src/aggregator/aggregator.did",
       "type": "motoko"
+    },
+    "minter": {
+      "main": "src/minter/minter_api.mo",
+      "type": "motoko"
     }
   },
   "defaults": {

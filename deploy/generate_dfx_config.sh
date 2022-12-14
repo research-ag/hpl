@@ -38,7 +38,7 @@ cat >>dfx.json <<-END
       "packtool": ""
     }
   },
-  "dfx": "0.12.0",
+  "dfx": "0.12.2-beta.0",
   "version": 1
 }
 END

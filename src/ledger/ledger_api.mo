@@ -89,17 +89,19 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
       caller : Principal;
       arg : Blob;
       msg : {
-        #addAggregator : () -> Principal;
-        #aggregatorPrincipal : () -> AggregatorId;
-        #allAssets : () -> Principal;
-        #asset : () -> SubaccountId;
-        #batchesHistory : () -> (Nat, Nat);
-        #createFungibleToken : () -> ();
-        #nAccounts : () -> ();
-        #openNewAccounts : () -> (Nat, Ledger.AssetId);
-        #processBatch : () -> Batch;
-        #processImmediateTx : () -> Tx.Tx;
-        #stats : () -> ()
+        // updates
+        #addAggregator : Any;
+        #createFungibleToken : Any;
+        #openNewAccounts : Any;
+        #processBatch : Any;
+        #processImmediateTx : Any;
+	// queries
+        #aggregatorPrincipal : Any;
+        #allAssets : Any;
+        #asset : Any;
+        #batchesHistory : Any;
+        #nAccounts : Any;
+        #stats : Any;
       }
     }
   ) : Bool {

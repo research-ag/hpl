@@ -81,4 +81,38 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
 
   /** heartbeat function */
   system func heartbeat() : async () = async ledger_.heartbeat();
+  system func inspect(
+    {
+      caller : Principal;
+      arg : Blob;
+      msg : {
+        // updates
+        #addAggregator : Any;
+        #createFungibleToken : Any;
+        #openNewAccounts : Any;
+        #processBatch : Any;
+        #processImmediateTx : Any;
+	// queries
+        #aggregatorPrincipal : Any;
+        #allAssets : Any;
+        #asset : Any;
+        #batchesHistory : Any;
+        #nAccounts : Any;
+        #stats : Any;
+      }
+    }
+  ) : Bool {
+    switch(msg) {
+      // fully blocked
+      case (#processBatch _) { false; };
+      // admin functions
+      case (#addAggregator _) { true; };
+      // temporarily allowed
+      case (#createFungibleToken _) { true; };
+      case (#processImmediateTx _) { true; };
+      // public functions
+      case (#openNewAccounts _) { arg.size() <= 16 };
+      case (_) { false };
+    };
+  }
 };

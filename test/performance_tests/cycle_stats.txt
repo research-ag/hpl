@@ -6,7 +6,7 @@
 [LED] 5 heavy tx-s (max possible batch): 443_896_989
 [AGG] submit simple Tx: 17_190
 [AGG] submit + auto-enqueue simple Tx: 13_856
-[AGG] submit heavy tx: 180_181_528
+[AGG] submit heavy tx: 180_174_515
 [AGG] approve + equeue simple Tx: 795
 [AGG] reject simple Tx: 796
 [AGG] prepare big batch: 2_493_480

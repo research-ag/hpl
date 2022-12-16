@@ -1,12 +1,15 @@
 type SubaccountId = nat;
 type MintResult =
- variant {
-   err: ImmediateTxError;
-   ok: nat;
- };
-type EmptyResult =
   variant {
-    err;
+    err: ImmediateTxError;
+    ok: nat;
+  };
+type RefundResult =
+  variant {
+    err: variant {
+      NotInitialized;
+      RefundError;
+    };
     ok;
   };
 type ImmediateTxError = 
@@ -28,7 +31,13 @@ type ImmediateTxError =
    UnknownPrincipal;
    UnknownSubaccount;
  };
+type AssetIdResult =
+variant {
+    err: variant {NotInitialized;};
+    ok: nat;
+};
 service : (principal) -> {
+    assetId: () -> (AssetIdResult) query;
     mint: (principal, SubaccountId) -> (MintResult);
-    refundAll: () -> (EmptyResult);
+    refundAll: () -> (RefundResult);
 }

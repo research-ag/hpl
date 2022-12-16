@@ -10,7 +10,9 @@ module {
     processImmediateTx : Tx.Tx -> async R.Result<(), Ledger.ImmediateTxError>;
   };
 
-  public class Minter(ownPrincipal: Principal, ledger: LedgerInterface, assetId: Tx.AssetId) {
+  public class Minter(ownPrincipal: Principal, ledger: LedgerInterface, asset: Tx.AssetId) {
+
+    public let assetId = asset;
 
     public func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Ledger.ImmediateTxError> {
       // accept cycles
@@ -45,7 +47,7 @@ module {
       };
     };
 
-    public func refundAll(): async R.Result<(), ()> {
+    public func refundAll(): async R.Result<(), {#RefundError}> {
       // TODO
       #ok();
     };

@@ -13,44 +13,48 @@ actor class MinterAPI(ledger : Principal) = self {
 
   private var minter_: ?Minter.Minter = null;
 
-  public shared({caller}) func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Ledger.ImmediateTxError> {
-    await ensureMinterInitialized();
-    switch(minter_) {
-      case (?m) await m.mint(p, n);
-      case (_) throw Error.reject("Minter not initialized!");
-    };
-  };
-
-  public shared({caller}) func refundAll(): async R.Result<(), ()> {
-    await ensureMinterInitialized();
-    switch(minter_) {
-      case (?m) await m.refundAll();
-      case (_) throw Error.reject("Minter not initialized!");
-    };
-  };
-
-  private func ensureMinterInitialized(): async () {
+  public shared func init(): async R.Result<(), { #NoSpace; #FeeError }> {
     switch (minter_) {
-      case (?m) {};
+      case (?m) #ok();
       case (_) {
         let ledgerActor = actor (Principal.toText(ledger)) : Minter.LedgerInterface;
         let savedState = readStableState();
         if (Principal.equal(ledger, savedState.ledgerPrincipal)) {
           minter_ := ?Minter.Minter(Principal.fromActor(self), ledgerActor, savedState.assetId);
+          #ok();
         } else {
           let ftResult = await ledgerActor.createFungibleToken();
           switch(ftResult) {
             case(#ok res) {
               minter_ := ?Minter.Minter(Principal.fromActor(self), ledgerActor, res);
               writeStableState({ ledgerPrincipal = ledger; assetId = res; });
+              #ok();
             };
-            case(_) {
-              // FIXME handle error
-              throw Error.reject("Minter not initialized!");
-            };
+            case(#err e) #err(e);
           };
         };
       };
+    };
+  };
+
+  public shared query func assetId(): async R.Result<Nat, { #NotInitialized }> {
+    switch(minter_) {
+      case (?m) #ok(m.assetId);
+      case (_) #err(#NotInitialized);
+    };
+  };
+
+  public shared({caller}) func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Ledger.ImmediateTxError or { #NotInitialized }> {
+    switch(minter_) {
+      case (?m) await m.mint(p, n);
+      case (_) #err(#NotInitialized);
+    };
+  };
+
+  public shared({caller}) func refundAll(): async R.Result<(), { #RefundError; #NotInitialized }> {
+    switch(minter_) {
+      case (?m) await m.refundAll();
+      case (_) #err(#NotInitialized);
     };
   };
 

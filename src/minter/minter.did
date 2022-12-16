@@ -11,7 +11,7 @@ type EmptyResult =
   };
 type ImmediateTxError = 
  variant {
-   AssetIdTooLargea;
+   AssetIdTooLarge;
    FlowsNotSorted;
    FtQuantityTooLarge;
    InsufficientFunds;

@@ -2,8 +2,13 @@ type SubaccountId = nat;
 type MintResult =
  variant {
    err: ImmediateTxError;
-   ok;
+   ok: nat;
  };
+type EmptyResult =
+  variant {
+    err;
+    ok;
+  };
 type ImmediateTxError = 
  variant {
    AssetIdTooLargea;
@@ -25,4 +30,5 @@ type ImmediateTxError =
  };
 service : (principal) -> {
     mint: (principal, SubaccountId) -> (MintResult);
+    refundAll: () -> (EmptyResult);
 }

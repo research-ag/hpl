@@ -12,6 +12,7 @@
     },
     "minter": {
       "main": "src/minter/minter_api.mo",
+      "candid": "src/minter/minter.did",
       "type": "motoko"
     }
   },

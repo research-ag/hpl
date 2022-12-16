@@ -1,0 +1,28 @@
+type SubaccountId = nat;
+type MintResult =
+ variant {
+   err: ImmediateTxError;
+   ok;
+ };
+type ImmediateTxError = 
+ variant {
+   AssetIdTooLargea;
+   FlowsNotSorted;
+   FtQuantityTooLarge;
+   InsufficientFunds;
+   MemoTooLarge;
+   MismatchInAsset;
+   MissingApproval;
+   NonZeroAssetSum;
+   NotAController;
+   OwnersNotUnique;
+   SubaccountIdTooLarge;
+   TooManyContributions;
+   TooManyFlows;
+   UnknownFtAsset;
+   UnknownPrincipal;
+   UnknownSubaccount;
+ };
+service : (principal) -> {
+    mint: (principal, SubaccountId) -> (MintResult);
+}

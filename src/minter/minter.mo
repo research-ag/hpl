@@ -1,6 +1,7 @@
 import Tx "../shared/transaction";
 import Ledger "../ledger/ledger";
 import R "mo:base/Result";
+import Cycles "mo:base/ExperimentalCycles";
 
 module {
 
@@ -11,8 +12,11 @@ module {
 
   public class Minter(ownPrincipal: Principal, ledger: LedgerInterface, assetId: Tx.AssetId) {
 
-    public func mint(p: Principal, n: Tx.SubaccountId, tokensAmount: Nat): async R.Result<(), Ledger.ImmediateTxError> {
-      await ledger.processImmediateTx({
+    public func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Ledger.ImmediateTxError> {
+      let receivedCycles = Cycles.available();
+      ignore Cycles.accept(receivedCycles);
+      let tokensAmount = receivedCycles;
+      let mintResult = await ledger.processImmediateTx({
         map = [
           {
             owner = ownPrincipal;
@@ -30,7 +34,16 @@ module {
             memo = null;
           },
         ]
-      })
+      });
+      switch(mintResult) {
+        case(#ok _) #ok(tokensAmount);
+        case(#err e) #err(e);
+      };
+    };
+
+    public func refundAll(): async R.Result<(), ()> {
+      // TODO
+      #ok();
     };
 
   };

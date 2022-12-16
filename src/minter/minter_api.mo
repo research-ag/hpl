@@ -13,15 +13,19 @@ actor class MinterAPI(ledger : Principal) = self {
 
   private var minter_: ?Minter.Minter = null;
 
-  public shared({caller}) func mint(p: Principal, n: Tx.SubaccountId): async R.Result<(), Ledger.ImmediateTxError> {
+  public shared({caller}) func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Ledger.ImmediateTxError> {
     await ensureMinterInitialized();
-    // TODO accept cycles
-    let tokensAmount = 1000;
     switch(minter_) {
-      case (?m) { await m.mint(p, n, tokensAmount); };
-      case (_) {
-        throw Error.reject("Minter not initialized!");
-      };
+      case (?m) await m.mint(p, n);
+      case (_) throw Error.reject("Minter not initialized!");
+    };
+  };
+
+  public shared({caller}) func refundAll(): async R.Result<(), ()> {
+    await ensureMinterInitialized();
+    switch(minter_) {
+      case (?m) await m.refundAll();
+      case (_) throw Error.reject("Minter not initialized!");
     };
   };
 

@@ -13,9 +13,13 @@ module {
   public class Minter(ownPrincipal: Principal, ledger: LedgerInterface, assetId: Tx.AssetId) {
 
     public func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Ledger.ImmediateTxError> {
-      let receivedCycles = Cycles.available();
-      ignore Cycles.accept(receivedCycles);
-      let tokensAmount = receivedCycles;
+      // accept cycles
+      let amount = Cycles.available();
+      assert(amount > 0);
+      let accepted = Cycles.accept(amount);
+      assert(accepted == amount);
+      // mint tokens
+      let tokensAmount = accepted;
       let mintResult = await ledger.processImmediateTx({
         map = [
           {

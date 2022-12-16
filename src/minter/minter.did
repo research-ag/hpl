@@ -23,6 +23,7 @@ type ImmediateTxError =
    MissingApproval;
    NonZeroAssetSum;
    NotAController;
+   NotInitialized;
    OwnersNotUnique;
    SubaccountIdTooLarge;
    TooManyContributions;

@@ -62,7 +62,7 @@ actor class MinterAPI(ledger : Principal) = self {
   // ┣━━━━━━━━╋━━━━━━╋━━━━━━━┫
   // ┃ 1      ┃ <0>  ┃ Blob  ┃ ledger principal blob
   // ┣━━━━━━━━╋━━━━━━╋━━━━━━━┫
-  // ┃ <0>+1  ┃ ?    ┃ Nat32 ┃ asset Id, we allow it to be maximum 24-bit length, so Nat32 is enough
+  // ┃ <0>+1  ┃ 4    ┃ Nat32 ┃ asset Id, we allow it to be maximum 24-bit length, so Nat32 is enough
   // ┗━━━━━━━━┻━━━━━━┻━━━━━━━┛
   type StableState = { ledgerPrincipal: Principal; assetId: Tx.AssetId };
   private func readStableState(): StableState {

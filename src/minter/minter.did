@@ -1,7 +1,26 @@
 type SubaccountId = nat;
 type MintResult =
   variant {
-    err: ImmediateTxError;
+    err: variant {
+      AssetIdTooLarge;
+      FlowsNotSorted;
+      FtQuantityTooLarge;
+      InsufficientFunds;
+      MemoTooLarge;
+      MismatchInAsset;
+      MissingApproval;
+      NonZeroAssetSum;
+      NotAController;
+      NotInitialized;
+      OwnersNotUnique;
+      SubaccountIdTooLarge;
+      TooManyContributions;
+      TooManyFlows;
+      UnknownFtAsset;
+      UnknownPrincipal;
+      UnknownSubaccount;
+      CallLedgerError;
+    };
     ok: nat;
   };
 type RefundResult =
@@ -13,26 +32,6 @@ type RefundResult =
     };
     ok;
   };
-type ImmediateTxError = 
- variant {
-   AssetIdTooLarge;
-   FlowsNotSorted;
-   FtQuantityTooLarge;
-   InsufficientFunds;
-   MemoTooLarge;
-   MismatchInAsset;
-   MissingApproval;
-   NonZeroAssetSum;
-   NotAController;
-   NotInitialized;
-   OwnersNotUnique;
-   SubaccountIdTooLarge;
-   TooManyContributions;
-   TooManyFlows;
-   UnknownFtAsset;
-   UnknownPrincipal;
-   UnknownSubaccount;
- };
 type AssetIdResult =
 variant {
     err: variant {NotInitialized;};

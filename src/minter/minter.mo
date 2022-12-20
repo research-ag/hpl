@@ -14,9 +14,11 @@ module {
 
   public type RefundError = { #RefundError; #NothingToRefund };
 
+  public type MintError = Ledger.ImmediateTxError or { #CallLedgerError };
+
   public class Minter(ownPrincipal: Principal, ledger: LedgerInterface, asset: Tx.AssetId) {
 
-    public func mint(caller: Principal, p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Ledger.ImmediateTxError> {
+    public func mint(caller: Principal, p: Principal, n: Tx.SubaccountId): async R.Result<Nat, MintError> {
       // accept cycles
       let amount = Cycles.available();
       assert(amount > 0);
@@ -24,32 +26,37 @@ module {
       assert(accepted == amount);
       // mint tokens
       let tokensAmount = accepted;
-      let mintResult = await ledger.processImmediateTx({
-        map = [
-          {
-            owner = ownPrincipal;
-            mints = [#ft(assetId, tokensAmount)];
-            burns = [];
-            inflow = [];
-            outflow = [];
-            memo = null;
-          }, {
-            owner = p;
-            mints = [];
-            burns = [];
-            inflow = [(n, #ft(assetId, tokensAmount))];
-            outflow = [];
-            memo = null;
-          },
-        ]
-      });
-      switch(mintResult) {
-        case(#ok _) #ok(tokensAmount);
-        case(#err e) {
-          addCreditedCycles(caller, amount);
-          #err(e);
+      try {
+        let mintResult = await ledger.processImmediateTx({
+          map = [
+            {
+              owner = ownPrincipal;
+              mints = [#ft(assetId, tokensAmount)];
+              burns = [];
+              inflow = [];
+              outflow = [];
+              memo = null;
+            }, {
+              owner = p;
+              mints = [];
+              burns = [];
+              inflow = [(n, #ft(assetId, tokensAmount))];
+              outflow = [];
+              memo = null;
+            },
+          ]
+        });
+        switch(mintResult) {
+          case(#ok _) #ok(tokensAmount);
+          case(#err e) {
+            addCreditedCycles(caller, amount);
+            #err(e);
+          };
         };
-      };
+      } catch (err) {
+        addCreditedCycles(caller, amount);
+        #err(#CallLedgerError);
+      }
     };
 
     public func refundAll(caller: Principal): async R.Result<(), RefundError> {

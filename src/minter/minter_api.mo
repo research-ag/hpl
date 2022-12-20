@@ -7,7 +7,6 @@ import StableMemory "mo:base/ExperimentalStableMemory";
 import Minter "minter";
 import Error "mo:base/Error";
 import R "mo:base/Result";
-import Ledger "../ledger/ledger";
 
 actor class MinterAPI(ledger : Principal) = self {
 
@@ -44,7 +43,7 @@ actor class MinterAPI(ledger : Principal) = self {
     };
   };
 
-  public shared({caller}) func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Ledger.ImmediateTxError or { #NotInitialized }> {
+  public shared({caller}) func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Minter.MintError or { #NotInitialized }> {
     switch(minter_) {
       case (?m) await m.mint(caller, p, n);
       case (_) #err(#NotInitialized);

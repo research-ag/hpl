@@ -46,14 +46,14 @@ actor class MinterAPI(ledger : Principal) = self {
 
   public shared({caller}) func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Ledger.ImmediateTxError or { #NotInitialized }> {
     switch(minter_) {
-      case (?m) await m.mint(p, n);
+      case (?m) await m.mint(caller, p, n);
       case (_) #err(#NotInitialized);
     };
   };
 
-  public shared({caller}) func refundAll(): async R.Result<(), { #RefundError; #NotInitialized }> {
+  public shared({caller}) func refundAll(): async R.Result<(), Minter.RefundError or { #NotInitialized }> {
     switch(minter_) {
-      case (?m) await m.refundAll();
+      case (?m) await m.refundAll(caller);
       case (_) #err(#NotInitialized);
     };
   };

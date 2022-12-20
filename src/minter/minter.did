@@ -9,6 +9,7 @@ type RefundResult =
     err: variant {
       NotInitialized;
       RefundError;
+      NothingToRefund;
     };
     ok;
   };

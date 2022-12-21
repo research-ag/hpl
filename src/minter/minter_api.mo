@@ -15,7 +15,7 @@ actor class MinterAPI(ledger : ?Principal) = self {
     case (_) { Debug.trap("not initialized and no ledger supplied");}
   };
   stable var saved : ?(Principal, Nat) = null; // (own principal, asset id)
-  stable var creditTable : [(Principal, Nat)] = [];
+  stable var stableCreditTable : [(Principal, Nat)] = [];
 
   var minter = switch (saved) {
     case (?v) ?Minter.Minter(v.0, Ledger, v.1);
@@ -65,14 +65,14 @@ actor class MinterAPI(ledger : ?Principal) = self {
 
   system func preupgrade() {
     switch(minter) {
-      case(?m) creditTable := m.serializeCreditTable();
+      case(?m) stableCreditTable := m.serializeCreditTable();
       case(_) { };
     };
   };
 
   system func postupgrade() {
     switch(minter) {
-      case(?m) m.deserializeCreditTable(creditTable);
+      case(?m) m.deserializeCreditTable(stableCreditTable);
       case(_) { };
     };
   };

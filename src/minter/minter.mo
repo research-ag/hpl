@@ -64,11 +64,12 @@ module {
       switch(credit) {
         case(?c) {
           Cycles.add(c);
+          creditTable.delete(caller);
           try {
             let depositResult = await IC.deposit_cycles({ canister_id = caller });
-            creditTable.delete(caller);
             #ok();
           } catch (err) {
+            creditTable.put(caller, c);
             #err(#RefundError);
           };
         };
@@ -84,23 +85,10 @@ module {
       };
     };
 
-    // Use an actor reference to access the well-known, virtual
-    // IC management canister with specified Principal "aaaaa-aa",
-    // asserting its interface type
-    // NB: this is a smaller supertype of the full interface at
-    //     https://sdk.dfinity.org/docs/interface-spec/index.html#ic-management-canister
+    // virtual canister for transfering cycles
     let IC =
       actor "aaaaa-aa" : actor {
-        create_canister : {
-            // richer in ic.did
-          } -> async { canister_id : Principal };
-        canister_status : { canister_id : Principal } ->
-          async { // richer in ic.did
-            cycles : Nat
-          };
-        stop_canister : { canister_id : Principal } -> async ();
         deposit_cycles : { canister_id : Principal } -> async ();
-        delete_canister : { canister_id : Principal } -> async ();
       };
     // asset id of minter's currency
     public let assetId = asset;

@@ -15,6 +15,8 @@ actor class MinterAPI(ledger : ?Principal) = self {
     case (_) { Debug.trap("not initialized and no ledger supplied");}
   };
   stable var saved : ?(Principal, Nat) = null; // (own principal, asset id)
+  stable var creditTable : [(Principal, Nat)] = [];
+
   var minter = switch (saved) {
     case (?v) ?Minter.Minter(v.0, Ledger, v.1);
     case (_) null
@@ -23,7 +25,7 @@ actor class MinterAPI(ledger : ?Principal) = self {
   var initActive = false;
   public shared func init(): async R.Result<Nat, L.CreateFtError> {
     // trap if values are already initialized
-    assert Option.isNull(saved); 
+    assert Option.isNull(saved);
     // trap if creation of asset id is already under way
     assert (not initActive);
     initActive := true;
@@ -34,7 +36,7 @@ actor class MinterAPI(ledger : ?Principal) = self {
         saved := ?(p, id);
         minter := ?Minter.Minter(p, Ledger, id)
       };
-      case(_) {} 
+      case(_) {}
     };
     initActive := false;
     res
@@ -60,4 +62,19 @@ actor class MinterAPI(ledger : ?Principal) = self {
       case (_) Debug.trap("not initialized");
     };
   };
+
+  system func preupgrade() {
+    switch(minter) {
+      case(?m) creditTable := m.serializeCreditTable();
+      case(_) { };
+    };
+  };
+
+  system func postupgrade() {
+    switch(minter) {
+      case(?m) m.deserializeCreditTable(creditTable);
+      case(_) { };
+    };
+  };
+
 };

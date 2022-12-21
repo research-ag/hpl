@@ -4,6 +4,7 @@ import R "mo:base/Result";
 import Cycles "mo:base/ExperimentalCycles";
 import RBTree "mo:base/RBTree";
 import Principal "mo:base/Principal";
+import Iter "mo:base/Iter";
 
 module {
 
@@ -93,8 +94,15 @@ module {
     // asset id of minter's currency
     public let assetId = asset;
     // The map from principal to amount of credited cycles:
-    let creditTable : RBTree.RBTree<Principal, Nat> = RBTree.RBTree<Principal, Nat>(Principal.compare);
+    var creditTable : RBTree.RBTree<Principal, Nat> = RBTree.RBTree<Principal, Nat>(Principal.compare);
 
+    public func serializeCreditTable(): [(Principal, Nat)] = Iter.toArray(creditTable.entries());
+    public func deserializeCreditTable(values: [(Principal, Nat)]) {
+      creditTable := RBTree.RBTree<Principal, Nat>(Principal.compare);
+      for ((p, value) in values.vals()) {
+        creditTable.put(p, value);
+      };
+    };
   };
 
 }

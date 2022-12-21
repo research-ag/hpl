@@ -21,27 +21,28 @@ module {
   public type Batch = Tx.Batch;
 
   public type SubaccountState = { asset: Asset };
-  public type ProcessingError = Tx.TxError or { 
-    // Errors that start with "Unknown" mean that 
+  public type VirtualAccountState = { asset: Asset; backingSubaccountId: SubaccountId; remotePrincipal: Principal };
+  public type ProcessingError = Tx.TxError or {
+    // Errors that start with "Unknown" mean that
     // a value has not yet been registered
     #UnknownPrincipal;
     #UnknownSubaccount;
     #UnknownFtAsset;
-    #MismatchInAsset; // asset in flow != asset in subaccount 
-    #InsufficientFunds; 
+    #MismatchInAsset; // asset in flow != asset in subaccount
+    #InsufficientFunds;
     #NotAController;  // in attempted mint operation
   };
-  public type ImmediateTxError = ProcessingError or { 
-    #MissingApproval; 
-  }; 
-  public type BatchHistoryEntry = { 
-    batchNumber: Nat; 
-    txNumberOffset: Nat; 
-    results: [Result<(), ProcessingError>] 
+  public type ImmediateTxError = ProcessingError or {
+    #MissingApproval;
   };
-  public type CreateFtError = { 
-    #NoSpace; 
-    #FeeError 
+  public type BatchHistoryEntry = {
+    batchNumber: Nat;
+    txNumberOffset: Nat;
+    results: [Result<(), ProcessingError>]
+  };
+  public type CreateFtError = {
+    #NoSpace;
+    #FeeError
   };
   public type Stats = Stats.Stats;
 
@@ -54,10 +55,10 @@ module {
     maxPrincipals = 16777216; // 2**24
 
     // maximum number of subaccounts per owner
-    maxSubaccounts = C.maxSubaccounts; 
+    maxSubaccounts = C.maxSubaccounts;
 
     // maximum number of asset ids that the ledger can register
-    maxAssets = C.maxAssets; 
+    maxAssets = C.maxAssets;
 
     // maximum number of stored latest processed batches on the ledger
     batchHistoryLength = 1024;
@@ -69,14 +70,14 @@ module {
     // they are not used internally and have no relevance for the operation of the ledger
     let tracker = Stats.Tracker(initialAggregators.size());
 
-    // counters bundles those counter values on which the ledger operation depends 
+    // counters bundles those counter values on which the ledger operation depends
     let counters_ = object {
       public var assets : Nat = 0;
       public var owners : Nat = 0;
 
       public func add(item : {#owner; #asset}) : Nat =
         switch item {
-          case (#owner) { let n = owners; owners += 1; n }; 
+          case (#owner) { let n = owners; owners += 1; n };
           case (#asset) { let n = assets; assets += 1; n }
         };
 
@@ -86,7 +87,7 @@ module {
           case (#asset) assets <= constants.maxAssets
         };
 
-      public func isKnown(item : {#owner; #asset}, i : Nat) : Bool = 
+      public func isKnown(item : {#owner; #asset}, i : Nat) : Bool =
         switch item {
           case (#owner) i < owners;
           case (#asset) i < assets
@@ -105,7 +106,7 @@ module {
     // they assume that the owner id exists and will trap otherwise
 
     // get the number of subaccounts of a given owner id
-    func nAccounts_(oid : OwnerId) : Nat = 
+    func nAccounts_(oid : OwnerId) : Nat =
       accounts[oid].size();
 
     // get the asset in a given subaccount
@@ -129,18 +130,18 @@ module {
     // ownerId is an implementation detail and not publicly exposed
     // this function is only public for testing purposes (see ledger_api.mo)
     public func ownerId(p: Principal): Result<OwnerId, { #UnknownPrincipal }> =
-      R.fromOption(owners.get(p), #UnknownPrincipal); 
+      R.fromOption(owners.get(p), #UnknownPrincipal);
 
     public func nAccounts(p: Principal): Result<Nat, { #UnknownPrincipal }> =
       R.mapOk(ownerId(p), nAccounts_);
 
-    public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #UnknownPrincipal; #SubaccountNotFound }> = 
+    public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #UnknownPrincipal; #SubaccountNotFound }> =
       R.chain(ownerId(p), assetInSubaccount_(sid));
 
     public func allAssets(p : Principal) : Result<[SubaccountState], { #UnknownPrincipal }> =
       R.mapOk(ownerId(p), allAssets_);
 
-    public func stats() : Stats = tracker.get(); 
+    public func stats() : Stats = tracker.get();
 
     public func batchesHistory(startIndex: Nat, endIndex: Nat) : [BatchHistoryEntry] = batchHistory.slice(startIndex, endIndex);
 
@@ -200,6 +201,30 @@ module {
         };
       };
     };
+    public func openVirtualAccount(owner: Principal, backingSubaccountId: SubaccountId, remotePrincipal: Principal): Result<SubaccountId, { #UnknownPrincipal; #UnknownSubaccount; #NoSpaceForAccount; }> {
+      switch (ownerId(owner)) {
+        case (#err err) #err(err);
+        case (#ok oid) {
+          let oldSize = virtualAccounts[oid].size();
+          if (oldSize >= constants.maxSubaccounts) {
+            return #err(#NoSpaceForAccount);
+          };
+          if (backingSubaccountId >= accounts[oid].size()) {
+            return #err(#UnknownSubaccount);
+          };
+          switch(accounts[oid][backingSubaccountId].asset) {
+            case(#ft ft) virtualAccounts[oid] := u.appendVar(virtualAccounts[oid], 1,
+              {
+                asset = #ft(ft.0, 0);
+                backingSubaccountId = backingSubaccountId;
+                remotePrincipal = remotePrincipal;
+              }
+            );
+          };
+          #ok(oldSize);
+        }
+      }
+    };
 
     // ================================ PROCESSING ================================
     // proces a batch of txs
@@ -212,7 +237,7 @@ module {
           case (#ok) { tracker.record(source, #txsuccess) };
           case (#err(_)) { tracker.record(source, #txfail) };
         };
-        results[i] := res; 
+        results[i] := res;
       };
       batchHistory.put({ batchNumber = tracker.all.batches; txNumberOffset = tracker.all.txs - results.size(); results = Array.freeze(results) });
       tracker.record(source, #batch);
@@ -235,8 +260,8 @@ module {
           };
           return processBatch_(#direct, [tx])[0]
         };
-        case (#err e) { 
-          return #err(e) 
+        case (#err e) {
+          return #err(e)
         }
       };
 
@@ -337,11 +362,13 @@ module {
     // The outer array is of fixed-length N = constants.maxPrincipals.
     // This means there is space for N different owners and N cannot grow.
     // In the future we will replace this with our own implementation of an array that can grow.
-    // The currently available implementations Array and Buffer perform badly in their worst-case 
+    // The currently available implementations Array and Buffer perform badly in their worst-case
     // when it comes to extending them.
     //
     // When an owner open new subaccounts then we grow that owner's array of subaccounts.
     public let accounts : [var [var SubaccountState]] = Array.init(constants.maxPrincipals, [var] : [var SubaccountState]);
+    // virtual accounts
+    public let virtualAccounts : [var [var VirtualAccountState]] = Array.init(constants.maxPrincipals, [var] : [var VirtualAccountState]);
 
     // history of last processed transactions 
     let batchHistory = CircularBuffer<BatchHistoryEntry>(constants.batchHistoryLength);

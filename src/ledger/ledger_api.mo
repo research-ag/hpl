@@ -29,6 +29,8 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   */
   public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> =
     async ledger_.openNewAccounts(caller, n, assetId);
+  public shared({caller}) func openVirtualAccount(backingSubaccountId: SubaccountId, remotePrincipal: Principal): async Result<SubaccountId, { #UnknownPrincipal; #UnknownSubaccount; #NoSpaceForAccount; }> =
+    async ledger_.openVirtualAccount(caller, backingSubaccountId, remotePrincipal);
 
   /*
   Process a batch of transactions. Each transaction only executes if the following conditions are met:
@@ -90,6 +92,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
         #addAggregator : Any;
         #createFungibleToken : Any;
         #openNewAccounts : Any;
+        #openVirtualAccount : Any;
         #processBatch : Any;
         #processImmediateTx : Any;
 	// queries

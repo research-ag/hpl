@@ -5,6 +5,7 @@ import Principal "mo:base/Principal";
 import R "mo:base/Result";
 
 import Minter "minter";
+import L "../ledger/ledger";
 import Tx "../shared/transaction";
 
 actor class MinterAPI(ledger : ?Principal) = self {
@@ -20,7 +21,7 @@ actor class MinterAPI(ledger : ?Principal) = self {
   };
 
   var initActive = false;
-  public shared func init(): async R.Result<Nat, { #NoSpace; #FeeError }> {
+  public shared func init(): async R.Result<Nat, L.CreateFtError> {
     // trap if values are already initialized
     assert Option.isNull(saved); 
     // trap if creation of asset id is already under way
@@ -29,9 +30,10 @@ actor class MinterAPI(ledger : ?Principal) = self {
     let res = await Ledger.createFungibleToken();
     switch(res) {
       case(#ok id) {
-          saved := ?(Principal.fromActor(self), id);
-          minter := ?Minter.Minter(Principal.fromActor(self), Ledger, id)
-        };
+        let p = Principal.fromActor(self);
+        saved := ?(p, id);
+        minter := ?Minter.Minter(p, Ledger, id)
+      };
       case(_) {} 
     };
     initActive := false;

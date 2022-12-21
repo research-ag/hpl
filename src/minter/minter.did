@@ -11,7 +11,6 @@ type MintResult =
       MissingApproval;
       NonZeroAssetSum;
       NotAController;
-      NotInitialized;
       OwnersNotUnique;
       SubaccountIdTooLarge;
       TooManyContributions;
@@ -26,19 +25,26 @@ type MintResult =
 type RefundResult =
   variant {
     err: variant {
-      NotInitialized;
       RefundError;
       NothingToRefund;
     };
     ok;
   };
-type AssetIdResult =
-variant {
-    err: variant {NotInitialized;};
-    ok: nat;
-};
+type InitResult =
+ variant {
+   err: variant {
+          FeeError;
+          NoSpace;
+        };
+   ok: nat;
+ };
 service : (principal) -> {
-    assetId: () -> (AssetIdResult) query;
+    // init
+    init: () -> (InitResult); 
+    // query
+    assetId: () -> (opt nat) query;
+    ledgerPrincipal: () -> (principal) query;
+    // update
     mint: (principal, SubaccountId) -> (MintResult);
     refundAll: () -> (RefundResult);
 }

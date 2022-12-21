@@ -69,7 +69,7 @@ module {
             let depositResult = await IC.deposit_cycles({ canister_id = caller });
             #ok();
           } catch (err) {
-            creditTable.put(caller, c);
+            addCreditedCycles(caller, c);
             #err(#RefundError);
           };
         };

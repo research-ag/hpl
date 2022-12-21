@@ -1,0 +1,50 @@
+type SubaccountId = nat;
+type MintResult =
+  variant {
+    err: variant {
+      AssetIdTooLarge;
+      FlowsNotSorted;
+      FtQuantityTooLarge;
+      InsufficientFunds;
+      MemoTooLarge;
+      MismatchInAsset;
+      MissingApproval;
+      NonZeroAssetSum;
+      NotAController;
+      OwnersNotUnique;
+      SubaccountIdTooLarge;
+      TooManyContributions;
+      TooManyFlows;
+      UnknownFtAsset;
+      UnknownPrincipal;
+      UnknownSubaccount;
+      CallLedgerError;
+    };
+    ok: nat;
+  };
+type RefundResult =
+  variant {
+    err: variant {
+      RefundError;
+      NothingToRefund;
+    };
+    ok;
+  };
+type InitResult =
+ variant {
+   err: variant {
+          FeeError;
+          NoSpace;
+        };
+   ok: nat;
+ };
+service : (opt principal) -> {
+    // init
+    init: () -> (InitResult); 
+    // query
+    assetId: () -> (opt nat) query;
+    ledgerPrincipal: () -> (principal) query;
+    // update
+    mint: (principal, SubaccountId) -> (MintResult);
+    refundAll: () -> (RefundResult);
+}

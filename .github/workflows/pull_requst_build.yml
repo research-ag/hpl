@@ -62,6 +62,7 @@ jobs:
         run: |
           /home/runner/bin/didc check .dfx/local/canisters/ledger/ledger.did ../src/ledger/ledger.did   
           /home/runner/bin/didc check .dfx/local/canisters/agg0/agg0.did ../src/aggregator/aggregator.did   
+          /home/runner/bin/didc check .dfx/local/canisters/minter/minter.did ../src/minter/minter.did   
 
       - name: Install ic-repl
         run: |

@@ -19,6 +19,11 @@
       "main": "../src/aggregator/aggregator_test_api.mo",
       "candid": "../src/aggregator/aggregator.did",
       "type": "motoko"
+    },
+    "minter": {
+      "main": "../src/minter/minter_api.mo",
+      "candid": "../src/minter/minter.did",
+      "type": "motoko"
     }
   },
   "defaults": {

@@ -7,9 +7,12 @@ import R "mo:base/Result";
 import Minter "minter";
 import Tx "../shared/transaction";
 
-actor class MinterAPI(ledger : Principal) = self {
+actor class MinterAPI(ledger : ?Principal) = self {
 
-  stable let Ledger = actor (Principal.toText(ledger)) : Minter.LedgerInterface; 
+  stable let Ledger = switch (ledger) {
+    case (?p) actor (Principal.toText(p)) : Minter.LedgerInterface; 
+    case (_) { Debug.trap("not initialized and no ledger supplied");}
+  };
   stable var saved : ?(Principal, Nat) = null; // (own principal, asset id)
   var minter = switch (saved) {
     case (?v) ?Minter.Minter(v.0, Ledger, v.1);
@@ -40,7 +43,7 @@ actor class MinterAPI(ledger : Principal) = self {
     let id = func (x : (Principal, Nat)) : Nat { x.1 };
     Option.map(saved, id);
   };
-  public query func ledgerPrincipal(): async Principal = async ledger;
+  public query func ledgerPrincipal(): async Principal = async Principal.fromActor(Ledger);
 
   public shared({caller}) func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Minter.MintError> {
     switch(minter) {

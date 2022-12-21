@@ -38,7 +38,7 @@ type InitResult =
         };
    ok: nat;
  };
-service : (principal) -> {
+service : (opt principal) -> {
     // init
     init: () -> (InitResult); 
     // query

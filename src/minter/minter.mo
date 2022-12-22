@@ -17,7 +17,7 @@ module {
 
   public type MintError = Ledger.ImmediateTxError or { #CallLedgerError };
 
-  public class Minter(ownPrincipal: Principal, ledger: LedgerInterface, asset: Tx.AssetId) {
+  public class Minter(ownPrincipal: Principal, ledger: LedgerInterface, assetId: Tx.AssetId) {
 
     public func mint(caller: Principal, p: Principal, n: Tx.SubaccountId): async R.Result<Nat, MintError> {
       // accept cycles
@@ -91,8 +91,7 @@ module {
       actor "aaaaa-aa" : actor {
         deposit_cycles : { canister_id : Principal } -> async ();
       };
-    // asset id of minter's currency
-    public let assetId = asset;
+
     // The map from principal to amount of credited cycles:
     var creditTable : RBTree.RBTree<Principal, Nat> = RBTree.RBTree<Principal, Nat>(Principal.compare);
 

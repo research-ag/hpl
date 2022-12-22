@@ -29,12 +29,12 @@ actor class MinterAPI(ledger : ?Principal) = self {
     // trap if creation of asset id is already under way
     assert (not initActive);
     initActive := true;
+    let p = Principal.fromActor(self);
     let res = await Ledger.createFungibleToken();
     switch(res) {
-      case(#ok id) {
-        let p = Principal.fromActor(self);
-        saved := ?(p, id);
-        minter := ?Minter.Minter(p, Ledger, id)
+      case(#ok aid) {
+        saved := ?(p, aid);
+        minter := ?Minter.Minter(p, Ledger, aid)
       };
       case(_) {}
     };
@@ -43,8 +43,8 @@ actor class MinterAPI(ledger : ?Principal) = self {
   };
 
   public query func assetId(): async ?Nat {
-    let id : ((Principal, Nat)) -> Nat = func x = x.1;
-    Option.map(saved, id);
+    let toAssetId : ((Principal, Nat)) -> Nat = func x = x.1;
+    Option.map(saved, toAssetId);
   };
   public query func ledgerPrincipal(): async Principal = async Principal.fromActor(Ledger);
 

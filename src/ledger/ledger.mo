@@ -238,6 +238,9 @@ module {
       switch (ownerId(owner)) {
         case (#err err) #err(err);
         case (#ok oid) {
+          if (aid >= virtualAccounts[oid].size()) {
+            return #err(#UnknownSubaccount);
+          };
           switch (newState) {
             case (null) {};
             case (?ns) switch (validateVirtualAccountState_(oid, ns)) {

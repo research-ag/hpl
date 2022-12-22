@@ -17,7 +17,7 @@ module {
 
   public type MintError = Ledger.ImmediateTxError or { #CallLedgerError };
 
-  public class Minter(ownPrincipal: Principal, ledger: LedgerInterface, assetId: Tx.AssetId) {
+  public class Minter(ledger: LedgerInterface, ownPrincipal: Principal, assetId: Tx.AssetId) {
 
     public func mint(caller: Principal, p: Principal, n: Tx.SubaccountId): async R.Result<Nat, MintError> {
       // accept cycles

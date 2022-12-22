@@ -14,18 +14,18 @@ actor class MinterAPI(ledger : ?Principal) = self {
     case (?p) actor (Principal.toText(p)) : Minter.LedgerInterface; 
     case (_) { Debug.trap("not initialized and no ledger supplied");}
   };
-  stable var saved : ?(Principal, Nat) = null; // (own principal, asset id)
+  stable var savedArgs : ?(Principal, Nat) = null; // (own principal, asset id)
   stable var stableCreditTable : [(Principal, Nat)] = [];
 
-  var minter = switch (saved) {
-    case (?v) ?Minter.Minter(v.0, Ledger, v.1);
+  var minter = switch (savedArgs) {
+    case (?v) ?Minter.Minter(Ledger, v.0, v.1);
     case (_) null
   };
 
   var initActive = false;
   public shared func init(): async R.Result<Nat, L.CreateFtError> {
     // trap if values are already initialized
-    assert Option.isNull(saved);
+    assert Option.isNull(savedArgs);
     // trap if creation of asset id is already under way
     assert (not initActive);
     initActive := true;
@@ -33,8 +33,8 @@ actor class MinterAPI(ledger : ?Principal) = self {
     let res = await Ledger.createFungibleToken();
     switch(res) {
       case(#ok aid) {
-        saved := ?(p, aid);
-        minter := ?Minter.Minter(p, Ledger, aid)
+        savedArgs := ?(p, aid);
+        minter := ?Minter.Minter(Ledger, p, aid)
       };
       case(_) {}
     };
@@ -44,7 +44,7 @@ actor class MinterAPI(ledger : ?Principal) = self {
 
   public query func assetId(): async ?Nat {
     let toAssetId : ((Principal, Nat)) -> Nat = func x = x.1;
-    Option.map(saved, toAssetId);
+    Option.map(savedArgs, toAssetId);
   };
   public query func ledgerPrincipal(): async Principal = async Principal.fromActor(Ledger);
 

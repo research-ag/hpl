@@ -115,10 +115,22 @@ module {
         case (true) #ok(accounts[oid][sid]);
         case (false) #err(#SubaccountNotFound)
       };
+    // get the state of virtual account
+    func virtualAsset_(oid : OwnerId, sid: SubaccountId): Result<VirtualAccountState, { #SubaccountNotFound }> =
+      switch (virtualAccounts[oid].size() > sid) {
+        case (true) switch (virtualAccounts[oid][sid]) {
+          case (null) #err(#SubaccountNotFound);
+          case (?acc) #ok(acc);
+        };
+        case (false) #err(#SubaccountNotFound)
+      };
 
     // currying the asset_ function
     func assetInSubaccount_(sid: SubaccountId) : OwnerId -> Result<SubaccountState, { #SubaccountNotFound }> =
       func(oid) = asset_(oid, sid);
+    // currying the virtualAccount_ function
+    func virtualAccount_(aid: SubaccountId) : OwnerId -> Result<VirtualAccountState, { #SubaccountNotFound }> =
+      func(oid) = virtualAsset_(oid, aid);
 
     // get the assets in all subaccounts of a given owner id
     func allAssets_(oid : OwnerId) : [SubaccountState] =
@@ -137,6 +149,9 @@ module {
 
     public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #UnknownPrincipal; #SubaccountNotFound }> =
       R.chain(ownerId(p), assetInSubaccount_(sid));
+
+    public func virtualAccount(p: Principal, aid: SubaccountId): Result<VirtualAccountState, { #UnknownPrincipal; #SubaccountNotFound }> =
+      R.chain(ownerId(p), virtualAccount_(aid));
 
     public func allAssets(p : Principal) : Result<[SubaccountState], { #UnknownPrincipal }> =
       R.mapOk(ownerId(p), allAssets_);
@@ -201,7 +216,7 @@ module {
         };
       };
     };
-    public func openVirtualAccount(owner: Principal, backingSubaccountId: SubaccountId, remotePrincipal: Principal): Result<SubaccountId, { #UnknownPrincipal; #UnknownSubaccount; #NoSpaceForAccount; }> {
+    public func openVirtualAccount(owner: Principal, state: VirtualAccountState): Result<SubaccountId, { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset; #NoSpaceForAccount; }> {
       switch (ownerId(owner)) {
         case (#err err) #err(err);
         case (#ok oid) {
@@ -209,21 +224,48 @@ module {
           if (oldSize >= constants.maxSubaccounts) {
             return #err(#NoSpaceForAccount);
           };
-          if (backingSubaccountId >= accounts[oid].size()) {
-            return #err(#UnknownSubaccount);
+          switch (validateVirtualAccountState_(oid, state)) {
+            case (#ok) {
+              virtualAccounts[oid] := u.appendVar(virtualAccounts[oid], 1, ?state);
+              #ok(oldSize);
+            };
+            case (#err err) #err(err);
           };
-          switch(accounts[oid][backingSubaccountId].asset) {
-            case(#ft ft) virtualAccounts[oid] := u.appendVar(virtualAccounts[oid], 1,
-              {
-                asset = #ft(ft.0, 0);
-                backingSubaccountId = backingSubaccountId;
-                remotePrincipal = remotePrincipal;
-              }
-            );
+        };
+      };
+    };
+    public func updateVirtualAccount(owner: Principal, aid: SubaccountId, newState: ?VirtualAccountState): Result<(), { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset }> {
+      switch (ownerId(owner)) {
+        case (#err err) #err(err);
+        case (#ok oid) {
+          switch (newState) {
+            case (null) {};
+            case (?ns) switch (validateVirtualAccountState_(oid, ns)) {
+              case (#ok) {};
+              case (#err err) return #err(err);
+            };
           };
-          #ok(oldSize);
-        }
-      }
+          virtualAccounts[oid][aid] := newState;
+          #ok(); 
+        };
+      };
+    };
+    private func validateVirtualAccountState_(oid: OwnerId, state: VirtualAccountState): Result<(), { #UnknownSubaccount; #MismatchInAsset }> {
+      if (state.backingSubaccountId >= accounts[oid].size()) {
+        return #err(#UnknownSubaccount);
+      };
+      switch(accounts[oid][state.backingSubaccountId].asset) {
+        case(#ft ft) {
+          switch (state.asset) {
+            case (#ft ft2) {
+              if (ft.0 != ft2.0) { 
+                return #err(#MismatchInAsset); 
+              };
+              #ok();
+            };
+          };
+        };
+      };
     };
 
     // ================================ PROCESSING ================================
@@ -368,7 +410,7 @@ module {
     // When an owner open new subaccounts then we grow that owner's array of subaccounts.
     public let accounts : [var [var SubaccountState]] = Array.init(constants.maxPrincipals, [var] : [var SubaccountState]);
     // virtual accounts
-    public let virtualAccounts : [var [var VirtualAccountState]] = Array.init(constants.maxPrincipals, [var] : [var VirtualAccountState]);
+    public let virtualAccounts : [var [var ?VirtualAccountState]] = Array.init(constants.maxPrincipals, [var] : [var ?VirtualAccountState]);
 
     // history of last processed transactions 
     let batchHistory = CircularBuffer<BatchHistoryEntry>(constants.batchHistoryLength);

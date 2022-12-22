@@ -35,6 +35,7 @@ type InitResult =
    err: variant {
           FeeError;
           NoSpace;
+          CouldNotSend;
         };
    ok: nat;
  };

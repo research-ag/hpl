@@ -43,8 +43,7 @@ actor class MinterAPI(ledger : ?Principal) = self {
   };
 
   public query func assetId(): async ?Nat {
-    // let id : (Principal, Nat) -> Nat = func (x) { x.1 };
-    let id = func (x : (Principal, Nat)) : Nat { x.1 };
+    let id : ((Principal, Nat)) -> Nat = func x = x.1;
     Option.map(saved, id);
   };
   public query func ledgerPrincipal(): async Principal = async Principal.fromActor(Ledger);

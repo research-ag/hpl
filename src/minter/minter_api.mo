@@ -14,38 +14,43 @@ actor class MinterAPI(ledger : ?Principal) = self {
     case (?p) actor (Principal.toText(p)) : Minter.LedgerInterface; 
     case (_) { Debug.trap("not initialized and no ledger supplied");}
   };
-  stable var saved : ?(Principal, Nat) = null; // (own principal, asset id)
+  stable var savedArgs : ?(Principal, Nat) = null; // (own principal, asset id)
   stable var stableCreditTable : [(Principal, Nat)] = [];
 
-  var minter = switch (saved) {
-    case (?v) ?Minter.Minter(v.0, Ledger, v.1);
+  var minter = switch (savedArgs) {
+    case (?v) ?Minter.Minter(Ledger, v.0, v.1);
     case (_) null
   };
 
-  var initActive = false;
-  public shared func init(): async R.Result<Nat, L.CreateFtError> {
-    // trap if values are already initialized
-    assert Option.isNull(saved);
-    // trap if creation of asset id is already under way
-    assert (not initActive);
+  var initActive = false; // lock to prevent concurrent init() calls
+
+  type InitError = L.CreateFtError or { #CallLedgerError };
+
+  public shared func init(): async R.Result<Nat, InitError> {
+    assert Option.isNull(savedArgs); // trap if already initialized
+    assert (not initActive); // trap if init() already in process
     initActive := true;
-    let res = await Ledger.createFungibleToken();
-    switch(res) {
-      case(#ok id) {
-        let p = Principal.fromActor(self);
-        saved := ?(p, id);
-        minter := ?Minter.Minter(p, Ledger, id)
+    let p = Principal.fromActor(self);
+    let ret = try {
+      let res = await Ledger.createFungibleToken();
+      switch(res) {
+        case(#ok aid) {
+          savedArgs := ?(p, aid);
+          minter := ?Minter.Minter(Ledger, p, aid)
+        };
+        case(_) {}
       };
-      case(_) {}
+      res
+    } catch (e) {
+      #err(#CallLedgerError)
     };
     initActive := false;
-    res
+    ret
   };
 
   public query func assetId(): async ?Nat {
-    // let id : (Principal, Nat) -> Nat = func (x) { x.1 };
-    let id = func (x : (Principal, Nat)) : Nat { x.1 };
-    Option.map(saved, id);
+    let toAssetId : ((Principal, Nat)) -> Nat = func x = x.1;
+    Option.map(savedArgs, toAssetId);
   };
   public query func ledgerPrincipal(): async Principal = async Principal.fromActor(Ledger);
 

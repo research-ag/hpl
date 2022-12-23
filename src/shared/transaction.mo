@@ -30,6 +30,7 @@ module {
   };
 
   public type SubaccountId = Nat;
+  public type VirtualAccountId = Nat;
   public type AssetId = Nat;
   public type Asset = { 
     #ft : (id : AssetId, quantity : Nat);

@@ -111,26 +111,26 @@ module {
       accounts[oid].size();
 
     // get the asset in a given subaccount
-    func asset_(oid : OwnerId, sid: SubaccountId): Result<SubaccountState, { #SubaccountNotFound }> =
+    func asset_(oid : OwnerId, sid: SubaccountId): Result<SubaccountState, { #UnknownSubaccount }> =
       switch (accounts[oid].size() > sid) {
         case (true) #ok(accounts[oid][sid]);
-        case (false) #err(#SubaccountNotFound)
+        case (false) #err(#UnknownSubaccount)
       };
     // get the state of virtual account
-    func virtualAsset_(oid : OwnerId, vid: VirtualAccountId): Result<VirtualAccountState, { #VirtualAccountNotFound }> =
+    func virtualAsset_(oid : OwnerId, vid: VirtualAccountId): Result<VirtualAccountState, { #UnknownVirtualAccount }> =
       switch (virtualAccounts[oid].size() > vid) {
         case (true) switch (virtualAccounts[oid][vid]) {
-          case (null) #err(#VirtualAccountNotFound);
+          case (null) #err(#UnknownVirtualAccount);
           case (?acc) #ok(acc);
         };
-        case (false) #err(#VirtualAccountNotFound)
+        case (false) #err(#UnknownVirtualAccount)
       };
 
     // currying the asset_ function
-    func assetInSubaccount_(sid: SubaccountId) : OwnerId -> Result<SubaccountState, { #SubaccountNotFound }> =
+    func assetInSubaccount_(sid: SubaccountId) : OwnerId -> Result<SubaccountState, { #UnknownSubaccount }> =
       func(oid) = asset_(oid, sid);
     // currying the virtualAsset_ function
-    func stateOfVirtualAccount_(vid: VirtualAccountId) : OwnerId -> Result<VirtualAccountState, { #VirtualAccountNotFound }> =
+    func stateOfVirtualAccount_(vid: VirtualAccountId) : OwnerId -> Result<VirtualAccountState, { #UnknownVirtualAccount }> =
       func(oid) = virtualAsset_(oid, vid);
 
     // get the assets in all subaccounts of a given owner id
@@ -148,10 +148,10 @@ module {
     public func nAccounts(p: Principal): Result<Nat, { #UnknownPrincipal }> =
       R.mapOk(ownerId(p), nAccounts_);
 
-    public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #UnknownPrincipal; #SubaccountNotFound }> =
+    public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #UnknownPrincipal; #UnknownSubaccount }> =
       R.chain(ownerId(p), assetInSubaccount_(sid));
 
-    public func virtualAccount(p: Principal, vid: VirtualAccountId): Result<VirtualAccountState, { #UnknownPrincipal; #VirtualAccountNotFound }> =
+    public func virtualAccount(p: Principal, vid: VirtualAccountId): Result<VirtualAccountState, { #UnknownPrincipal; #UnknownVirtualAccount }> =
       R.chain(ownerId(p), stateOfVirtualAccount_(vid));
 
     public func allAssets(p : Principal) : Result<[SubaccountState], { #UnknownPrincipal }> =
@@ -217,7 +217,7 @@ module {
         };
       };
     };
-    public func openVirtualAccount(p: Principal, state: VirtualAccountState): Result<SubaccountId, { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset; #NoSpaceForAccount; }> {
+    public func openVirtualAccount(p: Principal, state: VirtualAccountState): Result<VirtualAccountId, { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset; #NoSpaceForAccount; }> {
       switch (ownerId(p)) {
         case (#err err) #err(err);
         case (#ok oid) {

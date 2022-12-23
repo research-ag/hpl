@@ -71,7 +71,7 @@ type Subaccount_Result =
    ok: SubaccountState;
    err: variant {
      UnknownPrincipal;
-     SubaccountNotFound;
+     UnknownSubaccount;
    };
  };
 type Subaccounts_Result =
@@ -138,7 +138,7 @@ service : (vec principal) -> {
 
   // return the asset in the n-th subaccount of the caller
   // UnknownPrincipal if the caller isn't registered
-  // SubaccountNotFound if the caller is registered but does not have n accounts
+  // UnknownSubaccount if the caller is registered but does not have n accounts
   asset: (SubaccountId) -> (Subaccount_Result) query;
 
   // admin interface

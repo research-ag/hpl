@@ -74,8 +74,8 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   // queries
   public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async ledger_.aggregatorPrincipal(aid);
   public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
-  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
-  public shared query ({caller}) func virtualAccount(vid: VirtualAccountId): async Result<Ledger.VirtualAccountState, { #UnknownPrincipal; #VirtualAccountNotFound; }> = async ledger_.virtualAccount(caller, vid);
+  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #UnknownSubaccount; }> = async ledger_.asset(caller, sid);
+  public shared query ({caller}) func virtualAccount(vid: VirtualAccountId): async Result<Ledger.VirtualAccountState, { #UnknownPrincipal; #UnknownVirtualAccount; }> = async ledger_.virtualAccount(caller, vid);
 
   // admin interface
   // TODO admin-only authorization

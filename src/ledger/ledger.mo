@@ -16,6 +16,7 @@ module {
   public type AggregatorId = Nat;
 
   public type SubaccountId = Tx.SubaccountId;
+  public type VirtualAccountId = Tx.VirtualAccountId;
   public type Asset = Tx.Asset;
   public type AssetId = Tx.AssetId;
   public type Batch = Tx.Batch;
@@ -116,21 +117,21 @@ module {
         case (false) #err(#SubaccountNotFound)
       };
     // get the state of virtual account
-    func virtualAsset_(oid : OwnerId, sid: SubaccountId): Result<VirtualAccountState, { #SubaccountNotFound }> =
-      switch (virtualAccounts[oid].size() > sid) {
-        case (true) switch (virtualAccounts[oid][sid]) {
-          case (null) #err(#SubaccountNotFound);
+    func virtualAsset_(oid : OwnerId, vid: VirtualAccountId): Result<VirtualAccountState, { #VirtualAccountNotFound }> =
+      switch (virtualAccounts[oid].size() > vid) {
+        case (true) switch (virtualAccounts[oid][vid]) {
+          case (null) #err(#VirtualAccountNotFound);
           case (?acc) #ok(acc);
         };
-        case (false) #err(#SubaccountNotFound)
+        case (false) #err(#VirtualAccountNotFound)
       };
 
     // currying the asset_ function
     func assetInSubaccount_(sid: SubaccountId) : OwnerId -> Result<SubaccountState, { #SubaccountNotFound }> =
       func(oid) = asset_(oid, sid);
-    // currying the virtualAccount_ function
-    func virtualAccount_(aid: SubaccountId) : OwnerId -> Result<VirtualAccountState, { #SubaccountNotFound }> =
-      func(oid) = virtualAsset_(oid, aid);
+    // currying the virtualAsset_ function
+    func stateOfVirtualAccount_(vid: VirtualAccountId) : OwnerId -> Result<VirtualAccountState, { #VirtualAccountNotFound }> =
+      func(oid) = virtualAsset_(oid, vid);
 
     // get the assets in all subaccounts of a given owner id
     func allAssets_(oid : OwnerId) : [SubaccountState] =
@@ -150,8 +151,8 @@ module {
     public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #UnknownPrincipal; #SubaccountNotFound }> =
       R.chain(ownerId(p), assetInSubaccount_(sid));
 
-    public func virtualAccount(p: Principal, aid: SubaccountId): Result<VirtualAccountState, { #UnknownPrincipal; #SubaccountNotFound }> =
-      R.chain(ownerId(p), virtualAccount_(aid));
+    public func virtualAccount(p: Principal, vid: VirtualAccountId): Result<VirtualAccountState, { #UnknownPrincipal; #VirtualAccountNotFound }> =
+      R.chain(ownerId(p), stateOfVirtualAccount_(vid));
 
     public func allAssets(p : Principal) : Result<[SubaccountState], { #UnknownPrincipal }> =
       R.mapOk(ownerId(p), allAssets_);
@@ -234,21 +235,31 @@ module {
         };
       };
     };
-    public func updateVirtualAccount(owner: Principal, aid: SubaccountId, newState: ?VirtualAccountState): Result<(), { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset }> {
+    public func updateVirtualAccount(owner: Principal, vid: VirtualAccountId, newState: VirtualAccountState): Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; #UnknownSubaccount; #MismatchInAsset }> {
       switch (ownerId(owner)) {
         case (#err err) #err(err);
         case (#ok oid) {
-          if (aid >= virtualAccounts[oid].size()) {
-            return #err(#UnknownSubaccount);
+          if (vid >= virtualAccounts[oid].size()) {
+            return #err(#UnknownVirtualAccount);
           };
-          switch (newState) {
-            case (null) {};
-            case (?ns) switch (validateVirtualAccountState_(oid, ns)) {
-              case (#ok) {};
-              case (#err err) return #err(err);
+          switch (validateVirtualAccountState_(oid, newState)) {
+            case (#ok) {
+              virtualAccounts[oid][vid] := ?newState;
+              #ok(); 
             };
+            case (#err err) #err(err);
           };
-          virtualAccounts[oid][aid] := newState;
+        };
+      };
+    };
+    public func deleteVirtualAccount(owner: Principal, vid: VirtualAccountId): Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; }> {
+      switch (ownerId(owner)) {
+        case (#err err) #err(err);
+        case (#ok oid) {
+          if (vid >= virtualAccounts[oid].size()) {
+            return #err(#UnknownVirtualAccount);
+          };
+          virtualAccounts[oid][vid] := null;
           #ok(); 
         };
       };

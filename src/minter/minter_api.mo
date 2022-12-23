@@ -24,7 +24,9 @@ actor class MinterAPI(ledger : ?Principal) = self {
 
   var initActive = false; // lock to prevent concurrent init() calls
 
-  public shared func init(): async R.Result<Nat, L.CreateFtError or { #CouldNotSend }> {
+  type InitError = L.CreateFtError or { #CallLedgerError };
+
+  public shared func init(): async R.Result<Nat, InitError> {
     assert Option.isNull(savedArgs); // trap if already initialized
     assert (not initActive); // trap if init() already in process
     initActive := true;
@@ -40,7 +42,7 @@ actor class MinterAPI(ledger : ?Principal) = self {
       };
       res
     } catch (e) {
-      #err(#CouldNotSend)
+      #err(#CallLedgerError)
     };
     initActive := false;
     ret

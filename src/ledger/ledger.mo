@@ -217,8 +217,8 @@ module {
         };
       };
     };
-    public func openVirtualAccount(owner: Principal, state: VirtualAccountState): Result<SubaccountId, { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset; #NoSpaceForAccount; }> {
-      switch (ownerId(owner)) {
+    public func openVirtualAccount(p: Principal, state: VirtualAccountState): Result<SubaccountId, { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset; #NoSpaceForAccount; }> {
+      switch (ownerId(p)) {
         case (#err err) #err(err);
         case (#ok oid) {
           let oldSize = virtualAccounts[oid].size();
@@ -235,8 +235,8 @@ module {
         };
       };
     };
-    public func updateVirtualAccount(owner: Principal, vid: VirtualAccountId, newState: VirtualAccountState): Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; #UnknownSubaccount; #MismatchInAsset }> {
-      switch (ownerId(owner)) {
+    public func updateVirtualAccount(p: Principal, vid: VirtualAccountId, newState: VirtualAccountState): Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; #UnknownSubaccount; #MismatchInAsset }> {
+      switch (ownerId(p)) {
         case (#err err) #err(err);
         case (#ok oid) {
           if (vid >= virtualAccounts[oid].size()) {
@@ -252,8 +252,8 @@ module {
         };
       };
     };
-    public func deleteVirtualAccount(owner: Principal, vid: VirtualAccountId): Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; }> {
-      switch (ownerId(owner)) {
+    public func deleteVirtualAccount(p: Principal, vid: VirtualAccountId): Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; }> {
+      switch (ownerId(p)) {
         case (#err err) #err(err);
         case (#ok oid) {
           if (vid >= virtualAccounts[oid].size()) {

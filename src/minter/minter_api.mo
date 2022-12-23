@@ -22,15 +22,14 @@ actor class MinterAPI(ledger : ?Principal) = self {
     case (_) null
   };
 
-  var initActive = false;
+  var initActive = false; // lock to prevent concurrent init() calls
+
   public shared func init(): async R.Result<Nat, L.CreateFtError or { #CouldNotSend }> {
-    // trap if values are already initialized
-    assert Option.isNull(savedArgs);
-    // trap if creation of asset id is already under way
-    assert (not initActive);
+    assert Option.isNull(savedArgs); // trap if already initialized
+    assert (not initActive); // trap if init() already in process
     initActive := true;
     let p = Principal.fromActor(self);
-    try {
+    let ret = try {
       let res = await Ledger.createFungibleToken();
       switch(res) {
         case(#ok aid) {
@@ -39,12 +38,12 @@ actor class MinterAPI(ledger : ?Principal) = self {
         };
         case(_) {}
       };
-      initActive := false;
-      return res
+      res
     } catch (e) {
-      initActive := false;
-      return #err(#CouldNotSend)
+      #err(#CouldNotSend)
     };
+    initActive := false;
+    ret
   };
 
   public query func assetId(): async ?Nat {

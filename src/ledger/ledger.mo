@@ -31,7 +31,8 @@ module {
     #UnknownSubaccount;
     #UnknownVirtualAccount;
     #UnknownFtAsset;
-    #MismatchInAsset; // asset in flow != asset in subaccount
+    #MismatchInAsset; // asset in flow != asset in account
+    #MismatchInRemotePrincipal; // remotePrincipal in flow != remotePrincipal in virtual account
     #InsufficientFunds;
     #NotAController;  // in attempted mint operation
   };
@@ -346,7 +347,8 @@ module {
         };
       };
       // list of new subaccounts to be written after full validation
-      var newSubaccounts = List.nil<(OwnerId, AccountReference, SubaccountState)>();
+      var newSubaccounts = List.nil<(OwnerId, SubaccountId, SubaccountState)>();
+      var newVirtualAccounts = List.nil<(OwnerId, VirtualAccountId, VirtualAccountState)>();
       // pass #1: validation
       for (j in tx.map.keys()) {
         let (contribution, oid) = (tx.map[j], ownersCache[j]);
@@ -364,24 +366,35 @@ module {
           Iter.map<(AccountReference, Asset), (AccountReference, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
           Iter.map<(AccountReference, Asset), (AccountReference, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
         )) {
-          switch (processFlow(oid, accountRef, flowAsset, isInflow)) {
-            case (#err err) {
-              return #err(err);
+          switch (accountRef) {
+            case (#sub subAccountId) {
+              switch (processSubaccountFlow(oid, subAccountId, flowAsset, isInflow)) {
+                case (#err err) {
+                  return #err(err);
+                };
+                case (#ok newState) newSubaccounts := List.push((oid, subAccountId, newState), newSubaccounts);
+              };
             };
-            case (#ok newState) newSubaccounts := List.push((oid, accountRef, newState), newSubaccounts);
+            case (#vir (remotePrincipal, accountId)) {
+              switch (processVirtualAccountFlow(oid, accountId, remotePrincipal, flowAsset, isInflow)) {
+                case (#err err) {
+                  return #err(err);
+                };
+                case (#ok (newVirtualAccountState, newSubaccountState)) {
+                  newVirtualAccounts := List.push((oid, accountId, newVirtualAccountState), newVirtualAccounts);
+                  newSubaccounts := List.push((oid, newVirtualAccountState.backingSubaccountId, newSubaccountState), newSubaccounts);
+                };
+              };
+            };
           };
         };
       };
       // pass #2: applying
-      for ((oid, accountRef, newSubaccount) in List.toIter(newSubaccounts)) {
-        switch (accountRef) {
-          case (#sub subaccountId) {
-            accounts[oid][subaccountId] := newSubaccount;
-          };
-          case (#vir (remotePrincipal, accountId)) {
-            // TODO
-          };
-        };
+      for ((oid, subaccountId, newSubaccount) in List.toIter(newSubaccounts)) {
+        accounts[oid][subaccountId] := newSubaccount;
+      };
+      for ((oid, accountId, newVirtualAccount) in List.toIter(newVirtualAccounts)) {
+        virtualAccounts[oid][accountId] := ?newVirtualAccount;
       };
       #ok();
     };
@@ -391,28 +404,9 @@ module {
         return #err(#UnknownSubaccount);
       };
       let subaccount = accounts[ownerId][subaccountId];
-      switch (flowAsset) {
-        case (#ft flowAssetData) {
-          if (flowAssetData.0 >= counters_.assets) {
-            return #err(#UnknownFtAsset);
-          };
-          switch (subaccount.asset) {
-            case (#ft userAssetData) {
-              // subaccount has some tokens: check asset type
-              if (flowAssetData.0 != userAssetData.0) {
-                return #err(#MismatchInAsset);
-              };
-              if (isInflow) {
-                return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1) });
-              };
-              // check is enough balance
-              if (userAssetData.1 < flowAssetData.1) {
-                return #err(#InsufficientFunds);
-              };
-              return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 - flowAssetData.1) });
-            };
-          };
-        };
+      switch (processAssetChange(flowAsset, subaccount.asset, isInflow)) {
+        case (#ok asset) #ok({ asset = asset });
+        case (#err err) #err(err);
       };
     };
 
@@ -422,27 +416,52 @@ module {
       };
       let account = virtualAccounts[ownerId][accountId];
       switch (account) {
-        case (null) return #err(#)
-      }
-      let subaccountState = processSubaccountFlow(ownerId, account.backingSubaccountId, );
+        case (null) return #err(#UnknownVirtualAccount);
+        case (?acc) {
+          if (acc.remotePrincipal != remotePrincipal) {
+            return #err(#MismatchInRemotePrincipal);
+          };
+          switch (processSubaccountFlow(ownerId, acc.backingSubaccountId, flowAsset, isInflow)) {
+            case (#err err) #err(err);
+            case (#ok newSubaccountState) {
+              switch (processAssetChange(flowAsset, acc.asset, isInflow)) {
+                case (#err err) #err(err);
+                case (#ok updatedVirtualAsset) {
+                  #ok(
+                    { 
+                      asset = updatedVirtualAsset;
+                      backingSubaccountId = acc.backingSubaccountId;
+                      remotePrincipal = acc.remotePrincipal;
+                    }, 
+                    newSubaccountState,
+                  );
+                };
+              };
+            };
+          };
+        };
+      };
+    };
+
+    func processAssetChange(flowAsset: Asset, userAsset: Asset, isInflow: Bool): Result<Asset, ProcessingError> {
       switch (flowAsset) {
         case (#ft flowAssetData) {
           if (flowAssetData.0 >= counters_.assets) {
             return #err(#UnknownFtAsset);
           };
-          switch (account.asset) {
+          switch (userAsset) {
             case (#ft userAssetData) {
               if (flowAssetData.0 != userAssetData.0) {
                 return #err(#MismatchInAsset);
               };
               if (isInflow) {
-                return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1) });
+                return #ok(#ft(flowAssetData.0, userAssetData.1 + flowAssetData.1));
               };
               // check is enough balance
               if (userAssetData.1 < flowAssetData.1) {
                 return #err(#InsufficientFunds);
               };
-              return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 - flowAssetData.1) });
+              return #ok(#ft(flowAssetData.0, userAssetData.1 - flowAssetData.1));
             };
           };
         };

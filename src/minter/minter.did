@@ -8,6 +8,7 @@ type MintResult =
       InsufficientFunds;
       MemoTooLarge;
       MismatchInAsset;
+      MismatchInRemotePrincipal;
       MissingApproval;
       NonZeroAssetSum;
       NotAController;
@@ -19,6 +20,7 @@ type MintResult =
       UnknownFtAsset;
       UnknownPrincipal;
       UnknownSubaccount;
+      UnknownVirtualAccount;
       CallLedgerError;
     };
     ok: nat;

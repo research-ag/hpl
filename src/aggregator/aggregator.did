@@ -1,5 +1,6 @@
 type AggregatorId = nat;
 type SubaccountId = nat;
+type VirtualAccountId = nat;
 type AssetId = nat;
 type QueueNumber = nat;
 type Approvals = vec bool;
@@ -16,6 +17,14 @@ type Asset = variant {
   };
 };
 
+type AccountReference =  variant {
+    sub: SubaccountId;
+    vir: record {
+        principal;
+        VirtualAccountId;
+    };
+};
+
 // A transaction has contributions from multiple parties, each of which is of the following type.
 // A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.
 // The memo is limited to 256 bytes.
@@ -23,11 +32,11 @@ type Contribution =
  record {
    owner : principal;
    inflow: vec record {
-                 SubaccountId;
+                  AccountReference;
                  Asset;
                };
    outflow: vec record {
-                  SubaccountId;
+                  AccountReference;
                   Asset;
                 };
    mints: vec Asset;

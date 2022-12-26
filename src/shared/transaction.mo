@@ -21,6 +21,9 @@ module {
     
     // maximum value for the subaccount id allowed in a flow
     maxSubaccounts = C.maxSubaccounts;
+    
+    // maximum value for the virtual account id allowed in a flow
+    maxVirtualAccounts = C.maxVirtualAccounts;
 
     // maxmium value for the asset id allowed in an #ft flow
     maxAssets = C.maxAssets;
@@ -31,14 +34,19 @@ module {
 
   public type SubaccountId = Nat;
   public type VirtualAccountId = Nat;
+  // for #sub, we need only id of the subaccount;
+  // for #vir, we need an id of virtual account + remote principal in this subaccount, so we can make approvement logic on aggregator size.
+  // if provide wrong remote principal, the ledger will reject the transaction
+  public type AccountReference = { #sub: SubaccountId; #vir: (Principal, VirtualAccountId) };
   public type AssetId = Nat;
   public type Asset = { 
     #ft : (id : AssetId, quantity : Nat);
   };
+  // TODO re-check size estimation logic
   public type Contribution = {
     owner : Principal;
-    inflow : [(SubaccountId, Asset)];
-    outflow : [(SubaccountId, Asset)];
+    inflow : [(AccountReference, Asset)];
+    outflow : [(AccountReference, Asset)];
     mints : [Asset];
     burns : [Asset];
     memo : ?Blob
@@ -59,7 +67,8 @@ module {
     #FtQuantityTooLarge
   };
   public type FlowError = AssetError or {
-    #SubaccountIdTooLarge
+    #SubaccountIdTooLarge;
+    #VirtualAccountIdTooLarge;
   };
   public type ContributionError = FlowError or {
     #MemoTooLarge;
@@ -147,12 +156,42 @@ module {
     return #ok
   };
 
-  func validateFlow(f : (SubaccountId, Asset)) : Result<(), FlowError> {
-    if (f.0 >= constants.maxSubaccounts) {
-      return #err(#SubaccountIdTooLarge)
+  func validateFlow(f : (AccountReference, Asset)) : Result<(), FlowError> {
+    switch(f.0) {
+      case (#sub saf) {
+        if (saf >= constants.maxSubaccounts) {
+          return #err(#SubaccountIdTooLarge)
+        };
+      };
+      case (#vir vaf) {
+        if (vaf.1 >= constants.maxVirtualAccounts) {
+          return #err(#VirtualAccountIdTooLarge)
+        };
+      };
     };
     validateAsset(f.1);
   };
+
+  func validateAccountIdsUniqueness(source1: [Nat], source2: [Nat]): Result<(), { #FlowsNotSorted }> {
+    if (not isStrictlyIncreasing(source1) or not isStrictlyIncreasing(source2)) {
+      return #err(#FlowsNotSorted)
+    };
+    // uniqueness of subaccount ids across inflow and outflow
+    // this algorithm works only because subaccount ids are strictly increasing in both arrays
+    if (not isUniqueInBoth(source1, source2)) {
+      return #err(#FlowsNotSorted);
+    };
+    #ok();
+  };
+
+  func getAccountIds(flow: [(AccountReference, Asset)], virtualAccounts: Bool): [Nat] = 
+    Array.map<(AccountReference, Asset),Nat>(
+      Array.filter<(AccountReference, Asset)>(
+        flow, 
+        func(x: (AccountReference, Asset)) = switch(x.0) { case (#sub sx) not virtualAccounts; case (#vir vx) virtualAccounts; }
+      ), 
+      func(x) = switch(x.0) { case (#sub sx) sx; case (#vir vx) vx.1; }
+    );
 
   func validateContribution(c : Contribution) : Result<(), ContributionError> {
     // memo size
@@ -194,16 +233,13 @@ module {
         case (_) {}
       }
     };
-    // sorting of subaccount ids in inflow and outflow
-    let ids1 = Array.map<(Nat, Asset),Nat>(c.inflow, func(x) {x.0});
-    let ids2 = Array.map<(Nat, Asset),Nat>(c.outflow, func(x) {x.0});
-    if (not isStrictlyIncreasing(ids1) or not isStrictlyIncreasing(ids2)) {
-      return #err(#FlowsNotSorted)
+    switch (validateAccountIdsUniqueness(getAccountIds(c.inflow, false), getAccountIds(c.outflow, false))) {
+      case (#err err) return #err(err);
+      case (#ok) {};
     };
-    // uniqueness of subaccount ids across inflow and outflow
-    // this algorithm works only because subaccount ids are strictly increasing in both arrays
-    if (not isUniqueInBoth(ids1, ids2)) {
-      return #err(#FlowsNotSorted);
+    switch (validateAccountIdsUniqueness(getAccountIds(c.inflow, true), getAccountIds(c.outflow, true))) {
+      case (#err err) return #err(err);
+      case (#ok) {};
     };
     #ok
   };

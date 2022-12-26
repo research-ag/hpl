@@ -80,6 +80,7 @@ type SubmitError =
    NotRunning;
    OwnersNotUnique;
    SubaccountIdTooLarge;
+   VirtualAccountIdTooLarge;
    TooManyContributions;
    TooManyFlows;
  };

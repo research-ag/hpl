@@ -12,8 +12,8 @@ module {
         Tx.constants.maxContributions,
         func (i: Nat) = {
           owner = principalFromNat(startPrincipalNumber + i);
-          inflow = Array.tabulate<(Tx.SubaccountId, Tx.Asset)>(Tx.constants.maxFlows / 2, func (j: Nat) = (j, #ft(0, 10)));
-          outflow = Array.tabulate<(Tx.SubaccountId, Tx.Asset)>(Tx.constants.maxFlows / 2, func (j: Nat) = (j + Tx.constants.maxFlows / 2, #ft(0, 10)));
+          inflow = Array.tabulate<(Tx.AccountReference, Tx.Asset)>(Tx.constants.maxFlows / 2, func (j: Nat) = (#sub(j), #ft(0, 10)));
+          outflow = Array.tabulate<(Tx.AccountReference, Tx.Asset)>(Tx.constants.maxFlows / 2, func (j: Nat) = (#sub(j + Tx.constants.maxFlows / 2), #ft(0, 10)));
           mints = [];
           burns = [];
           memo = ?Blob.fromArray(Array.freeze(Array.init<Nat8>(Tx.constants.maxMemoBytes, 12)))

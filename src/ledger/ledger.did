@@ -99,6 +99,7 @@ type ProcessImmediateTx_Result =
       NotAController;
       OwnersNotUnique;
       SubaccountIdTooLarge;
+      VirtualAccountIdTooLarge;
       TooManyContributions;
       TooManyFlows;
       UnknownFtAsset;

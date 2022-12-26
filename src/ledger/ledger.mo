@@ -17,6 +17,7 @@ module {
 
   public type SubaccountId = Tx.SubaccountId;
   public type VirtualAccountId = Tx.VirtualAccountId;
+  public type AccountReference = Tx.AccountReference;
   public type Asset = Tx.Asset;
   public type AssetId = Tx.AssetId;
   public type Batch = Tx.Batch;
@@ -28,6 +29,7 @@ module {
     // a value has not yet been registered
     #UnknownPrincipal;
     #UnknownSubaccount;
+    #UnknownVirtualAccount;
     #UnknownFtAsset;
     #MismatchInAsset; // asset in flow != asset in subaccount
     #InsufficientFunds;
@@ -57,6 +59,9 @@ module {
 
     // maximum number of subaccounts per owner
     maxSubaccounts = C.maxSubaccounts;
+
+    // maximum number of virtual accounts per principal
+    maxVirtualAccounts = C.maxVirtualAccounts;
 
     // maximum number of asset ids that the ledger can register
     maxAssets = C.maxAssets;
@@ -222,7 +227,7 @@ module {
         case (#err err) #err(err);
         case (#ok oid) {
           let oldSize = virtualAccounts[oid].size();
-          if (oldSize >= constants.maxSubaccounts) {
+          if (oldSize >= constants.maxVirtualAccounts) {
             return #err(#NoSpaceForAccount);
           };
           switch (validateVirtualAccountState_(oid, state)) {
@@ -341,7 +346,7 @@ module {
         };
       };
       // list of new subaccounts to be written after full validation
-      var newSubaccounts = List.nil<(OwnerId, SubaccountId, SubaccountState)>();
+      var newSubaccounts = List.nil<(OwnerId, AccountReference, SubaccountState)>();
       // pass #1: validation
       for (j in tx.map.keys()) {
         let (contribution, oid) = (tx.map[j], ownersCache[j]);
@@ -355,26 +360,33 @@ module {
             }
           };
         };
-        for ((subaccountId, flowAsset, isInflow) in u.iterConcat(
-          Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
-          Iter.map<(SubaccountId, Asset), (SubaccountId, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
+        for ((accountRef, flowAsset, isInflow) in u.iterConcat(
+          Iter.map<(AccountReference, Asset), (AccountReference, Asset, Bool)>(contribution.inflow.vals(), func (sid, ast) = (sid, ast, true)),
+          Iter.map<(AccountReference, Asset), (AccountReference, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
         )) {
-          switch (processFlow(oid, subaccountId, flowAsset, isInflow)) {
+          switch (processFlow(oid, accountRef, flowAsset, isInflow)) {
             case (#err err) {
               return #err(err);
             };
-            case (#ok newState) newSubaccounts := List.push((oid, subaccountId, newState), newSubaccounts);
+            case (#ok newState) newSubaccounts := List.push((oid, accountRef, newState), newSubaccounts);
           };
         };
       };
       // pass #2: applying
-      for ((oid, subaccountId, newSubaccount) in List.toIter(newSubaccounts)) {
-        accounts[oid][subaccountId] := newSubaccount;
+      for ((oid, accountRef, newSubaccount) in List.toIter(newSubaccounts)) {
+        switch (accountRef) {
+          case (#sub subaccountId) {
+            accounts[oid][subaccountId] := newSubaccount;
+          };
+          case (#vir (remotePrincipal, accountId)) {
+            // TODO
+          };
+        };
       };
       #ok();
     };
 
-    func processFlow(ownerId: OwnerId, subaccountId: SubaccountId, flowAsset: Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
+    func processSubaccountFlow(ownerId: OwnerId, subaccountId: SubaccountId, flowAsset: Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
       if (subaccountId >= accounts[ownerId].size()) {
         return #err(#UnknownSubaccount);
       };
@@ -387,6 +399,39 @@ module {
           switch (subaccount.asset) {
             case (#ft userAssetData) {
               // subaccount has some tokens: check asset type
+              if (flowAssetData.0 != userAssetData.0) {
+                return #err(#MismatchInAsset);
+              };
+              if (isInflow) {
+                return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 + flowAssetData.1) });
+              };
+              // check is enough balance
+              if (userAssetData.1 < flowAssetData.1) {
+                return #err(#InsufficientFunds);
+              };
+              return #ok({ asset = #ft(flowAssetData.0, userAssetData.1 - flowAssetData.1) });
+            };
+          };
+        };
+      };
+    };
+
+    func processVirtualAccountFlow(ownerId: OwnerId, accountId: VirtualAccountId, remotePrincipal: Principal, flowAsset: Asset, isInflow: Bool): R.Result<(VirtualAccountState, SubaccountState), ProcessingError> {
+      if (accountId >= virtualAccounts[ownerId].size()) {
+        return #err(#UnknownVirtualAccount);
+      };
+      let account = virtualAccounts[ownerId][accountId];
+      switch (account) {
+        case (null) return #err(#)
+      }
+      let subaccountState = processSubaccountFlow(ownerId, account.backingSubaccountId, );
+      switch (flowAsset) {
+        case (#ft flowAssetData) {
+          if (flowAssetData.0 >= counters_.assets) {
+            return #err(#UnknownFtAsset);
+          };
+          switch (account.asset) {
+            case (#ft userAssetData) {
               if (flowAssetData.0 != userAssetData.0) {
                 return #err(#MismatchInAsset);
               };

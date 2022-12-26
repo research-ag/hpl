@@ -184,11 +184,16 @@ module {
     #ok();
   };
 
-  func getAccountIds(flow: [(AccountReference, Asset)], virtualAccounts: Bool): [Nat] = 
+  func getAccountIds(flow: [(AccountReference, Asset)], accountType: { #sub; #vir }): [Nat] = 
     Array.map<(AccountReference, Asset),Nat>(
       Array.filter<(AccountReference, Asset)>(
         flow, 
-        func(x: (AccountReference, Asset)) = switch(x.0) { case (#sub sx) not virtualAccounts; case (#vir vx) virtualAccounts; }
+        func(x: (AccountReference, Asset)) = switch(x.0, accountType) {
+          case (#sub _, #sub) true;
+          case (#sub _, #vir) false;
+          case (#vir _, #sub) false;
+          case (#vir _, #vir) true;
+        }
       ), 
       func(x) = switch(x.0) { case (#sub sx) sx; case (#vir vx) vx.1; }
     );
@@ -233,11 +238,11 @@ module {
         case (_) {}
       }
     };
-    switch (validateAccountIdsUniqueness(getAccountIds(c.inflow, false), getAccountIds(c.outflow, false))) {
+    switch (validateAccountIdsUniqueness(getAccountIds(c.inflow, #sub), getAccountIds(c.outflow, #sub))) {
       case (#err err) return #err(err);
       case (#ok) {};
     };
-    switch (validateAccountIdsUniqueness(getAccountIds(c.inflow, true), getAccountIds(c.outflow, true))) {
+    switch (validateAccountIdsUniqueness(getAccountIds(c.inflow, #vir), getAccountIds(c.outflow, #vir))) {
       case (#err err) return #err(err);
       case (#ok) {};
     };

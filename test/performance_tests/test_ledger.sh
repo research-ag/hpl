@@ -57,7 +57,7 @@ let n = call canister.profile(vec {
     map = vec {
         record {
           owner = user1;
-          inflow = vec { record { 0; variant { ft = record { 0; 500 } } } };
+          inflow = vec { record { variant { sub = 0 }; variant { ft = record { 0; 500 } } } };
           outflow = vec { };
           mints = vec { };
           burns = vec { };
@@ -66,7 +66,7 @@ let n = call canister.profile(vec {
         record {
           owner = user2;
           inflow = vec { };
-          outflow = vec { record { 0; variant { ft = record { 0; 500 } } } };
+          outflow = vec { record { variant { sub = 0 }; variant { ft = record { 0; 500 } } } };
           mints = vec { };
           burns = vec { };
           memo = null;

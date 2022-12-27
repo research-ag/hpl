@@ -270,20 +270,19 @@ module {
         };
       };
     };
-    private func validateVirtualAccountState_(oid: OwnerId, state: VirtualAccountState): Result<(), { #UnknownSubaccount; #MismatchInAsset }> {
+    private func validateVirtualAccountState_(oid: OwnerId, state: VirtualAccountState): Result<(), { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset }> {
       if (state.backingSubaccountId >= accounts[oid].size()) {
         return #err(#UnknownSubaccount);
       };
-      switch(accounts[oid][state.backingSubaccountId].asset) {
-        case(#ft ft) {
-          switch (state.asset) {
-            case (#ft ft2) {
-              if (ft.0 != ft2.0) { 
-                return #err(#MismatchInAsset); 
-              };
-              #ok();
-            };
+      switch (owners.get(state.remotePrincipal), accounts[oid][state.backingSubaccountId].asset, state.asset) {
+        case (null, _, _) {
+          #err(#UnknownPrincipal);
+        };
+        case (_, #ft ft, #ft ft2) {
+          if (ft.0 != ft2.0) { 
+            return #err(#MismatchInAsset); 
           };
+          #ok();
         };
       };
     };

@@ -86,19 +86,20 @@ assert _.all.txsFailed == (0 : nat);
 output("cycle_stats.txt", stringify("[LED] 16,384 txs: ", n, "\n"));
 
 // one the biggest possible Tx
-let heavy_tx = call canister.generateHeavyTx(0);
+let heavy_tx = call canister.generateHeavyTx(0, true);
 let n = call canister.profile(vec { heavy_tx });
 call canister.stats();
 assert _.all.txsFailed == (0 : nat);
 output("cycle_stats.txt", stringify("[LED] Heavy tx: ", n, "\n"));
 
 // full batch with biggest possible Tx-s
+let heavy_tx = call canister.generateHeavyTx(0, false);
 let n = call canister.profile(vec {
-  heavy_tx; heavy_tx; heavy_tx; heavy_tx;
+  heavy_tx; heavy_tx; heavy_tx; heavy_tx; heavy_tx;
 });
 call canister.stats();
 assert _.all.txsFailed == (0 : nat);
-output("cycle_stats.txt", stringify("[LED] 4 heavy tx-s (max possible batch): ", n, "\n"));
+output("cycle_stats.txt", stringify("[LED] 5 heavy tx-s: ", n, "\n"));
 
 // uncomment for debug: check the error if any
 //call canister.batchesHistory(5, 7);

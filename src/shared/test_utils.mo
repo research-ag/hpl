@@ -6,7 +6,7 @@ import Tx "transaction";
 
 module {
 
-  public func generateHeavyTx(startPrincipalNumber: Nat): Tx.Tx =
+  public func generateHeavyTx(startPrincipalNumber: Nat, appendMemo: Bool): Tx.Tx =
     {
       map = Array.tabulate<Tx.Contribution>(
         Tx.constants.maxContributions,
@@ -16,9 +16,9 @@ module {
           outflow = Array.tabulate<(Tx.AccountReference, Tx.Asset)>(Tx.constants.maxFlows / 2, func (j: Nat) = (#sub(j + Tx.constants.maxFlows / 2), #ft(0, 10)));
           mints = [];
           burns = [];
-          memo = ?Blob.fromArray(Array.freeze(Array.init<Nat8>(Tx.constants.maxMemoBytes, 12)))
+          memo = if (appendMemo) { ?Blob.fromArray(Array.freeze(Array.init<Nat8>(Tx.constants.maxMemoBytes, 12))) } else { null; };
         },
-      )
+      );
     };
 
   public func principalFromNat(n : Nat) : Principal {

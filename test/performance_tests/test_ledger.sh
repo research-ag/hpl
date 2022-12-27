@@ -57,7 +57,7 @@ let n = call canister.profile(vec {
     map = vec {
         record {
           owner = user1;
-          inflow = vec { record { 0; variant { ft = record { 0; 500 } } } };
+          inflow = vec { record { variant { sub = 0 }; variant { ft = record { 0; 500 } } } };
           outflow = vec { };
           mints = vec { };
           burns = vec { };
@@ -66,7 +66,7 @@ let n = call canister.profile(vec {
         record {
           owner = user2;
           inflow = vec { };
-          outflow = vec { record { 0; variant { ft = record { 0; 500 } } } };
+          outflow = vec { record { variant { sub = 0 }; variant { ft = record { 0; 500 } } } };
           mints = vec { };
           burns = vec { };
           memo = null;
@@ -94,11 +94,11 @@ output("cycle_stats.txt", stringify("[LED] Heavy tx: ", n, "\n"));
 
 // full batch with biggest possible Tx-s
 let n = call canister.profile(vec {
-  heavy_tx; heavy_tx; heavy_tx; heavy_tx; heavy_tx;
+  heavy_tx; heavy_tx; heavy_tx; heavy_tx;
 });
 call canister.stats();
 assert _.all.txsFailed == (0 : nat);
-output("cycle_stats.txt", stringify("[LED] 5 heavy tx-s (max possible batch): ", n, "\n"));
+output("cycle_stats.txt", stringify("[LED] 4 heavy tx-s (max possible batch): ", n, "\n"));
 
 // uncomment for debug: check the error if any
 //call canister.batchesHistory(5, 7);
@@ -107,5 +107,5 @@ output("cycle_stats.txt", stringify("[LED] 5 heavy tx-s (max possible batch): ",
 call canister.stats();
 assert _.all.txsFailed == (0 : nat);
 assert _.all.batches == (6 : nat);
-assert _.all.txs == (16392 : nat);
-assert _.all.txsSucceeded == (16392 : nat);
+assert _.all.txs == (16391 : nat);
+assert _.all.txsSucceeded == (16391 : nat);

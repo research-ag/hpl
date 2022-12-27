@@ -1,5 +1,6 @@
 type AggregatorId = nat;
 type SubaccountId = nat;
+type VirtualAccountId = nat;
 type AssetId = nat;
 
 // An asset can be a fungible or non-fungible token.
@@ -18,6 +19,14 @@ type SubaccountState = record {
   asset: Asset;
 };
 
+type AccountReference =  variant {
+    sub: SubaccountId;
+    vir: record {
+        principal;
+        VirtualAccountId;
+    };
+};
+
 // A transaction has contributions from multiple parties, each of which is of the following type.
 // A contribution is relative to its owner, i.e. the subaccount id inside it is relative to the owner principal.
 // The memo is limited to 256 bytes.
@@ -25,11 +34,11 @@ type Contribution =
  record {
    owner : principal;
    inflow: vec record {
-                 SubaccountId;
+                 AccountReference;
                  Asset;
                };
    outflow: vec record {
-                  SubaccountId;
+                  AccountReference;
                   Asset;
                 };
    mints: vec Asset;
@@ -94,6 +103,7 @@ type ProcessImmediateTx_Result =
       InsufficientFunds;
       MemoTooLarge;
       MismatchInAsset;
+      MismatchInRemotePrincipal;
       MissingApproval;
       NonZeroAssetSum;
       NotAController;
@@ -105,6 +115,7 @@ type ProcessImmediateTx_Result =
       UnknownFtAsset;
       UnknownPrincipal;
       UnknownSubaccount;
+      UnknownVirtualAccount;
     }
   };
 

@@ -36,6 +36,7 @@ type InitResult =
    err: variant {
           FeeError;
           NoSpace;
+          CallLedgerError;
         };
    ok: nat;
  };

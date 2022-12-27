@@ -1,12 +1,12 @@
 [LED] Empty batch: 1_591
 [LED] Batch with one empty Tx: 3_045
 [LED] One simple Tx: 23_578
-[LED] 16,384 txs: 212_678_582
-[LED] Heavy tx: 94_456_742
-[LED] 4 heavy tx-s (max possible batch): 377_889_293
+[LED] 16,384 txs: 217_013_818
+[LED] Heavy tx: 94_460_774
+[LED] 4 heavy tx-s (max possible batch): 377_921_987
 [AGG] submit simple Tx: 25_232
 [AGG] submit + auto-enqueue simple Tx: 18_443
-[AGG] submit heavy tx: 218_157_417
+[AGG] submit heavy tx: 218_159_840
 [AGG] approve + equeue simple Tx: 795
 [AGG] reject simple Tx: 796
 [AGG] prepare big batch: 2_493_480

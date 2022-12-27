@@ -108,5 +108,5 @@ output("cycle_stats.txt", stringify("[LED] 5 heavy tx-s: ", n, "\n"));
 call canister.stats();
 assert _.all.txsFailed == (0 : nat);
 assert _.all.batches == (6 : nat);
-assert _.all.txs == (16391 : nat);
-assert _.all.txsSucceeded == (16391 : nat);
+assert _.all.txs == (16392 : nat);
+assert _.all.txsSucceeded == (16392 : nat);

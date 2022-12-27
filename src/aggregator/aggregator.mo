@@ -138,7 +138,7 @@ module {
       if (state_ != #running) {
         return #err(#NotRunning);
       };
-      switch (Tx.validate(tx, true)) {
+      switch (Tx.validate(tx)) {
         case (#err error) { return #err(error) };
         case (_) {}
       };

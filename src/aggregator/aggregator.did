@@ -82,13 +82,11 @@ type TxRequest =
 type SubmitError = 
  variant {
    AssetIdTooLarge;
-   FlowsNotSorted;
    FtQuantityTooLarge;
    MemoTooLarge;
    NoSpace;
    NonZeroAssetSum;
    NotRunning;
-   OwnersNotUnique;
    SubaccountIdTooLarge;
    VirtualAccountIdTooLarge;
    TooManyContributions;

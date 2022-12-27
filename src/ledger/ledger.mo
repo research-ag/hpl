@@ -312,7 +312,7 @@ module {
     // pass through a single directly submitted tx
     public func processImmediateTx(caller: Principal, tx: Tx.Tx): Result<(), ImmediateTxError> =
       // do the same validation that otherwise the aggregator would do
-      switch (Tx.validate(tx, true)) {
+      switch (Tx.validate(tx)) {
         case (#ok _) {
           for (c in tx.map.vals()) {
             if (c.owner != caller and (c.outflow.size() > 0 or c.mints.size() > 0 or c.burns.size() > 0)) {

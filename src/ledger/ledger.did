@@ -98,7 +98,6 @@ type ProcessImmediateTx_Result =
     ok: null;
     err: variant {
       AssetIdTooLarge;
-      FlowsNotSorted;
       FtQuantityTooLarge;
       InsufficientFunds;
       MemoTooLarge;
@@ -107,7 +106,6 @@ type ProcessImmediateTx_Result =
       MissingApproval;
       NonZeroAssetSum;
       NotAController;
-      OwnersNotUnique;
       SubaccountIdTooLarge;
       VirtualAccountIdTooLarge;
       TooManyContributions;

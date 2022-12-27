@@ -17,9 +17,10 @@ type Asset = variant {
   };
 };
 
-type AccountReference =  variant {
+type AccountReference = variant {
     sub: SubaccountId;
     vir: record {
+        // owner of the virtual account
         principal;
         VirtualAccountId;
     };
@@ -32,7 +33,7 @@ type Contribution =
  record {
    owner : principal;
    inflow: vec record {
-                  AccountReference;
+                 AccountReference;
                  Asset;
                };
    outflow: vec record {

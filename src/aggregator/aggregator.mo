@@ -144,7 +144,6 @@ module {
       };
       let txSize = Tx.size(tx);
       tracker.add(#submit);
-      // TODO approval from remotePrincipal
       let approvals: MutableApprovals = Array.tabulateVar(tx.map.size(), func (i: Nat): Bool = tx.map[i].owner == caller or (tx.map[i].outflow.size() == 0 and tx.map[i].mints.size() == 0 and tx.map[i].burns.size() == 0));
       let txRequest : TxReq = {
         tx = tx;

@@ -37,6 +37,7 @@ module {
   // for #sub, we need only id of the subaccount;
   // for #vir, we need an id of virtual account + remote principal in this subaccount, so we can make approvement logic on aggregator size.
   // if provide wrong remote principal, the ledger will reject the transaction
+  // note that for #vir transactions, contribution owner should be the remotePrincipal of the virtual account, and principal inside #vir uuple is the owner of virtual account
   public type AccountReference = { #sub: SubaccountId; #vir: (Principal, VirtualAccountId) };
   public type AssetId = Nat;
   public type Asset = { 

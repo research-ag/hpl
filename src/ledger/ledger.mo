@@ -289,7 +289,7 @@ module {
     };
 
     // ================================ PROCESSING ================================
-    // proces a batch of txs
+    // process a batch of txs
     // the batch could have been submitted directly to the ledger or through an aggregator
     func processBatch_(source: {#agg : Nat; #direct}, batch: Batch): [Result<(), ProcessingError>] {
       let results : [var Result<(), ProcessingError>] = Array.init(batch.size(), #ok());
@@ -375,14 +375,21 @@ module {
                 case (#ok newState) newSubaccounts := List.push((oid, subAccountId, newState), newSubaccounts);
               };
             };
-            case (#vir (remotePrincipal, accountId)) {
-              switch (processVirtualAccountFlow(oid, accountId, remotePrincipal, flowAsset, isInflow)) {
-                case (#err err) {
-                  return #err(err);
+            case (#vir (accountHolder, accountId)) {
+              switch (owners.get(accountHolder)) {
+                case (null) {
+                  return #err(#UnknownPrincipal);
                 };
-                case (#ok (newVirtualAccountState, newSubaccountState)) {
-                  newVirtualAccounts := List.push((oid, accountId, newVirtualAccountState), newVirtualAccounts);
-                  newSubaccounts := List.push((oid, newVirtualAccountState.backingSubaccountId, newSubaccountState), newSubaccounts);
+                case (?virOwner) {
+                  switch (processVirtualAccountFlow(virOwner, accountId, contribution.owner, flowAsset, isInflow)) {
+                    case (#err err) {
+                      return #err(err);
+                    };
+                    case (#ok (newVirtualAccountState, newSubaccountState)) {
+                      newVirtualAccounts := List.push((virOwner, accountId, newVirtualAccountState), newVirtualAccounts);
+                      newSubaccounts := List.push((virOwner, newVirtualAccountState.backingSubaccountId, newSubaccountState), newSubaccounts);
+                    };
+                  };
                 };
               };
             };

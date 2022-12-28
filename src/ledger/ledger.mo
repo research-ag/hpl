@@ -1,9 +1,12 @@
 import RBTree "mo:base/RBTree";
+import AssocList "mo:base/AssocList";
 import List "mo:base/List";
 import Array "mo:base/Array";
 import Principal "mo:base/Principal";
 import Iter "mo:base/Iter";
 import R "mo:base/Result";
+import Nat "mo:base/Nat";
+import Option "mo:base/Option";
 
 import Tx "../shared/transaction";
 import u "../shared/utils";
@@ -346,8 +349,34 @@ module {
         };
       };
       // list of new subaccounts to be written after full validation
-      var newSubaccounts = List.nil<(OwnerId, SubaccountId, SubaccountState)>();
-      var newVirtualAccounts = List.nil<(OwnerId, VirtualAccountId, VirtualAccountState)>();
+      var newSubaccounts: AssocList.AssocList<(OwnerId, SubaccountId), SubaccountState> = null;
+      var newVirtualAccounts: AssocList.AssocList<(OwnerId, VirtualAccountId), VirtualAccountState> = null;
+      // compare function for state associative lists
+      var accComp: ((oidA: Nat, aidA: Nat), (oidB: Nat, aidB: Nat)) -> Bool = func ((oidA, aidA), (oidB, aidB)) = Nat.equal(oidA, oidB) and Nat.equal(aidA, aidB);
+      // helper function to get subaccount from either list of updated ones, if were used before, or from ledger accounts
+      let getSubaccountState = func (oid: OwnerId, sid: SubaccountId): R.Result<SubaccountState, { #UnknownSubaccount }> =
+        Option.get<R.Result<SubaccountState, { #UnknownSubaccount }>>(
+          Option.map(AssocList.find(newSubaccounts, (oid, sid), accComp), func (state: SubaccountState) : R.Result<SubaccountState, { #UnknownSubaccount }> = #ok(state)),
+          asset_(oid, sid),
+        );
+      // helper function to get virtual account + it's backing subaccount from either list of updated states, or ledger accounts
+      let getVirtualAccountState = func (accountHolder: Principal, vid: VirtualAccountId): R.Result<(SubaccountState, VirtualAccountState), { #UnknownPrincipal; #UnknownVirtualAccount; #UnknownSubaccount }> =
+        R.chain(
+          ownerId(accountHolder),
+          func (oid: OwnerId): R.Result<(SubaccountState, VirtualAccountState), { #UnknownVirtualAccount; #UnknownSubaccount }> =
+            R.chain(
+              Option.get<R.Result<VirtualAccountState, { #UnknownVirtualAccount }>>(
+                Option.map(AssocList.find(newVirtualAccounts, (oid, vid), accComp), func (state: VirtualAccountState) : R.Result<VirtualAccountState, { #UnknownVirtualAccount }> = #ok(state)),
+                virtualAsset_(oid, vid),
+              ),
+              func (vState: VirtualAccountState): R.Result<(SubaccountState, VirtualAccountState), { #UnknownVirtualAccount; #UnknownSubaccount }> = 
+                R.mapOk<SubaccountState, (SubaccountState, VirtualAccountState),  { #UnknownSubaccount }>(
+                  getSubaccountState(oid, vState.backingSubaccountId),
+                  func (sState: SubaccountState): (SubaccountState, VirtualAccountState) = (sState, vState),
+                ),
+            ),
+        );
+
       // pass #1: validation
       for (j in tx.map.keys()) {
         let (contribution, oid) = (tx.map[j], ownersCache[j]);
@@ -366,29 +395,31 @@ module {
           Iter.map<(AccountReference, Asset), (AccountReference, Asset, Bool)>(contribution.outflow.vals(), func (sid, ast) = (sid, ast, false)),
         )) {
           switch (accountRef) {
-            case (#sub subAccountId) {
-              switch (processSubaccountFlow(oid, subAccountId, flowAsset, isInflow)) {
+            case (#sub subaccountId) {
+              switch (R.chain(
+                getSubaccountState(oid, subaccountId), 
+                func (state: SubaccountState): R.Result<SubaccountState, ProcessingError> = processSubaccountFlow(state, flowAsset, isInflow)
+              )) {
+                case (#ok state) {
+                  newSubaccounts := AssocList.replace<(OwnerId, SubaccountId), SubaccountState>(newSubaccounts, (oid, subaccountId), accComp, ?state).0;
+                };
                 case (#err err) {
                   return #err(err);
                 };
-                case (#ok newState) newSubaccounts := List.push((oid, subAccountId, newState), newSubaccounts);
               };
             };
             case (#vir (accountHolder, accountId)) {
-              switch (owners.get(accountHolder)) {
-                case (null) {
-                  return #err(#UnknownPrincipal);
+              switch (R.chain(
+                getVirtualAccountState(accountHolder, accountId), 
+                func ((sState: SubaccountState, vState: VirtualAccountState)):  R.Result<(VirtualAccountState, SubaccountState), ProcessingError> = 
+                  processVirtualAccountFlow(vState, sState, contribution.owner, flowAsset, isInflow),
+              )) {
+                case (#ok (newVirtualAccountState, newSubaccountState)) {
+                  newVirtualAccounts := AssocList.replace<(OwnerId, VirtualAccountId), VirtualAccountState>(newVirtualAccounts, (oid, accountId), accComp, ?newVirtualAccountState).0;
+                  newSubaccounts := AssocList.replace<(OwnerId, SubaccountId), SubaccountState>(newSubaccounts, (oid, newVirtualAccountState.backingSubaccountId), accComp, ?newSubaccountState).0;
                 };
-                case (?virOwner) {
-                  switch (processVirtualAccountFlow(virOwner, accountId, contribution.owner, flowAsset, isInflow)) {
-                    case (#err err) {
-                      return #err(err);
-                    };
-                    case (#ok (newVirtualAccountState, newSubaccountState)) {
-                      newVirtualAccounts := List.push((virOwner, accountId, newVirtualAccountState), newVirtualAccounts);
-                      newSubaccounts := List.push((virOwner, newVirtualAccountState.backingSubaccountId, newSubaccountState), newSubaccounts);
-                    };
-                  };
+                case (#err err) {
+                  return #err(err);
                 };
               };
             };
@@ -396,56 +427,42 @@ module {
         };
       };
       // pass #2: applying
-      for ((oid, subaccountId, newSubaccount) in List.toIter(newSubaccounts)) {
+      for (((oid, subaccountId), newSubaccount) in List.toIter(newSubaccounts)) {
         accounts[oid][subaccountId] := newSubaccount;
       };
-      for ((oid, accountId, newVirtualAccount) in List.toIter(newVirtualAccounts)) {
+      for (((oid, accountId), newVirtualAccount) in List.toIter(newVirtualAccounts)) {
         virtualAccounts[oid][accountId] := ?newVirtualAccount;
       };
       #ok();
     };
 
-    func processSubaccountFlow(ownerId: OwnerId, subaccountId: SubaccountId, flowAsset: Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
-      if (subaccountId >= accounts[ownerId].size()) {
-        return #err(#UnknownSubaccount);
-      };
-      let subaccount = accounts[ownerId][subaccountId];
+    func processSubaccountFlow(subaccount: SubaccountState, flowAsset: Asset, isInflow: Bool): R.Result<SubaccountState, ProcessingError> {
       switch (processAssetChange(flowAsset, subaccount.asset, isInflow)) {
         case (#ok asset) #ok({ asset = asset });
         case (#err err) #err(err);
       };
     };
 
-    func processVirtualAccountFlow(ownerId: OwnerId, accountId: VirtualAccountId, remotePrincipal: Principal, flowAsset: Asset, isInflow: Bool): R.Result<(VirtualAccountState, SubaccountState), ProcessingError> {
-      if (accountId >= virtualAccounts[ownerId].size()) {
-        return #err(#UnknownVirtualAccount);
+    func processVirtualAccountFlow(account: VirtualAccountState, backingAccountState: SubaccountState, remotePrincipal: Principal, flowAsset: Asset, isInflow: Bool): R.Result<(VirtualAccountState, SubaccountState), ProcessingError> {
+      if (account.remotePrincipal != remotePrincipal) {
+        return #err(#MismatchInRemotePrincipal);
       };
-      let account = virtualAccounts[ownerId][accountId];
-      switch (account) {
-        case (null) return #err(#UnknownVirtualAccount);
-        case (?acc) {
-          if (acc.remotePrincipal != remotePrincipal) {
-            return #err(#MismatchInRemotePrincipal);
-          };
-          switch (processSubaccountFlow(ownerId, acc.backingSubaccountId, flowAsset, isInflow)) {
-            case (#err err) #err(err);
-            case (#ok newSubaccountState) {
-              switch (processAssetChange(flowAsset, acc.asset, isInflow)) {
-                case (#err err) #err(err);
-                case (#ok updatedVirtualAsset) {
-                  #ok(
-                    { 
-                      asset = updatedVirtualAsset;
-                      backingSubaccountId = acc.backingSubaccountId;
-                      remotePrincipal = acc.remotePrincipal;
-                    }, 
-                    newSubaccountState,
-                  );
-                };
-              };
-            };
-          };
+      switch (
+        processSubaccountFlow(backingAccountState, flowAsset, isInflow),
+        processAssetChange(flowAsset, account.asset, isInflow)
+      ) {
+        case (#ok newSubaccountState, #ok updatedVirtualAsset) {
+          #ok(
+            { 
+              asset = updatedVirtualAsset;
+              backingSubaccountId = account.backingSubaccountId;
+              remotePrincipal = account.remotePrincipal;
+            }, 
+            newSubaccountState,
+          );
         };
+        case (#err err, _) #err(err);
+        case (_, #err err) #err(err);
       };
     };
 

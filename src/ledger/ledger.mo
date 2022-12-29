@@ -13,7 +13,6 @@ import u "../shared/utils";
 import { CircularBuffer } "../shared/circular_buffer";
 import C "../shared/constants";
 import Stats "ledger-stats";
-import NaturalMap "../shared/natural_map";
 
 module {
   public type Result<X,Y> = R.Result<X,Y>;
@@ -350,15 +349,15 @@ module {
         };
       };
       // list of new subaccounts to be written after full validation
-      var newSubaccounts: NaturalMap.NaturalMap<SubaccountState> = NaturalMap.NaturalMap(256);
-      var newVirtualAccounts: NaturalMap.NaturalMap<VirtualAccountState> = NaturalMap.NaturalMap(256);
+      var newSubaccounts: AssocList.AssocList<Nat, SubaccountState> = null;
+      var newVirtualAccounts: AssocList.AssocList<Nat, VirtualAccountState> = null;
       // converter functions: pack (OwnerId, SubaccountId or VirtualAccountId) to Nat and vice versa, so we can index them by natural number
       let packAccount = func (oid: OwnerId, aid: SubaccountId or VirtualAccountId): Nat = aid*constants.maxPrincipals + oid;
       let unpackAccount = func (n: Nat): (OwnerId, SubaccountId or VirtualAccountId) = (n % constants.maxPrincipals, n / constants.maxPrincipals);
       // helper function to get subaccount from either list of updated ones, if were used before, or from ledger accounts
       let getSubaccountState = func (oid: OwnerId, sid: SubaccountId): R.Result<SubaccountState, { #UnknownSubaccount }> =
         Option.get<R.Result<SubaccountState, { #UnknownSubaccount }>>(
-          Option.map(newSubaccounts.find(packAccount(oid, sid)), func (state: SubaccountState) : R.Result<SubaccountState, { #UnknownSubaccount }> = #ok(state)),
+          Option.map(AssocList.find(newSubaccounts, packAccount(oid, sid), Nat.equal), func (state: SubaccountState) : R.Result<SubaccountState, { #UnknownSubaccount }> = #ok(state)),
           asset_(oid, sid),
         );
       // helper function to get virtual account + it's backing subaccount from either list of updated states, or ledger accounts
@@ -368,7 +367,7 @@ module {
           func (oid: OwnerId): R.Result<(SubaccountState, VirtualAccountState), { #UnknownVirtualAccount; #UnknownSubaccount }> =
             R.chain(
               Option.get<R.Result<VirtualAccountState, { #UnknownVirtualAccount }>>(
-                Option.map(newVirtualAccounts.find(packAccount(oid, vid)), func (state: VirtualAccountState) : R.Result<VirtualAccountState, { #UnknownVirtualAccount }> = #ok(state)),
+                Option.map(AssocList.find(newVirtualAccounts, packAccount(oid, vid), Nat.equal), func (state: VirtualAccountState) : R.Result<VirtualAccountState, { #UnknownVirtualAccount }> = #ok(state)),
                 virtualAsset_(oid, vid),
               ),
               func (vState: VirtualAccountState): R.Result<(SubaccountState, VirtualAccountState), { #UnknownVirtualAccount; #UnknownSubaccount }> = 
@@ -403,7 +402,7 @@ module {
                 func (state: SubaccountState): R.Result<SubaccountState, ProcessingError> = processSubaccountFlow(state, flowAsset, isInflow)
               )) {
                 case (#ok state) {
-                  ignore newSubaccounts.replace(packAccount(oid, subaccountId), ?state);
+                  newSubaccounts := AssocList.replace<Nat, SubaccountState>(newSubaccounts, packAccount(oid, subaccountId), Nat.equal, ?state).0;
                 };
                 case (#err err) {
                   return #err(err);
@@ -417,8 +416,8 @@ module {
                   processVirtualAccountFlow(vState, sState, contribution.owner, flowAsset, isInflow),
               )) {
                 case (#ok (newVirtualAccountState, newSubaccountState)) {
-                  ignore newVirtualAccounts.replace(packAccount(oid, accountId), ?newVirtualAccountState);
-                  ignore newSubaccounts.replace(packAccount(oid, newVirtualAccountState.backingSubaccountId), ?newSubaccountState);
+                  newVirtualAccounts := AssocList.replace<Nat, VirtualAccountState>(newVirtualAccounts, packAccount(oid, accountId), Nat.equal, ?newVirtualAccountState).0;
+                  newSubaccounts := AssocList.replace<Nat, SubaccountState>(newSubaccounts, packAccount(oid, newVirtualAccountState.backingSubaccountId), Nat.equal, ?newSubaccountState).0;
                 };
                 case (#err err) {
                   return #err(err);
@@ -429,11 +428,11 @@ module {
         };
       };
       // pass #2: applying
-      for ((index, newSubaccount) in newSubaccounts.toIter()) {
+      for ((index, newSubaccount) in List.toIter(newSubaccounts)) {
         let (oid, subaccountId) = unpackAccount(index);
         accounts[oid][subaccountId] := newSubaccount;
       };
-      for ((index, newVirtualAccount) in newVirtualAccounts.toIter()) {
+      for ((index, newVirtualAccount) in List.toIter(newVirtualAccounts)) {
         let (oid, accountId) = unpackAccount(index);
         virtualAccounts[oid][accountId] := ?newVirtualAccount;
       };

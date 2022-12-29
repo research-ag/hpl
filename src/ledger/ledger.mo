@@ -292,17 +292,53 @@ module {
     };
 
     // ================================ PROCESSING ================================
+    type BalanceDeltaRepo = {
+      newSubaccounts: NaturalMap.NaturalMap<SubaccountState>;
+      newVirtualAccounts: NaturalMap.NaturalMap<VirtualAccountState>;
+    };
+    let packAccount = func (oid: OwnerId, aid: SubaccountId or VirtualAccountId): Nat = aid*constants.maxPrincipals + oid;
+    let unpackAccount = func (n: Nat): (OwnerId, SubaccountId or VirtualAccountId) = (n % constants.maxPrincipals, n / constants.maxPrincipals);
+    // helper function to get subaccount from either list of updated ones, if were used before, or from ledger accounts
+    let getSubaccountState = func (delta: BalanceDeltaRepo, oid: OwnerId, sid: SubaccountId): R.Result<SubaccountState, { #UnknownSubaccount }> =
+      Option.get<R.Result<SubaccountState, { #UnknownSubaccount }>>(
+        Option.map(delta.newSubaccounts.find(packAccount(oid, sid)), func (state: SubaccountState) : R.Result<SubaccountState, { #UnknownSubaccount }> = #ok(state)),
+        asset_(oid, sid),
+      );
+    // helper function to get virtual account + it's backing subaccount from either list of updated states, or ledger accounts
+    let getVirtualAccountState = func (delta: BalanceDeltaRepo, accountHolder: Principal, vid: VirtualAccountId): R.Result<(SubaccountState, VirtualAccountState), { #UnknownPrincipal; #UnknownVirtualAccount; #UnknownSubaccount }> =
+      R.chain(
+        ownerId(accountHolder),
+        func (oid: OwnerId): R.Result<(SubaccountState, VirtualAccountState), { #UnknownVirtualAccount; #UnknownSubaccount }> =
+          R.chain(
+            Option.get<R.Result<VirtualAccountState, { #UnknownVirtualAccount }>>(
+              Option.map(delta.newVirtualAccounts.find(packAccount(oid, vid)), func (state: VirtualAccountState) : R.Result<VirtualAccountState, { #UnknownVirtualAccount }> = #ok(state)),
+              virtualAsset_(oid, vid),
+            ),
+            func (vState: VirtualAccountState): R.Result<(SubaccountState, VirtualAccountState), { #UnknownVirtualAccount; #UnknownSubaccount }> = 
+              R.mapOk<SubaccountState, (SubaccountState, VirtualAccountState),  { #UnknownSubaccount }>(
+                getSubaccountState(delta, oid, vState.backingSubaccountId),
+                func (sState: SubaccountState): (SubaccountState, VirtualAccountState) = (sState, vState),
+              ),
+          ),
+      );
+
     // process a batch of txs
     // the batch could have been submitted directly to the ledger or through an aggregator
     func processBatch_(source: {#agg : Nat; #direct}, batch: Batch): [Result<(), ProcessingError>] {
       let results : [var Result<(), ProcessingError>] = Array.init(batch.size(), #ok());
+      let delta: BalanceDeltaRepo = {
+        newSubaccounts = NaturalMap.NaturalMap<SubaccountState>(16);
+        newVirtualAccounts = NaturalMap.NaturalMap<VirtualAccountState>(16);
+      };
       for (i in batch.keys()) {
-        let res = processTx(batch[i]);
+        let res = processTx(batch[i], delta);
         switch (res) {
           case (#ok) { tracker.record(source, #txsuccess) };
           case (#err(_)) { tracker.record(source, #txfail) };
         };
         results[i] := res;
+        delta.newSubaccounts.clear();
+        delta.newVirtualAccounts.clear();
       };
       batchHistory.put({ batchNumber = tracker.all.batches; txNumberOffset = tracker.all.txs - results.size(); results = Array.freeze(results) });
       tracker.record(source, #batch);
@@ -330,7 +366,7 @@ module {
         }
       };
 
-    func processTx(tx: Tx.Tx): Result<(), ProcessingError> {
+    func processTx(tx: Tx.Tx, delta: BalanceDeltaRepo): Result<(), ProcessingError> {
       // Pre-validation has been performed on the aggregator side. We still validate:
       // - owner Id-s
       // - subaccount Id-s
@@ -349,36 +385,6 @@ module {
           };
         };
       };
-      // list of new subaccounts to be written after full validation
-      var newSubaccounts: NaturalMap.NaturalMap<SubaccountState> = NaturalMap.NaturalMap(256);
-      var newVirtualAccounts: NaturalMap.NaturalMap<VirtualAccountState> = NaturalMap.NaturalMap(256);
-      // converter functions: pack (OwnerId, SubaccountId or VirtualAccountId) to Nat and vice versa, so we can index them by natural number
-      let packAccount = func (oid: OwnerId, aid: SubaccountId or VirtualAccountId): Nat = aid*constants.maxPrincipals + oid;
-      let unpackAccount = func (n: Nat): (OwnerId, SubaccountId or VirtualAccountId) = (n % constants.maxPrincipals, n / constants.maxPrincipals);
-      // helper function to get subaccount from either list of updated ones, if were used before, or from ledger accounts
-      let getSubaccountState = func (oid: OwnerId, sid: SubaccountId): R.Result<SubaccountState, { #UnknownSubaccount }> =
-        Option.get<R.Result<SubaccountState, { #UnknownSubaccount }>>(
-          Option.map(newSubaccounts.find(packAccount(oid, sid)), func (state: SubaccountState) : R.Result<SubaccountState, { #UnknownSubaccount }> = #ok(state)),
-          asset_(oid, sid),
-        );
-      // helper function to get virtual account + it's backing subaccount from either list of updated states, or ledger accounts
-      let getVirtualAccountState = func (accountHolder: Principal, vid: VirtualAccountId): R.Result<(SubaccountState, VirtualAccountState), { #UnknownPrincipal; #UnknownVirtualAccount; #UnknownSubaccount }> =
-        R.chain(
-          ownerId(accountHolder),
-          func (oid: OwnerId): R.Result<(SubaccountState, VirtualAccountState), { #UnknownVirtualAccount; #UnknownSubaccount }> =
-            R.chain(
-              Option.get<R.Result<VirtualAccountState, { #UnknownVirtualAccount }>>(
-                Option.map(newVirtualAccounts.find(packAccount(oid, vid)), func (state: VirtualAccountState) : R.Result<VirtualAccountState, { #UnknownVirtualAccount }> = #ok(state)),
-                virtualAsset_(oid, vid),
-              ),
-              func (vState: VirtualAccountState): R.Result<(SubaccountState, VirtualAccountState), { #UnknownVirtualAccount; #UnknownSubaccount }> = 
-                R.mapOk<SubaccountState, (SubaccountState, VirtualAccountState),  { #UnknownSubaccount }>(
-                  getSubaccountState(oid, vState.backingSubaccountId),
-                  func (sState: SubaccountState): (SubaccountState, VirtualAccountState) = (sState, vState),
-                ),
-            ),
-        );
-
       // pass #1: validation
       for (j in tx.map.keys()) {
         let (contribution, oid) = (tx.map[j], ownersCache[j]);
@@ -399,11 +405,11 @@ module {
           switch (accountRef) {
             case (#sub subaccountId) {
               switch (R.chain(
-                getSubaccountState(oid, subaccountId), 
+                getSubaccountState(delta, oid, subaccountId), 
                 func (state: SubaccountState): R.Result<SubaccountState, ProcessingError> = processSubaccountFlow(state, flowAsset, isInflow)
               )) {
                 case (#ok state) {
-                  ignore newSubaccounts.replace(packAccount(oid, subaccountId), ?state);
+                  ignore delta.newSubaccounts.replace(packAccount(oid, subaccountId), ?state);
                 };
                 case (#err err) {
                   return #err(err);
@@ -412,13 +418,13 @@ module {
             };
             case (#vir (accountHolder, accountId)) {
               switch (R.chain(
-                getVirtualAccountState(accountHolder, accountId), 
+                getVirtualAccountState(delta, accountHolder, accountId), 
                 func ((sState: SubaccountState, vState: VirtualAccountState)):  R.Result<(VirtualAccountState, SubaccountState), ProcessingError> = 
                   processVirtualAccountFlow(vState, sState, contribution.owner, flowAsset, isInflow),
               )) {
                 case (#ok (newVirtualAccountState, newSubaccountState)) {
-                  ignore newVirtualAccounts.replace(packAccount(oid, accountId), ?newVirtualAccountState);
-                  ignore newSubaccounts.replace(packAccount(oid, newVirtualAccountState.backingSubaccountId), ?newSubaccountState);
+                  ignore delta.newVirtualAccounts.replace(packAccount(oid, accountId), ?newVirtualAccountState);
+                  ignore delta.newSubaccounts.replace(packAccount(oid, newVirtualAccountState.backingSubaccountId), ?newSubaccountState);
                 };
                 case (#err err) {
                   return #err(err);
@@ -429,11 +435,11 @@ module {
         };
       };
       // pass #2: applying
-      for ((index, newSubaccount) in newSubaccounts.toIter()) {
+      for ((index, newSubaccount) in delta.newSubaccounts.toIter()) {
         let (oid, subaccountId) = unpackAccount(index);
         accounts[oid][subaccountId] := newSubaccount;
       };
-      for ((index, newVirtualAccount) in newVirtualAccounts.toIter()) {
+      for ((index, newVirtualAccount) in delta.newVirtualAccounts.toIter()) {
         let (oid, accountId) = unpackAccount(index);
         virtualAccounts[oid][accountId] := ?newVirtualAccount;
       };

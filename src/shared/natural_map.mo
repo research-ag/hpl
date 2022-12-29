@@ -10,7 +10,7 @@ module NaturalMap {
   /** An associative list, optimized for natural keys. Does not preserve elements order */
   public class NaturalMap<T>(bucketsAmount: Nat) {
 
-    private var buckets: [var AssocList.AssocList<Nat, T>] = Array.init(bucketsAmount, null);
+    private let buckets: [var AssocList.AssocList<Nat, T>] = Array.tabulateVar(bucketsAmount, func (n: Nat): AssocList.AssocList<Nat, T> = null);
 
     public func find(key: Nat): ?T = AssocList.find(buckets[key % bucketsAmount], key, Nat.equal);
 
@@ -19,10 +19,6 @@ module NaturalMap {
       let (list, oldValue) = AssocList.replace<Nat, T>(buckets[bucketIndex], key, Nat.equal, value);
       buckets[bucketIndex] := list;
       oldValue;
-    };
-
-    public func clear() {
-      buckets := Array.init(bucketsAmount, null);
     };
 
     public func toIter() : Iter.Iter<(Nat, T)> {

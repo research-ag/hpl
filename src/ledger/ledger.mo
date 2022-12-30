@@ -420,11 +420,11 @@ module {
         case (?err) { 
           // revert original states. Since we used List.push, next loops will iterate list of backup states in reversed order,
           // so repetitive changes in single account should be handled as expected: the very first state will be applied
-          for ((oid, subaccountId, newSubaccount) in List.toIter(backupSubaccountStates)) {
-            accounts[oid][subaccountId] := newSubaccount;
+          for ((oid, subaccountId, oldState) in List.toIter(backupSubaccountStates)) {
+            accounts[oid][subaccountId] := oldState;
           };
-          for ((oid, accountId, newVirtualAccount) in List.toIter(backupVirtualAccountStates)) {
-            virtualAccounts[oid][accountId] := newVirtualAccount;
+          for ((oid, accountId, oldState) in List.toIter(backupVirtualAccountStates)) {
+            virtualAccounts[oid][accountId] := oldState;
           };
           #err(err) 
         };
@@ -436,40 +436,33 @@ module {
       if (subaccountId >= accounts[ownerId].size()) {
         return #err(#UnknownSubaccount);
       };
-      let subaccount = accounts[ownerId][subaccountId];
-      switch (processAssetChange(flowAsset, subaccount.asset, isInflow)) {
-        case (#ok asset) #ok({ asset = asset });
-        case (#err err) #err(err);
-      };
+      R.mapOk<Asset, SubaccountState, ProcessingError>(
+        processAssetChange(flowAsset, accounts[ownerId][subaccountId].asset, isInflow), 
+        func (asset) = { asset = asset }
+      );
     };
 
     func processVirtualAccountFlow(ownerId: OwnerId, accountId: VirtualAccountId, remotePrincipal: Principal, flowAsset: Asset, isInflow: Bool): R.Result<(VirtualAccountState, SubaccountState), ProcessingError> {
-      if (accountId >= virtualAccounts[ownerId].size()) {
-        return #err(#UnknownVirtualAccount);
-      };
-      let account = virtualAccounts[ownerId][accountId];
-      switch (account) {
-        case (null) return #err(#UnknownVirtualAccount);
-        case (?acc) {
+      switch ( virtualAsset_(ownerId, accountId)) {
+        case (#err err) return #err(err);
+        case (#ok acc) {
           if (acc.remotePrincipal != remotePrincipal) {
             return #err(#MismatchInRemotePrincipal);
           };
           switch (processSubaccountFlow(ownerId, acc.backingSubaccountId, flowAsset, isInflow)) {
             case (#err err) #err(err);
             case (#ok newSubaccountState) {
-              switch (processAssetChange(flowAsset, acc.asset, isInflow)) {
-                case (#err err) #err(err);
-                case (#ok updatedVirtualAsset) {
-                  #ok(
+              R.mapOk<Asset, (VirtualAccountState, SubaccountState), ProcessingError>(
+                processAssetChange(flowAsset, acc.asset, isInflow),
+                func (updatedVirtualAsset: Asset) = (
                     { 
                       asset = updatedVirtualAsset;
                       backingSubaccountId = acc.backingSubaccountId;
                       remotePrincipal = acc.remotePrincipal;
-                    }, 
+                    },
                     newSubaccountState,
-                  );
-                };
-              };
+                )
+              );
             };
           };
         };

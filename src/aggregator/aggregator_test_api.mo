@@ -103,8 +103,8 @@ actor class AggregatorTestAPI(ledger : Principal, ownId : Aggregator.AggregatorI
     createSimpleTx(sender, senderSubaccountId, receiver, receiverSubaccountId, amount);
   };
 
-  public query func generateHeavyTx(startPrincipalNumber: Nat, appendMemo: Bool): async Tx.Tx {
-    TestUtils.generateHeavyTx(startPrincipalNumber, appendMemo);
+  public query func generateHeavyTx(startPrincipalNumber: Nat, settings: { appendMemo: Bool; failLastFlow: Bool }): async Tx.Tx {
+    TestUtils.generateHeavyTx(startPrincipalNumber, settings);
   };
 
   func createSimpleTx(sender: Principal, senderSubaccountId: Tx.SubaccountId, receiver: Principal, receiverSubaccountId: Tx.SubaccountId, amount: Nat): Tx.Tx {

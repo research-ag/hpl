@@ -29,7 +29,7 @@ let batch = call canister.getNextBatch();
 assert batch[0] != null;
 output("cycle_stats.txt", stringify("[AGG] submit + auto-enqueue simple Tx: ", res1[0], "\n"));
 
-let heavy_tx = call canister.generateHeavyTx(0, true);
+let heavy_tx = call canister.generateHeavyTx(0, record { appendMemo = true; failLastFlow = false });
 let res2 = call canister.profileSubmit(heavy_tx);
 res2;
 output("cycle_stats.txt", stringify("[AGG] submit heavy tx: ", res2[0], "\n"));

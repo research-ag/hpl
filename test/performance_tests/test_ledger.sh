@@ -86,14 +86,14 @@ assert _.all.txsFailed == (0 : nat);
 output("cycle_stats.txt", stringify("[LED] 16,384 txs: ", n, "\n"));
 
 // one the biggest possible Tx
-let heavy_tx = call canister.generateHeavyTx(0, true);
+let heavy_tx = call canister.generateHeavyTx(0, record { appendMemo = true; failLastFlow = false });
 let n = call canister.profile(vec { heavy_tx });
 call canister.stats();
 assert _.all.txsFailed == (0 : nat);
 output("cycle_stats.txt", stringify("[LED] Heavy tx: ", n, "\n"));
 
 // full batch with biggest possible Tx-s
-let heavy_tx = call canister.generateHeavyTx(0, false);
+let heavy_tx = call canister.generateHeavyTx(0, record { appendMemo = false; failLastFlow = false });
 let n = call canister.profile(vec {
   heavy_tx; heavy_tx; heavy_tx; heavy_tx; heavy_tx;
 });
@@ -101,12 +101,19 @@ call canister.stats();
 assert _.all.txsFailed == (0 : nat);
 output("cycle_stats.txt", stringify("[LED] 5 heavy tx-s: ", n, "\n"));
 
+// Tx which fails in the very end
+let heavy_tx = call canister.generateHeavyTx(0, record { appendMemo = true; failLastFlow = true });
+let n = call canister.profile(vec { heavy_tx });
+call canister.stats();
+assert _.all.txsFailed == (1 : nat);
+output("cycle_stats.txt", stringify("[LED] Heavy tx with failed last outflow: ", n, "\n"));
+
 // uncomment for debug: check the error if any
 //call canister.batchesHistory(5, 7);
 
 // cycles above has wrong values if something went wrong. So check counters here:
 call canister.stats();
-assert _.all.txsFailed == (0 : nat);
-assert _.all.batches == (6 : nat);
-assert _.all.txs == (16392 : nat);
+assert _.all.txsFailed == (1 : nat);
+assert _.all.batches == (7 : nat);
+assert _.all.txs == (16393 : nat);
 assert _.all.txsSucceeded == (16392 : nat);

@@ -56,8 +56,8 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
     Array.freeze(Array.init<Tx.Tx>(txAmount, tx));
   };
 
-  public query func generateHeavyTx(startPrincipalNumber: Nat, appendMemo: Bool): async Tx.Tx {
-    TestUtils.generateHeavyTx(startPrincipalNumber, appendMemo);
+  public query func generateHeavyTx(startPrincipalNumber: Nat, settings: { appendMemo: Bool; failLastFlow: Bool }): async Tx.Tx {
+    TestUtils.generateHeavyTx(startPrincipalNumber, settings);
   };
 
   public func registerPrincipals(startPrincipalNumber: Nat, amount: Nat, subaccountsAmount: Nat, initialBalance: Nat): async () {

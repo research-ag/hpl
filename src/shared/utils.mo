@@ -30,6 +30,29 @@ module {
       };
     };
   };
+  /** concat iterable of iterables to one single iterable */
+  public func flattenIter<T>(source: Iter.Iter<Iter.Iter<T>>): Iter.Iter<T> {
+    var currentIter: ?Iter.Iter<T> = source.next();
+    let peekNext = func (): {#ok: T; #CurrentIterEmpty; #LastIterEmpty } = switch (currentIter) {
+      case (?iter) {
+        switch (iter.next()) {
+          case (null) #CurrentIterEmpty;
+          case (?val) #ok(val);
+        };
+      };
+      case (null) #LastIterEmpty;
+    };
+    object {
+      public func next() : ?T = switch (peekNext()) {
+        case (#ok val) ?val;
+        case (#CurrentIterEmpty) {
+          currentIter := source.next();
+          next();
+        };
+        case (#LastIterEmpty) null;
+      };
+    };
+  };
 
   // append a single element to an immutable array
   public func append<T>(arr: [T], val: T): [T] {

@@ -357,7 +357,7 @@ module {
       var error: ?ProcessingError = null;
 
       // cache owner ids per contribution. If some principal is unknown - return error
-      let ownersCache: [var ?OwnerId] = Array.tabulateVar<?OwnerId>(tx.map.size(), func (n: Nat) = owners.get(tx.map[n].owner));
+      let ownersCache: [var ?OwnerId] = Array.init<?OwnerId>(tx.map.size(), null);
       // loop which validates mint/burns, fills owners cache and processes all inflows
       label applyInflowsLoop
       for (ci in tx.map.keys()) {

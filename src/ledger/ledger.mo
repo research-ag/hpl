@@ -30,6 +30,7 @@ module {
     #UnknownPrincipal;
     #UnknownSubaccount;
     #UnknownVirtualAccount;
+    #DeletedVirtualAccount;
     #UnknownFtAsset;
     #MismatchInAsset; // asset in flow != asset in account
     #MismatchInRemotePrincipal; // remotePrincipal in flow != remotePrincipal in virtual account
@@ -123,10 +124,10 @@ module {
         case (false) #err(#UnknownSubaccount)
       };
     // get the state of virtual account
-    func virtualAsset_(oid : OwnerId, vid: VirtualAccountId): Result<VirtualAccountState, { #UnknownVirtualAccount }> =
+    func virtualAccountState_(oid : OwnerId, vid: VirtualAccountId): Result<VirtualAccountState, { #UnknownVirtualAccount; #DeletedVirtualAccount; }> =
       switch (virtualAccounts[oid].size() > vid) {
         case (true) switch (virtualAccounts[oid][vid]) {
-          case (null) #err(#UnknownVirtualAccount);
+          case (null) #err(#DeletedVirtualAccount);
           case (?acc) #ok(acc);
         };
         case (false) #err(#UnknownVirtualAccount)
@@ -135,9 +136,9 @@ module {
     // currying the asset_ function
     func assetInSubaccount_(sid: SubaccountId) : OwnerId -> Result<SubaccountState, { #UnknownSubaccount }> =
       func(oid) = asset_(oid, sid);
-    // currying the virtualAsset_ function
-    func stateOfVirtualAccount_(vid: VirtualAccountId) : OwnerId -> Result<VirtualAccountState, { #UnknownVirtualAccount }> =
-      func(oid) = virtualAsset_(oid, vid);
+    // currying the virtualAccountState_ function
+    func stateOfVirtualAccount_(vid: VirtualAccountId) : OwnerId -> Result<VirtualAccountState, { #UnknownVirtualAccount; #DeletedVirtualAccount; }> =
+      func(oid) = virtualAccountState_(oid, vid);
 
     // get the assets in all subaccounts of a given owner id
     func allAssets_(oid : OwnerId) : [SubaccountState] =
@@ -157,7 +158,7 @@ module {
     public func asset(p: Principal, sid: SubaccountId): Result<SubaccountState, { #UnknownPrincipal; #UnknownSubaccount }> =
       R.chain(ownerId(p), assetInSubaccount_(sid));
 
-    public func virtualAccount(p: Principal, vid: VirtualAccountId): Result<VirtualAccountState, { #UnknownPrincipal; #UnknownVirtualAccount }> =
+    public func virtualAccount(p: Principal, vid: VirtualAccountId): Result<VirtualAccountState, { #UnknownPrincipal; #UnknownVirtualAccount; #DeletedVirtualAccount; }> =
       R.chain(ownerId(p), stateOfVirtualAccount_(vid));
 
     public func allAssets(p : Principal) : Result<[SubaccountState], { #UnknownPrincipal }> =
@@ -241,19 +242,33 @@ module {
         };
       };
     };
-    public func updateVirtualAccount(p: Principal, vid: VirtualAccountId, newState: VirtualAccountState): Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; #UnknownSubaccount; #MismatchInAsset }> {
+    public func updateVirtualAccount(p: Principal, vid: VirtualAccountId, updates: { backingSubaccountId: SubaccountId; assetBalance: Nat }): Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; #UnknownSubaccount; #MismatchInAsset; #DeletedVirtualAccount }> {
       switch (ownerId(p)) {
         case (#err err) #err(err);
         case (#ok oid) {
           if (vid >= virtualAccounts[oid].size()) {
             return #err(#UnknownVirtualAccount);
           };
-          switch (validateVirtualAccountState_(oid, newState)) {
-            case (#ok) {
-              virtualAccounts[oid][vid] := ?newState;
-              #ok(); 
+          switch (virtualAccounts[oid][vid]) {
+            case (null) #err(#DeletedVirtualAccount);
+            case (?currentVirtualAccount) {
+              switch (currentVirtualAccount.asset) {
+                case (#ft currentFt) {
+                  let newState = {
+                    asset = #ft(currentFt.0, updates.assetBalance);
+                    backingSubaccountId = updates.backingSubaccountId;
+                    remotePrincipal = currentVirtualAccount.remotePrincipal;
+                  };
+                  switch (validateVirtualAccountState_(oid, newState)) {
+                    case (#ok) {
+                      virtualAccounts[oid][vid] := ?newState;
+                      #ok();
+                    };
+                    case (#err err) #err(err);
+                  };
+                };
+              };
             };
-            case (#err err) #err(err);
           };
         };
       };
@@ -270,15 +285,12 @@ module {
         };
       };
     };
-    private func validateVirtualAccountState_(oid: OwnerId, state: VirtualAccountState): Result<(), { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset }> {
+    private func validateVirtualAccountState_(oid: OwnerId, state: VirtualAccountState): Result<(), { #UnknownSubaccount; #MismatchInAsset }> {
       if (state.backingSubaccountId >= accounts[oid].size()) {
         return #err(#UnknownSubaccount);
       };
-      switch (owners.get(state.remotePrincipal), accounts[oid][state.backingSubaccountId].asset, state.asset) {
-        case (null, _, _) {
-          #err(#UnknownPrincipal);
-        };
-        case (_, #ft ft, #ft ft2) {
+      switch (accounts[oid][state.backingSubaccountId].asset, state.asset) {
+        case (#ft ft, #ft ft2) {
           if (ft.0 != ft2.0) { 
             return #err(#MismatchInAsset); 
           };
@@ -443,7 +455,7 @@ module {
     };
 
     func processVirtualAccountFlow(ownerId: OwnerId, accountId: VirtualAccountId, remotePrincipal: Principal, flowAsset: Asset, isInflow: Bool): R.Result<(VirtualAccountState, SubaccountState), ProcessingError> {
-      switch ( virtualAsset_(ownerId, accountId)) {
+      switch (virtualAccountState_(ownerId, accountId)) {
         case (#err err) return #err(err);
         case (#ok acc) {
           if (acc.remotePrincipal != remotePrincipal) {

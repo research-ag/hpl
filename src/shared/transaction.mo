@@ -114,13 +114,13 @@ module {
 
   func validateFlow(f : (AccountReference, Asset)) : Result<(), FlowError> {
     switch(f.0) {
-      case (#sub saf) {
-        if (saf >= constants.maxSubaccounts) {
+      case (#sub sid) {
+        if (sid >= constants.maxSubaccounts) {
           return #err(#SubaccountIdTooLarge)
         };
       };
-      case (#vir vaf) {
-        if (vaf.1 >= constants.maxVirtualAccounts) {
+      case (#vir virRef) {
+        if (virRef.1 >= constants.maxVirtualAccounts) {
           return #err(#VirtualAccountIdTooLarge)
         };
       };

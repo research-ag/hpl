@@ -114,6 +114,7 @@ type ProcessImmediateTx_Result =
       UnknownPrincipal;
       UnknownSubaccount;
       UnknownVirtualAccount;
+      DeletedVirtualAccount;
     }
   };
 

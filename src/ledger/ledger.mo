@@ -338,6 +338,10 @@ module {
         }
       };
 
+    type BackupStates = { 
+      var sub: List.List<(OwnerId, SubaccountId, SubaccountState)>; 
+      var vir: List.List<(OwnerId, VirtualAccountId, ?VirtualAccountState)> 
+    };
     func processTx(tx: Tx.Tx): Result<(), ProcessingError> {
       // Pre-validation has been performed on the aggregator side. We still validate:
       // - owner Id-s
@@ -346,110 +350,115 @@ module {
       // - is balance sufficient
 
       // list of backup states of modified accounts, if we catch error, those states should be written back to accounts
-      var backupSubaccountStates = List.nil<(OwnerId, SubaccountId, SubaccountState)>();
-      var backupVirtualAccountStates = List.nil<(OwnerId, VirtualAccountId, ?VirtualAccountState)>();
+      let backup: BackupStates = {
+        var sub = List.nil<(OwnerId, SubaccountId, SubaccountState)>();
+        var vir = List.nil<(OwnerId, VirtualAccountId, ?VirtualAccountState)>();
+      };
       var error: ?ProcessingError = null;
 
       // cache owner ids per contribution. If some principal is unknown - return error
       let ownersCache: [var ?OwnerId] = Array.tabulateVar<?OwnerId>(tx.map.size(), func (n: Nat) = owners.get(tx.map[n].owner));
-      for (j in tx.map.keys()) {
-        let contribution = tx.map[j];
-        ownersCache[j] := owners.get(contribution.owner);
+      // loop which validates mint/burns, fills owners cache and processes all inflows
+      label applyInflowsLoop
+      for (ci in tx.map.keys()) {
+        let contrib = tx.map[ci];
+        ownersCache[ci] := owners.get(contrib.owner);
         // mints/burns should be only validated, they do not affect any subaccounts
-        for (mintBurnAsset in u.iterConcat(contribution.mints.vals(), contribution.burns.vals())) {
+        for (mintBurnAsset in u.iterConcat(contrib.mints.vals(), contrib.burns.vals())) {
           switch (mintBurnAsset) {
             case (#ft ft) {
-              if (contribution.owner != ftControllers[ft.0]) {
+              if (contrib.owner != ftControllers[ft.0]) {
                 return #err(#NotAController);
               };
             }
           };
         };
-      };
-
-      label applyLoop
-      // iterate over all inflows across all contributions, then over all outflows
-      for ((ci, accountRef, flowAsset, isInflow) in u.iterConcat(
-        u.flattenIter(Iter.map<Nat, Iter.Iter<(Nat, AccountReference, Asset, Bool)>>(
-          tx.map.keys(), 
-          func (ci) = Iter.map<(AccountReference, Asset), (Nat, AccountReference, Asset, Bool)>(
-            tx.map[ci].inflow.vals(), 
-            func (sid, ast) = (ci, sid, ast, true)
-          )
-        )),
-        u.flattenIter(Iter.map<Nat, Iter.Iter<(Nat, AccountReference, Asset, Bool)>>(
-          tx.map.keys(), 
-          func (ci) = Iter.map<(AccountReference, Asset), (Nat, AccountReference, Asset, Bool)>(
-            tx.map[ci].outflow.vals(), 
-            func (sid, ast) = (ci, sid, ast, false)
-          )
-        )),
-      )) {
-        switch (ownersCache[ci], accountRef) {
-          case (?oid, #sub subAccountId) {
-            switch (processSubaccountFlow(oid, subAccountId, flowAsset, isInflow)) {
-              case (#err err) {
-                error := ?err;
-                break applyLoop;
-              };
-              case (#ok newState) {
-                backupSubaccountStates := List.push((oid, subAccountId, accounts[oid][subAccountId]), backupSubaccountStates);
-                accounts[oid][subAccountId] := newState;
-              };
+        for ((sid, ast) in contrib.inflow.vals()) {
+          switch (processFlow(backup, contrib.owner, ownersCache[ci], sid, ast, true)) {
+            case (#err err) {
+              error := ?err;
+              break applyInflowsLoop;
             };
+            case (#ok) {};
           };
-          case (null, #sub _) {
-            error := ?#UnknownPrincipal;
-            break applyLoop;
-          };
-          case (_, #vir (accountHolder, accountId)) {
-            switch (owners.get(accountHolder)) {
-              case (null) {
-                error := ?#UnknownPrincipal;
-                break applyLoop;
-              };
-              case (?virOwner) {
-                switch (processVirtualAccountFlow(virOwner, accountId, tx.map[ci].owner, flowAsset, isInflow)) {
-                  case (#err err) {
-                    error := ?err;
-                    break applyLoop;
-                  };
-                  case (#ok (newVirtualAccountState, newSubaccountState)) {
-                    // write virtual account update
-                    backupVirtualAccountStates := List.push((
-                      virOwner, 
-                      accountId, 
-                      virtualAccounts[virOwner][accountId]
-                    ), backupVirtualAccountStates);
-                    virtualAccounts[virOwner][accountId] := ?newVirtualAccountState;
-                    // write backing subaccount state
-                    backupSubaccountStates := List.push((
-                      virOwner, 
-                      newVirtualAccountState.backingSubaccountId, 
-                      accounts[virOwner][newVirtualAccountState.backingSubaccountId]
-                    ), backupSubaccountStates);
-                    accounts[virOwner][newVirtualAccountState.backingSubaccountId] := newSubaccountState;
-                  };
+        };
+      };
+      // process all outflows, if no error was thrown so far
+      switch (error) {
+        case (null) {
+          label applyOutflowsLoop
+          for (ci in tx.map.keys()) {
+            let contrib = tx.map[ci];
+            for ((sid, ast) in contrib.outflow.vals()) {
+              switch (processFlow(backup, tx.map[ci].owner, ownersCache[ci], sid, ast, false)) {
+                case (#err err) {
+                  error := ?err;
+                  break applyOutflowsLoop;
                 };
+                case (#ok) {};
               };
             };
           };
         };
+        case (_) {};
       };
 
       switch (error) {
         case (?err) { 
           // revert original states. Since we used List.push, next loops will iterate list of backup states in reversed order,
           // so repetitive changes in single account should be handled as expected: the very first state will be applied
-          for ((oid, subaccountId, oldState) in List.toIter(backupSubaccountStates)) {
+          for ((oid, subaccountId, oldState) in List.toIter(backup.sub)) {
             accounts[oid][subaccountId] := oldState;
           };
-          for ((oid, accountId, oldState) in List.toIter(backupVirtualAccountStates)) {
+          for ((oid, accountId, oldState) in List.toIter(backup.vir)) {
             virtualAccounts[oid][accountId] := oldState;
           };
           #err(err) 
         };
         case (null) #ok();
+      };
+    };
+
+    func processFlow(backup: BackupStates, contributionOwner: Principal, ownerId: ?OwnerId, accountRef: AccountReference, flowAsset: Asset, isInflow: Bool): Result<(), ProcessingError> {
+      switch (ownerId, accountRef) {
+        case (?oid, #sub subAccountId) {
+          switch (processSubaccountFlow(oid, subAccountId, flowAsset, isInflow)) {
+            case (#err err) #err(err);
+            case (#ok newState) {
+              backup.sub := List.push((oid, subAccountId, accounts[oid][subAccountId]), backup.sub);
+              accounts[oid][subAccountId] := newState;
+              #ok();
+            };
+          };
+        };
+        case (null, #sub _) #err(#UnknownPrincipal);
+        case (_, #vir (accountHolder, accountId)) {
+          switch (owners.get(accountHolder)) {
+            case (null) #err(#UnknownPrincipal);
+            case (?virOwner) {
+              switch (processVirtualAccountFlow(virOwner, accountId, contributionOwner, flowAsset, isInflow)) {
+                case (#err err) #err(err);
+                case (#ok (newVirtualAccountState, newSubaccountState)) {
+                  // write virtual account update
+                  backup.vir := List.push((
+                    virOwner, 
+                    accountId, 
+                    virtualAccounts[virOwner][accountId]
+                  ), backup.vir);
+                  virtualAccounts[virOwner][accountId] := ?newVirtualAccountState;
+                  // write backing subaccount state
+                  backup.sub := List.push((
+                    virOwner, 
+                    newVirtualAccountState.backingSubaccountId, 
+                    accounts[virOwner][newVirtualAccountState.backingSubaccountId]
+                  ), backup.sub);
+                  accounts[virOwner][newVirtualAccountState.backingSubaccountId] := newSubaccountState;
+                  #ok();
+                };
+              };
+            };
+          };
+        };
       };
     };
 

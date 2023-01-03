@@ -1,13 +1,13 @@
 [LED] Empty batch: 1_591
-[LED] Batch with one empty Tx: 2_867
-[LED] One simple Tx: 39_759
-[LED] 16,384 txs: 389_374_867
-[LED] Heavy tx: 92_347_240
-[LED] 5 heavy tx-s: 461_824_949
-[LED] Heavy tx with failed last outflow: 103_174_427
+[LED] Batch with one empty Tx: 2_830
+[LED] One simple Tx: 20_471
+[LED] 16,384 txs: 188_708_823
+[LED] Heavy tx: 89_714_307
+[LED] 5 heavy tx-s: 448_672_262
+[LED] Heavy tx with failed last outflow: 100_552_471
 [AGG] submit simple Tx: 14_595
 [AGG] submit + auto-enqueue simple Tx: 12_048
-[AGG] submit heavy tx: 132_603_790
+[AGG] submit heavy tx: 132_609_936
 [AGG] approve + equeue simple Tx: 795
 [AGG] reject simple Tx: 796
 [AGG] prepare big batch: 2_493_480

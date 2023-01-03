@@ -345,24 +345,22 @@ module {
       // - asset type
       // - is balance sufficient
 
-      // cache owner ids per contribution. If some principal is unknown - return error
-      let ownersCache: [var ?OwnerId] = Array.tabulateVar<?OwnerId>(tx.map.size(), func (n: Nat) = owners.get(tx.map[n].owner));
-
       // list of backup states of modified accounts, if we catch error, those states should be written back to accounts
       var backupSubaccountStates = List.nil<(OwnerId, SubaccountId, SubaccountState)>();
       var backupVirtualAccountStates = List.nil<(OwnerId, VirtualAccountId, ?VirtualAccountState)>();
       var error: ?ProcessingError = null;
 
-      label validateMintsLoop
+      // cache owner ids per contribution. If some principal is unknown - return error
+      let ownersCache: [var ?OwnerId] = Array.tabulateVar<?OwnerId>(tx.map.size(), func (n: Nat) = owners.get(tx.map[n].owner));
       for (j in tx.map.keys()) {
-        let (contribution, oid) = (tx.map[j], ownersCache[j]);
+        let contribution = tx.map[j];
+        ownersCache[j] := owners.get(contribution.owner);
         // mints/burns should be only validated, they do not affect any subaccounts
         for (mintBurnAsset in u.iterConcat(contribution.mints.vals(), contribution.burns.vals())) {
           switch (mintBurnAsset) {
             case (#ft ft) {
               if (contribution.owner != ftControllers[ft.0]) {
-                error := ?#NotAController;
-                break validateMintsLoop;
+                return #err(#NotAController);
               };
             }
           };
@@ -438,7 +436,7 @@ module {
           };
         };
       };
-      
+
       switch (error) {
         case (?err) { 
           // revert original states. Since we used List.push, next loops will iterate list of backup states in reversed order,

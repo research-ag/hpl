@@ -50,6 +50,7 @@ module {
     #FeeError
   };
   public type Stats = Stats.Stats;
+  public type VirtualAccountUpdateObject = { backingSubaccountId: SubaccountId; assetBalance: Nat };
 
   // Owners are tracked via a "short id" which is a Nat
   // Short ids (aka owner ids) are issued consecutively
@@ -242,7 +243,7 @@ module {
         };
       };
     };
-    public func updateVirtualAccount(p: Principal, vid: VirtualAccountId, updates: { backingSubaccountId: SubaccountId; assetBalance: Nat }): Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; #UnknownSubaccount; #MismatchInAsset; #DeletedVirtualAccount }> {
+    public func updateVirtualAccount(p: Principal, vid: VirtualAccountId, updates: VirtualAccountUpdateObject): Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; #UnknownSubaccount; #MismatchInAsset; #DeletedVirtualAccount }> {
       switch (ownerId(p)) {
         case (#err err) #err(err);
         case (#ok oid) {
@@ -356,7 +357,7 @@ module {
       };
       var error: ?ProcessingError = null;
 
-      // cache owner ids per contribution. If some principal is unknown - return error
+      // cache owner ids per contribution for omitting searching it in the tree more than once
       let ownersCache: [var ?OwnerId] = Array.init<?OwnerId>(tx.map.size(), null);
       // loop which validates mint/burns, fills owners cache and processes all inflows
       label applyInflowsLoop
@@ -390,7 +391,7 @@ module {
           for (ci in tx.map.keys()) {
             let contrib = tx.map[ci];
             for ((sid, ast) in contrib.outflow.vals()) {
-              switch (processFlow(backup, tx.map[ci].owner, ownersCache[ci], sid, ast, false)) {
+              switch (processFlow(backup, contrib.owner, ownersCache[ci], sid, ast, false)) {
                 case (#err err) {
                   error := ?err;
                   break applyOutflowsLoop;

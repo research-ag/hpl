@@ -32,7 +32,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
     async ledger_.openNewAccounts(caller, n, assetId);
   public shared({caller}) func openVirtualAccount(state: Ledger.VirtualAccountState): async Result<VirtualAccountId, { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset; #NoSpaceForAccount; }> =
     async ledger_.openVirtualAccount(caller, state);
-  public shared({caller}) func updateVirtualAccount(vid: VirtualAccountId, updates: { backingSubaccountId: SubaccountId; assetBalance: Nat }): async Result<(), { #UnknownPrincipal; #UnknownSubaccount; #UnknownVirtualAccount; #DeletedVirtualAccount; #MismatchInAsset; }> =
+  public shared({caller}) func updateVirtualAccount(vid: VirtualAccountId, updates: Ledger.VirtualAccountUpdateObject): async Result<(), { #UnknownPrincipal; #UnknownSubaccount; #UnknownVirtualAccount; #DeletedVirtualAccount; #MismatchInAsset; }> =
     async ledger_.updateVirtualAccount(caller, vid, updates);
   public shared({caller}) func deleteVirtualAccount(vid: VirtualAccountId): async Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; }> =
     async ledger_.deleteVirtualAccount(caller, vid);

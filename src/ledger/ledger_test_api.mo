@@ -47,17 +47,17 @@ actor class TestLedgerAPI(initialAggregators : [Principal]) {
   // queries
   public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async ledger_.aggregatorPrincipal(aid);
   public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
-  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
+  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #UnknownSubaccount; }> = async ledger_.asset(caller, sid);
 
   public query func createTestBatch(owner: Principal, txAmount: Nat): async [Tx.Tx] {
     let tx: Tx.Tx = {
-      map = [{ owner = owner; inflow = [(0, #ft(0, 0))]; outflow = [(1, #ft(0, 0))]; mints = []; burns = []; memo = null }]
+      map = [{ owner = owner; inflow = [(#sub(0), #ft(0, 0))]; outflow = [(#sub(1), #ft(0, 0))]; mints = []; burns = []; memo = null }]
     };
     Array.freeze(Array.init<Tx.Tx>(txAmount, tx));
   };
 
-  public query func generateHeavyTx(startPrincipalNumber: Nat): async Tx.Tx {
-    TestUtils.generateHeavyTx(startPrincipalNumber);
+  public query func generateHeavyTx(startPrincipalNumber: Nat, settings: { appendMemo: Bool; failLastFlow: Bool }): async Tx.Tx {
+    TestUtils.generateHeavyTx(startPrincipalNumber, settings);
   };
 
   public func registerPrincipals(startPrincipalNumber: Nat, amount: Nat, subaccountsAmount: Nat, initialBalance: Nat): async () {

@@ -41,7 +41,7 @@ module {
               owner = p;
               mints = [];
               burns = [];
-              inflow = [(n, #ft(assetId, tokensAmount))];
+              inflow = [(#sub(n), #ft(assetId, tokensAmount))];
               outflow = [];
               memo = null;
             },

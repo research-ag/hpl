@@ -16,6 +16,7 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   type Result<X,Y> = R.Result<X,Y>;
   type AggregatorId = Ledger.AggregatorId;
   type SubaccountId = Ledger.SubaccountId;
+  type VirtualAccountId = Ledger.VirtualAccountId;
   type Batch = Ledger.Batch;
   type Asset = Ledger.Asset;
   type AssetId = Ledger.AssetId;
@@ -29,6 +30,12 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   */
   public shared({caller}) func openNewAccounts(n: Nat, assetId: Ledger.AssetId): async Result<SubaccountId, { #NoSpaceForPrincipal; #NoSpaceForSubaccount; #UnknownFtAsset }> =
     async ledger_.openNewAccounts(caller, n, assetId);
+  public shared({caller}) func openVirtualAccount(state: Ledger.VirtualAccountState): async Result<VirtualAccountId, { #UnknownPrincipal; #UnknownSubaccount; #MismatchInAsset; #NoSpaceForAccount; }> =
+    async ledger_.openVirtualAccount(caller, state);
+  public shared({caller}) func updateVirtualAccount(vid: VirtualAccountId, updates: Ledger.VirtualAccountUpdateObject): async Result<(), { #UnknownPrincipal; #UnknownSubaccount; #UnknownVirtualAccount; #DeletedVirtualAccount; #MismatchInAsset; }> =
+    async ledger_.updateVirtualAccount(caller, vid, updates);
+  public shared({caller}) func deleteVirtualAccount(vid: VirtualAccountId): async Result<(), { #UnknownPrincipal; #UnknownVirtualAccount; }> =
+    async ledger_.deleteVirtualAccount(caller, vid);
 
   /*
   Process a batch of transactions. Each transaction only executes if the following conditions are met:
@@ -67,7 +74,8 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
   // queries
   public query func aggregatorPrincipal(aid: AggregatorId): async Result<Principal, { #NotFound; }> = async ledger_.aggregatorPrincipal(aid);
   public shared query ({caller}) func nAccounts(): async Result<Nat, { #UnknownPrincipal; }> = async ledger_.nAccounts(caller);
-  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #SubaccountNotFound; }> = async ledger_.asset(caller, sid);
+  public shared query ({caller}) func asset(sid: SubaccountId): async Result<Ledger.SubaccountState, { #UnknownPrincipal; #UnknownSubaccount; }> = async ledger_.asset(caller, sid);
+  public shared query ({caller}) func virtualAccount(vid: VirtualAccountId): async Result<Ledger.VirtualAccountState, { #UnknownPrincipal; #UnknownVirtualAccount; #DeletedVirtualAccount; }> = async ledger_.virtualAccount(caller, vid);
 
   // admin interface
   // TODO admin-only authorization
@@ -90,12 +98,16 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
         #addAggregator : Any;
         #createFungibleToken : Any;
         #openNewAccounts : Any;
+        #openVirtualAccount : Any;
+        #updateVirtualAccount : Any;
+        #deleteVirtualAccount : Any;
         #processBatch : Any;
         #processImmediateTx : Any;
-	// queries
+	      // queries
         #aggregatorPrincipal : Any;
         #allAssets : Any;
         #asset : Any;
+        #virtualAccount : Any;
         #batchesHistory : Any;
         #nAccounts : Any;
         #stats : Any;

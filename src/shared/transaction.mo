@@ -21,6 +21,9 @@ module {
     
     // maximum value for the subaccount id allowed in a flow
     maxSubaccounts = C.maxSubaccounts;
+    
+    // maximum value for the virtual account id allowed in a flow
+    maxVirtualAccounts = C.maxVirtualAccounts;
 
     // maxmium value for the asset id allowed in an #ft flow
     maxAssets = C.maxAssets;
@@ -30,14 +33,24 @@ module {
   };
 
   public type SubaccountId = Nat;
+  public type VirtualAccountId = Nat;
+  // AccountReferences inside transactions are relative to the contributor principal in whose
+  // contribution they appear.
+  // A subaccount is fully specified by its subaccount id because its owner is implicitly defined
+  // by and equal to the contributor. 
+  // A virtual account fully specified by its virtual account id _and_ its owner because the contributor
+  // is, in general, not the owner. Instead, the contributor must be identical to the remote 
+  // principal of the virtual account. If it is not then the ledger will reject the tx.
+  public type AccountReference = { #sub: SubaccountId; #vir: (Principal, VirtualAccountId) };
   public type AssetId = Nat;
   public type Asset = { 
     #ft : (id : AssetId, quantity : Nat);
   };
+  // TODO re-check size estimation logic
   public type Contribution = {
     owner : Principal;
-    inflow : [(SubaccountId, Asset)];
-    outflow : [(SubaccountId, Asset)];
+    inflow : [(AccountReference, Asset)];
+    outflow : [(AccountReference, Asset)];
     mints : [Asset];
     burns : [Asset];
     memo : ?Blob
@@ -58,17 +71,16 @@ module {
     #FtQuantityTooLarge
   };
   public type FlowError = AssetError or {
-    #SubaccountIdTooLarge
+    #SubaccountIdTooLarge;
+    #VirtualAccountIdTooLarge;
   };
   public type ContributionError = FlowError or {
     #MemoTooLarge;
     #TooManyFlows;
-    #FlowsNotSorted 
   };
   public type TxError = ContributionError or { 
-    #TooManyContributions; 
-    #OwnersNotUnique;
-    #NonZeroAssetSum 
+    #TooManyContributions;
+    #NonZeroAssetSum;
   };
 
   type Result<X,Y> = R.Result<X,Y>;
@@ -89,49 +101,6 @@ module {
   func owners(tx : Tx) : [Principal] = 
     Array.map(tx.map, func(c : Contribution) : Principal {c.owner});
 
-  func isUnique(list : [Principal]) : Bool {
-    var i = 1;
-    while (i < list.size()) {
-      var j = 0;
-      while (j < i) {
-        if (list[i] == list[j]) {
-          return false
-        };
-        j += 1; 
-      };
-      i += 1;
-    }; 
-    true
-  };
-
-  func isStrictlyIncreasing(l : [Nat]) : Bool {
-    var i = 1;
-    while (i < l.size()) {
-      if (l[i] <= l[i-1]) {
-        return false
-      };
-      i += 1;
-    }; 
-    true
-  };
-
-  /** check that items in two sorted arrays with unique values are unique between each other
-  Example: isSortedArraysUnique<Nat>([0, 2, 4], [1, 3, 6, 7, 8], Nat.compare); => true
-  Example: isSortedArraysUnique<Nat>([0, 2, 4], [1, 3, 4, 7, 8], Nat.compare); => false
-  */
-  func isUniqueInBoth(a: [Nat], b: [Nat]) : Bool {
-    var i = 0;
-    var j = 0;
-    while (i < a.size() and j < b.size()) {
-      switch (Nat.compare(a[i],b[j])) {
-        case (#equal) return false;
-        case (#less) i += 1;
-        case (#greater) j += 1
-      }
-    };
-    true
-  };
-
   func validateAsset(a : Asset) : Result<(), AssetError> {
     switch a {
       case (#ft(id, quantity)) {
@@ -146,9 +115,18 @@ module {
     return #ok
   };
 
-  func validateFlow(f : (SubaccountId, Asset)) : Result<(), FlowError> {
-    if (f.0 >= constants.maxSubaccounts) {
-      return #err(#SubaccountIdTooLarge)
+  func validateFlow(f : (AccountReference, Asset)) : Result<(), FlowError> {
+    switch(f.0) {
+      case (#sub sid) {
+        if (sid >= constants.maxSubaccounts) {
+          return #err(#SubaccountIdTooLarge)
+        };
+      };
+      case (#vir virRef) {
+        if (virRef.1 >= constants.maxVirtualAccounts) {
+          return #err(#VirtualAccountIdTooLarge)
+        };
+      };
     };
     validateAsset(f.1);
   };
@@ -193,32 +171,15 @@ module {
         case (_) {}
       }
     };
-    // sorting of subaccount ids in inflow and outflow
-    let ids1 = Array.map<(Nat, Asset),Nat>(c.inflow, func(x) {x.0});
-    let ids2 = Array.map<(Nat, Asset),Nat>(c.outflow, func(x) {x.0});
-    if (not isStrictlyIncreasing(ids1) or not isStrictlyIncreasing(ids2)) {
-      return #err(#FlowsNotSorted)
-    };
-    // uniqueness of subaccount ids across inflow and outflow
-    // this algorithm works only because subaccount ids are strictly increasing in both arrays
-    if (not isUniqueInBoth(ids1, ids2)) {
-      return #err(#FlowsNotSorted);
-    };
     #ok
   };
 
   // validate tx, error describes why it is not valid
-  public func validate(tx: Tx, checkPrincipalUniqueness: Bool): Result<(), TxError> {
+  public func validate(tx: Tx): Result<(), TxError> {
     // number of contributions
     if (tx.map.size() > constants.maxContributions) {
       return #err(#TooManyContributions);
     };
-
-    // uniqueness of owners
-    if (checkPrincipalUniqueness and not isUnique(owners(tx))) {
-      return #err(#OwnersNotUnique)
-    };
-
     // validate each contribution in isolation
     for (c in tx.map.vals()) {
       switch (validateContribution(c)) {

@@ -3,21 +3,23 @@ type MintResult =
   variant {
     err: variant {
       AssetIdTooLarge;
-      FlowsNotSorted;
       FtQuantityTooLarge;
       InsufficientFunds;
       MemoTooLarge;
       MismatchInAsset;
+      MismatchInRemotePrincipal;
       MissingApproval;
       NonZeroAssetSum;
       NotAController;
-      OwnersNotUnique;
       SubaccountIdTooLarge;
+      VirtualAccountIdTooLarge;
       TooManyContributions;
       TooManyFlows;
       UnknownFtAsset;
       UnknownPrincipal;
       UnknownSubaccount;
+      UnknownVirtualAccount;
+      DeletedVirtualAccount;
       CallLedgerError;
     };
     ok: nat;

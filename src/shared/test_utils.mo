@@ -6,19 +6,25 @@ import Tx "transaction";
 
 module {
 
-  public func generateHeavyTx(startPrincipalNumber: Nat): Tx.Tx =
+  public func generateHeavyTx(startPrincipalNumber: Nat, settings: { appendMemo: Bool; failLastFlow: Bool }): Tx.Tx =
     {
       map = Array.tabulate<Tx.Contribution>(
         Tx.constants.maxContributions,
         func (i: Nat) = {
           owner = principalFromNat(startPrincipalNumber + i);
-          inflow = Array.tabulate<(Tx.SubaccountId, Tx.Asset)>(Tx.constants.maxFlows / 2, func (j: Nat) = (j, #ft(0, 10)));
-          outflow = Array.tabulate<(Tx.SubaccountId, Tx.Asset)>(Tx.constants.maxFlows / 2, func (j: Nat) = (j + Tx.constants.maxFlows / 2, #ft(0, 10)));
+          inflow = Array.tabulate<(Tx.AccountReference, Tx.Asset)>(Tx.constants.maxFlows / 2, func (j: Nat) = (#sub(j), #ft(0, 10)));
+          outflow = Array.tabulate<(Tx.AccountReference, Tx.Asset)>(
+            Tx.constants.maxFlows / 2, 
+            func (j: Nat) = (
+              #sub(j + Tx.constants.maxFlows / 2), 
+              #ft(0, if (settings.failLastFlow and j + 1 == Tx.constants.maxFlows / 2 and i + 1 == Tx.constants.maxContributions) 9999999999999 else 10)
+            )
+          );
           mints = [];
           burns = [];
-          memo = ?Blob.fromArray(Array.freeze(Array.init<Nat8>(Tx.constants.maxMemoBytes, 12)))
+          memo = if (settings.appendMemo) { ?Blob.fromArray(Array.freeze(Array.init<Nat8>(Tx.constants.maxMemoBytes, 12))) } else { null; };
         },
-      )
+      );
     };
 
   public func principalFromNat(n : Nat) : Principal {

@@ -103,8 +103,8 @@ actor class AggregatorTestAPI(ledger : Principal, ownId : Aggregator.AggregatorI
     createSimpleTx(sender, senderSubaccountId, receiver, receiverSubaccountId, amount);
   };
 
-  public query func generateHeavyTx(startPrincipalNumber: Nat): async Tx.Tx {
-    TestUtils.generateHeavyTx(startPrincipalNumber);
+  public query func generateHeavyTx(startPrincipalNumber: Nat, settings: { appendMemo: Bool; failLastFlow: Bool }): async Tx.Tx {
+    TestUtils.generateHeavyTx(startPrincipalNumber, settings);
   };
 
   func createSimpleTx(sender: Principal, senderSubaccountId: Tx.SubaccountId, receiver: Principal, receiverSubaccountId: Tx.SubaccountId, amount: Nat): Tx.Tx {
@@ -112,8 +112,8 @@ actor class AggregatorTestAPI(ledger : Principal, ownId : Aggregator.AggregatorI
       {
         map = [{
           owner = sender;
-          inflow = [ (receiverSubaccountId, #ft(0, amount)) ];
-          outflow = [ (senderSubaccountId, #ft(0, amount)) ];
+          inflow = [ (#sub(receiverSubaccountId), #ft(0, amount)) ];
+          outflow = [ (#sub(senderSubaccountId), #ft(0, amount)) ];
           mints = [];
           burns = [];
           memo = null;
@@ -124,13 +124,13 @@ actor class AggregatorTestAPI(ledger : Principal, ownId : Aggregator.AggregatorI
         map = [{
           owner = sender;
           inflow = [];
-          outflow = [ (senderSubaccountId, #ft(0, amount)) ];
+          outflow = [ (#sub(senderSubaccountId), #ft(0, amount)) ];
           mints = [];
           burns = [];
           memo = null;
         }, {
           owner = receiver;
-          inflow = [ (receiverSubaccountId, #ft(0, amount)) ];
+          inflow = [ (#sub(receiverSubaccountId), #ft(0, amount)) ];
           outflow = [];
           mints = [];
           burns = [];

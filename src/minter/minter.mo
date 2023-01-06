@@ -16,10 +16,11 @@ module {
   public type RefundError = { #RefundError; #NothingToRefund };
 
   public type MintError = Ledger.ImmediateTxError or { #CallLedgerError };
+  public type BurnError = Ledger.ImmediateTxError or { #DepositCyclesError; #CallLedgerError };
 
   public class Minter(ledger: LedgerInterface, ownPrincipal: Principal, assetId: Tx.AssetId) {
 
-    public func mint(caller: Principal, p: Principal, n: Tx.SubaccountId): async R.Result<Nat, MintError> {
+    public func mint(caller: Principal, accountOwner: Principal, accountId: Tx.VirtualAccountId): async R.Result<Nat, MintError> {
       // accept cycles
       let amount = Cycles.available();
       assert(amount > 0);
@@ -38,10 +39,10 @@ module {
               outflow = [];
               memo = null;
             }, {
-              owner = p;
+              owner = ownPrincipal;
               mints = [];
               burns = [];
-              inflow = [(#sub(n), #ft(assetId, tokensAmount))];
+              inflow = [(#vir(accountOwner, accountId), #ft(assetId, tokensAmount))];
               outflow = [];
               memo = null;
             },
@@ -60,14 +61,52 @@ module {
       }
     };
 
+    public func burn(caller: Principal, accountId: Tx.VirtualAccountId, amount: Nat, depositDestination: Principal): async R.Result<Nat, BurnError> {
+      let cyclesToRefund = amount;
+      try {
+        let burnResult = await ledger.processImmediateTx({
+          map = [
+            {
+              owner = ownPrincipal;
+              mints = [];
+              burns = [#ft(assetId, amount)];
+              inflow = [];
+              outflow = [];
+              memo = null;
+            }, {
+              owner = ownPrincipal;
+              mints = [];
+              burns = [];
+              inflow = [];
+              outflow = [(#vir(caller, accountId), #ft(assetId, amount))];
+              memo = null;
+            },
+          ]
+        });
+        switch(burnResult) {
+          case(#ok _) 
+            try {
+              await sendCyclesTo(depositDestination, amount);
+              #ok(cyclesToRefund);
+            } catch (err) {
+              addCreditedCycles(caller, amount);
+              #err(#DepositCyclesError);
+            };
+          case(#err e) #err(e);
+        };
+      } catch (err) {
+        #err(#CallLedgerError);
+      }
+    };
+
+    // FIXME will trap if total credit exceeds 2^128 cycles
     public func refundAll(caller: Principal): async R.Result<(), RefundError> {
       let credit = creditTable.get(caller);
       switch(credit) {
         case(?c) {
-          Cycles.add(c);
           creditTable.delete(caller);
           try {
-            let depositResult = await IC.deposit_cycles({ canister_id = caller });
+            await sendCyclesTo(caller, c);
             #ok();
           } catch (err) {
             addCreditedCycles(caller, c);
@@ -84,6 +123,11 @@ module {
         case(?c) creditTable.put(caller, c + amount);
         case(_) creditTable.put(caller, amount);
       };
+    };
+
+    private func sendCyclesTo(target: Principal, amount: Nat): async () {
+      Cycles.add(amount);
+      await IC.deposit_cycles({ canister_id = target });
     };
 
     // virtual canister for transfering cycles

@@ -85,7 +85,6 @@ For the cycle minter burn flow we use flow 2. A is the user, B is the Minter:
 Note:
 
 - In the ledger history we see a transfer from a subaccount of A to the burn account.
-- A could have deleted `(A, vir k)` before a refund transaction reaches the HPL. If that happens then B must log some credit for A locally.
 
 ## Example: mint with flow 2
 

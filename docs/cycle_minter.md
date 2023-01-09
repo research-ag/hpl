@@ -56,7 +56,7 @@ end
 Minter->>-HPL wallet: report result
 opt Refund credit
   HPL wallet->>+Minter: refund_to(P)
-  Minter->>User wallet: deposit cycles to caller
+  Minter->>User wallet: deposit cycles to P
   Minter->>-HPL wallet: report result
 end
 ```

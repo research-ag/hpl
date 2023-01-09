@@ -86,6 +86,11 @@ jobs:
         run: |
           ic-repl ./test_aggregator.sh
 
+      - name: Run aggregator load test
+        working-directory: ./test/performance_tests
+        run: |
+          export WALLET_ID=$(dfx identity get-wallet) && ic-repl ./test_minter.sh
+
       - name: update stats
         uses: stefanzweifel/git-auto-commit-action@v4
         with:

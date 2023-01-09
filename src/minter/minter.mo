@@ -24,10 +24,9 @@ module {
       // accept cycles
       let amount = Cycles.available();
       assert(amount > 0);
-      let accepted = Cycles.accept(amount);
-      assert(accepted == amount);
+      let tokensAmount = Cycles.accept(amount);
+      assert(tokensAmount == amount);
       // mint tokens
-      let tokensAmount = accepted;
       try {
         let mintResult = await ledger.processImmediateTx({
           map = [
@@ -62,9 +61,8 @@ module {
     };
 
     public func burn(caller: Principal, accountId: Tx.VirtualAccountId, amount: Nat, depositDestination: Principal): async R.Result<Nat, BurnError> {
-      let cyclesToRefund = amount;
-      try {
-        let burnResult = await ledger.processImmediateTx({
+      let burnResult = try {
+        await ledger.processImmediateTx({
           map = [
             {
               owner = ownPrincipal;
@@ -83,20 +81,20 @@ module {
             },
           ]
         });
-        switch(burnResult) {
-          case(#ok _) 
-            try {
-              await sendCyclesTo(depositDestination, amount);
-              #ok(cyclesToRefund);
-            } catch (err) {
-              addCreditedCycles(caller, amount);
-              #err(#DepositCyclesError);
-            };
-          case(#err e) #err(e);
-        };
       } catch (err) {
         #err(#CallLedgerError);
-      }
+      };
+      switch(burnResult) {
+        case(#ok _) 
+          try {
+            await* sendCyclesTo(depositDestination, amount);
+            #ok(amount);
+          } catch (err) {
+            addCreditedCycles(caller, amount);
+            #err(#DepositCyclesError);
+          };
+        case(#err e) #err(e);
+      };
     };
 
     // FIXME will trap if total credit exceeds 2^128 cycles
@@ -106,7 +104,7 @@ module {
         case(?c) {
           creditTable.delete(caller);
           try {
-            await sendCyclesTo(caller, c);
+            await* sendCyclesTo(caller, c);
             #ok();
           } catch (err) {
             addCreditedCycles(caller, c);
@@ -125,7 +123,7 @@ module {
       };
     };
 
-    private func sendCyclesTo(target: Principal, amount: Nat): async () {
+    private func sendCyclesTo(target: Principal, amount: Nat): async* () {
       Cycles.add(amount);
       await IC.deposit_cycles({ canister_id = target });
     };

@@ -7,7 +7,7 @@
 [LED] Heavy tx with failed last outflow: 99_012_375
 [AGG] submit simple Tx: 14_595
 [AGG] submit + auto-enqueue simple Tx: 12_048
-[AGG] submit heavy tx: 132_600_000
+[AGG] submit heavy tx: 132_595_995
 [AGG] approve + equeue simple Tx: 795
 [AGG] reject simple Tx: 796
 [AGG] prepare big batch: 2_493_480

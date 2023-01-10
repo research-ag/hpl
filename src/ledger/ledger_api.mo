@@ -124,6 +124,9 @@ actor class LedgerAPI(initialAggregators : [Principal]) {
       case (#processImmediateTx _) { true; };
       // public functions
       case (#openNewAccounts _) { arg.size() <= 16 };
+      case (#openVirtualAccount _) { true; };
+      case (#updateVirtualAccount _) { true; };
+      case (#deleteVirtualAccount _) { true; };
       case (_) { false };
     };
   }

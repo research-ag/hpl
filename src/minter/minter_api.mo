@@ -48,38 +48,40 @@ actor class MinterAPI(ledger : ?Principal) = self {
     ret
   };
 
-  public query func assetId(): async ?Nat {
-    let toAssetId : ((Principal, Nat)) -> Nat = func x = x.1;
-    Option.map(savedArgs, toAssetId);
+  public query func assetId(): async Nat = async switch (savedArgs) {
+    case (?(p, n)) n;
+    case (null) Debug.trap("not initialized");
   };
   public query func ledgerPrincipal(): async Principal = async Principal.fromActor(Ledger);
 
-  public shared({caller}) func mint(p: Principal, n: Tx.SubaccountId): async R.Result<Nat, Minter.MintError> {
+  public shared({caller}) func mint(accountOwner: Principal, accountId: Tx.VirtualAccountId): async R.Result<Nat, Minter.MintError> = async
     switch(minter) {
-      case (?m) await m.mint(caller, p, n);
+      case (?m) await* m.mint(caller, accountOwner, accountId);
       case (_) Debug.trap("not initialized");
     };
-  };
 
-  public shared({caller}) func refundAll(): async R.Result<(), Minter.RefundError> {
+  public shared({caller}) func burn(accountId: Tx.VirtualAccountId, amount: Nat, depositDestination: Principal): async R.Result<Nat, Minter.BurnError> = async
     switch(minter) {
-      case (?m) await m.refundAll(caller);
+      case (?m) await* m.burn(caller, accountId, amount, depositDestination);
       case (_) Debug.trap("not initialized");
     };
-  };
 
-  system func preupgrade() {
+  public shared({caller}) func refundAll(): async R.Result<(), Minter.RefundError> = async
+    switch(minter) {
+      case (?m) await* m.refundAll(caller);
+      case (_) Debug.trap("not initialized");
+    };
+
+  system func preupgrade() =
     switch(minter) {
       case(?m) stableCreditTable := m.serializeCreditTable();
       case(_) { };
     };
-  };
 
-  system func postupgrade() {
+  system func postupgrade() =
     switch(minter) {
       case(?m) m.deserializeCreditTable(stableCreditTable);
       case(_) { };
     };
-  };
 
 };

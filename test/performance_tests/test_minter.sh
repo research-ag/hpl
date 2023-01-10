@@ -33,16 +33,18 @@ let assetId = call minter.assetId();
 // register user and accounts
 identity user;
 let sid = call ledger.openNewAccounts(1, assetId);
-let vid = call ledger.openVirtualAccount(record { asset = variant { ft = record { 0; 1000000 } }; remotePrincipal = wallet; backingSubaccountId = sid.ok });
+let vid = call ledger.openVirtualAccount(record { asset = variant { ft = record { 0; 1000000 } }; remotePrincipal = minter; backingSubaccountId = sid.ok });
 
 // mint tokens
 identity wallet_controller;
-let res = call wallet.wallet_call(
+let mintResultRaw = call wallet.wallet_call(
   record {
-    args = encode (user, vid.ok);
-    cycles = 50000;
+    args = encode minter.mint(user, vid.ok);
+    cycles = 500;
     method_name = "mint";
     canister = minter;
   }
 );
-res;
+let mintResult = decode as minter.mint mintResultRaw.Ok.return;
+
+assert mintResult.ok == (500 : nat);

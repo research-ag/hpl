@@ -56,19 +56,19 @@ actor class MinterAPI(ledger : ?Principal) = self {
 
   public shared({caller}) func mint(accountOwner: Principal, accountId: Tx.VirtualAccountId): async R.Result<Nat, Minter.MintError> = async
     switch(minter) {
-      case (?m) await m.mint(caller, accountOwner, accountId);
+      case (?m) await* m.mint(caller, accountOwner, accountId);
       case (_) Debug.trap("not initialized");
     };
 
   public shared({caller}) func burn(accountId: Tx.VirtualAccountId, amount: Nat, depositDestination: Principal): async R.Result<Nat, Minter.BurnError> = async
     switch(minter) {
-      case (?m) await m.burn(caller, accountId, amount, depositDestination);
+      case (?m) await* m.burn(caller, accountId, amount, depositDestination);
       case (_) Debug.trap("not initialized");
     };
 
   public shared({caller}) func refundAll(): async R.Result<(), Minter.RefundError> = async
     switch(minter) {
-      case (?m) await m.refundAll(caller);
+      case (?m) await* m.refundAll(caller);
       case (_) Debug.trap("not initialized");
     };
 

@@ -20,7 +20,7 @@ module {
 
   public class Minter(ledger: LedgerInterface, ownPrincipal: Principal, assetId: Tx.AssetId) {
 
-    public func mint(caller: Principal, accountOwner: Principal, accountId: Tx.VirtualAccountId): async R.Result<Nat, MintError> {
+    public func mint(caller: Principal, accountOwner: Principal, accountId: Tx.VirtualAccountId): async* R.Result<Nat, MintError> {
       // accept cycles
       let amount = Cycles.available();
       assert(amount > 0);
@@ -50,17 +50,17 @@ module {
         switch(mintResult) {
           case(#ok _) #ok(tokensAmount);
           case(#err e) {
-            addCreditedCycles(caller, amount);
+            addCreditedCycles(caller, tokensAmount);
             #err(e);
           };
         };
       } catch (err) {
-        addCreditedCycles(caller, amount);
+        addCreditedCycles(caller, tokensAmount);
         #err(#CallLedgerError);
       }
     };
 
-    public func burn(caller: Principal, accountId: Tx.VirtualAccountId, amount: Nat, depositDestination: Principal): async R.Result<Nat, BurnError> {
+    public func burn(caller: Principal, accountId: Tx.VirtualAccountId, amount: Nat, depositDestination: Principal): async* R.Result<Nat, BurnError> {
       let burnResult = try {
         await ledger.processImmediateTx({
           map = [
@@ -98,7 +98,7 @@ module {
     };
 
     // FIXME will trap if total credit exceeds 2^128 cycles
-    public func refundAll(caller: Principal): async R.Result<(), RefundError> {
+    public func refundAll(caller: Principal): async* R.Result<(), RefundError> {
       let credit = creditTable.get(caller);
       switch(credit) {
         case(?c) {

@@ -30,19 +30,19 @@ let minter = mid.canister_id;
 call minter.init();
 let assetId = call minter.assetId();
 
-// register user and account
+// register user and accounts
 identity user;
 let sid = call ledger.openNewAccounts(1, assetId);
-call ledger.openVirtualAccount(record { asset = variant { ft = record { assetId; 1000000 } }; backingSubaccountId = sid.ok; remotePrincipal = wallet });
+let vid = call ledger.openVirtualAccount(record { asset = variant { ft = record { 0; 1000000 } }; remotePrincipal = wallet; backingSubaccountId = sid.ok });
 
-// mint token
-//   identity wallet_controller;
-//   let tx = call wallet.wallet_call(
-//     record {
-//       args = encode (user, 0);
-//       cycles = 500;
-//       method_name = "mint";
-//       canister = minter;
-//     }
-//   );
-//   tx;
+// mint tokens
+identity wallet_controller;
+let res = call wallet.wallet_call(
+  record {
+    args = encode (user, vid.ok);
+    cycles = 50000;
+    method_name = "mint";
+    canister = minter;
+  }
+);
+res;
